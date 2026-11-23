@@ -877,7 +877,7 @@
     "connectionColor": {
       "title": "Colore della connessione",
       "bottomBar": "Barra colorata in basso",
-      "bottomBarDesc": "Mostra una barra spessa con il colore della connessione lungo il bordo inferiore della finestra, per distinguere più facilmente le connessioni. Azzurro quando nessuna connessione è selezionata."
+      "bottomBarDesc": "Mostra una barra spessa con il colore della connessione lungo il bordo inferiore della finestra, per distinguere più facilmente le connessioni."
     },
     "dataGrid": {
       "title": "Griglia dati",

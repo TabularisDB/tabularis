@@ -838,7 +838,7 @@
     "connectionColor": {
       "title": "Verbindungsfarbe",
       "bottomBar": "Farbleiste am unteren Rand",
-      "bottomBarDesc": "Zeigt am unteren Fensterrand eine dicke Leiste in der Farbe der Verbindung an, damit sich Verbindungen leichter unterscheiden lassen. Hellblau, wenn keine Verbindung ausgewählt ist."
+      "bottomBarDesc": "Zeigt am unteren Fensterrand eine dicke Leiste in der Farbe der Verbindung an, damit sich Verbindungen leichter unterscheiden lassen."
     },
     "dataGrid": {
       "zebraStripes": "Abwechselnder Zeilenhintergrund",

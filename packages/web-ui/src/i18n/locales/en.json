@@ -872,7 +872,7 @@
     "connectionColor": {
       "title": "Connection color",
       "bottomBar": "Color bar at the bottom",
-      "bottomBarDesc": "Show a thick bar in the connection's color along the bottom of the window, so connections are easier to tell apart. Light blue when no connection is selected."
+      "bottomBarDesc": "Show a thick bar in the connection's color along the bottom of the window, so connections are easier to tell apart."
     },
     "dataGrid": {
       "title": "Data Grid",

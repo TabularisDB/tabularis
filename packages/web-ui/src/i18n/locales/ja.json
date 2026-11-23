@@ -853,7 +853,7 @@
     "connectionColor": {
       "title": "接続の色",
       "bottomBar": "下部のカラーバー",
-      "bottomBarDesc": "ウィンドウの下端に接続の色の太いバーを表示し、接続を見分けやすくします。接続が選択されていない場合は水色になります。"
+      "bottomBarDesc": "ウィンドウの下端に接続の色の太いバーを表示し、接続を見分けやすくします。"
     },
     "dataGrid": {
       "zebraStripes": "交互の行背景",

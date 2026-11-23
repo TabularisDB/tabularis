@@ -1,17 +1,15 @@
-/** Fraction of the connection color kept when brightening it (the rest is white). */
-const BRIGHTEN_PERCENT = 80;
+/** Share of the connection color kept in the bar (the rest is the theme's text color). */
+const ACCENT_PERCENT = 80;
+
+/** Bar color when no connection is active: the theme's primary accent, like the editor tab bar. */
+const DEFAULT_ACCENT = 'var(--accent-primary)';
 
 /**
- * Bar color when no connection is active, the same in light and dark themes.
- * A named CSS color, since it is not a theme choice.
- */
-const DEFAULT_COLOR = 'lightskyblue';
-
-/**
- * Color of the bottom bar: a brighter version of the active connection's
- * accent color, or light blue when there is none.
+ * Color of the bottom bar: the active connection's accent color (or the
+ * theme accent when there is none), mixed toward the theme's primary text
+ * color so it stands out more against the background. On dark themes this
+ * makes it lighter, on light themes a little deeper.
  */
 export function resolveConnectionBarColor(accent: string | null | undefined): string {
-    if (!accent) return DEFAULT_COLOR;
-    return `color-mix(in srgb, ${accent} ${BRIGHTEN_PERCENT}%, white)`;
+    return `color-mix(in srgb, ${accent || DEFAULT_ACCENT} ${ACCENT_PERCENT}%, var(--text-primary))`;
 }

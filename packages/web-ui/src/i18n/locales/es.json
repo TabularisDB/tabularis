@@ -869,7 +869,7 @@
     "connectionColor": {
       "title": "Color de la conexión",
       "bottomBar": "Barra de color en la parte inferior",
-      "bottomBarDesc": "Muestra una barra gruesa con el color de la conexión en la parte inferior de la ventana para distinguir mejor las conexiones. Azul claro cuando no hay ninguna conexión seleccionada."
+      "bottomBarDesc": "Muestra una barra gruesa con el color de la conexión en la parte inferior de la ventana para distinguir mejor las conexiones."
     },
     "dataGrid": {
       "zebraStripes": "Fondo de filas alternas",

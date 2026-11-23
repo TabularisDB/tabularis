@@ -25,9 +25,9 @@ describe('ConnectionColorBar', () => {
         expect(bar()).toBeNull();
     });
 
-    it('is light blue when no connection is selected', () => {
+    it('uses the theme accent when no connection is selected', () => {
         render(<ConnectionColorBar />);
-        expect(bar()?.getAttribute('style')).toContain('lightskyblue');
+        expect(bar()?.getAttribute('style')).toContain('var(--accent-primary)');
     });
 
     it('uses the active connection accent color', () => {
@@ -43,7 +43,6 @@ describe('ConnectionColorBar', () => {
             ],
         };
         render(<ConnectionColorBar />);
-        // jsdom normalizes #f97316 to rgb(249, 115, 22)
-        expect(bar()?.getAttribute('style')).toContain('rgb(249, 115, 22)');
+        expect(bar()?.getAttribute('style')).toContain('#f97316');
     });
 });
