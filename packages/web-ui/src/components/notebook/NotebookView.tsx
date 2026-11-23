@@ -1098,6 +1098,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     return (
         <div className="flex flex-col h-full relative">
             <ConfirmModal
+                key={dangerousQuery?.confirmationId}
                 isOpen={!!dangerousQuery}
                 onClose={() => resolveDangerousQuery(false)}
                 onConfirm={() => resolveDangerousQuery(true)}

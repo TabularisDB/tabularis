@@ -11,6 +11,10 @@ export interface DangerousQueryInfo {
     count: number;
 }
 
+export interface PendingDangerousQuery extends DangerousQueryInfo {
+    confirmationId: number;
+}
+
 /** i18n key pairs for each danger kind, shared by every consumer of the guard. */
 export const DANGEROUS_QUERY_I18N: Record<DangerousQueryKind, {title: string; message: string}> = {
     'no-where': {
@@ -28,7 +32,7 @@ export const DANGEROUS_QUERY_I18N: Record<DangerousQueryKind, {title: string; me
 };
 
 interface QueuedConfirmation {
-    info: DangerousQueryInfo;
+    info: PendingDangerousQuery;
     resolve: (confirmed: boolean) => void;
 }
 
@@ -42,13 +46,15 @@ interface QueuedConfirmation {
  * safety prompt handles the action.
  */
 export function useDangerousQueryGuard(enabled = true) {
-    const [pending, setPending] = useState<DangerousQueryInfo | null>(null);
+    const [pending, setPending] = useState<PendingDangerousQuery | null>(null);
     const queueRef = useRef<QueuedConfirmation[]>([]);
+    const nextConfirmationId = useRef(0);
 
     const requestConfirmation = useCallback((info: DangerousQueryInfo): Promise<boolean> => {
         return new Promise((resolve) => {
-            queueRef.current.push({info, resolve});
-            if (queueRef.current.length === 1) setPending(info);
+            const pendingInfo = {...info, confirmationId: nextConfirmationId.current++};
+            queueRef.current.push({info: pendingInfo, resolve});
+            if (queueRef.current.length === 1) setPending(pendingInfo);
         });
     }, []);
 

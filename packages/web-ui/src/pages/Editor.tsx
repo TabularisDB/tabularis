@@ -7084,6 +7084,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 onClose={() => setIsQuerySelectionModalOpen(false)}
             />
             <ConfirmModal
+                key={dangerousQuery?.confirmationId}
                 isOpen={!!dangerousQuery}
                 onClose={() => resolveDangerousQuery(false)}
                 onConfirm={() => resolveDangerousQuery(true)}
