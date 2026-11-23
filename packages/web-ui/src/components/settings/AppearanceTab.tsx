@@ -32,6 +32,9 @@ export function AppearanceTab() {
     const platform = usePlatformCapabilities();
     const {allThemes} = useTheme();
     const [subTab, setSubTab] = useState<'general' | 'editor'>('general');
+    // Font size is applied app-wide on release; while dragging we only preview it,
+    // so the layout (and the slider under the cursor) stays put.
+    const [fontSizeDraft, setFontSizeDraft] = useState<number | null>(null);
 
     return (
         <div>
@@ -120,6 +123,7 @@ export function AppearanceTab() {
                             <SettingSlider
                                 value={settings.fontSize || 14}
                                 onChange={(v) => updateSetting('fontSize', v)}
+                                onDraftChange={setFontSizeDraft}
                                 min={10}
                                 max={20}
                                 step={1}
@@ -130,7 +134,9 @@ export function AppearanceTab() {
                             <p className="text-xs text-muted mb-2">{t('settings.preview')}:</p>
                             <p
                                 className="text-primary"
-                                style={{fontSize: `${settings.fontSize || 14}px`}}
+                                style={{
+                                    fontSize: `${fontSizeDraft ?? (settings.fontSize || 14)}px`,
+                                }}
                             >
                                 Aa Bb Cc 123 - {t('settings.fontPreviewText')}
                             </p>
