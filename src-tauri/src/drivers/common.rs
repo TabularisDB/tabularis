@@ -17,7 +17,8 @@ pub use query::{
     calculate_query_timing_from_start, extract_user_limit, extract_user_offset,
     is_explainable_query, is_explainable_query_for, is_select_query, is_select_query_for,
     returns_result_set, returns_result_set_for, strip_leading_sql_comments,
-    strip_leading_sql_comments_for, strip_limit_offset, transaction_effect, TransactionEffect,
+    strip_leading_sql_comments_for, strip_limit_offset, transaction_effect, ScanRules,
+    TransactionEffect,
 };
 pub use routines::{
     generic_drop_routine_sql, generic_routine_call_sql, quote_qualified, render_sql_literal,
