@@ -117,10 +117,22 @@ pub(crate) async fn check_connections(
     tracker: &mut HealthTracker,
     connection_ids: Vec<String>,
 ) {
-    if connection_ids.is_empty() {
+    // Logout and session expiry drop the session but leave its connections
+    // registered. One that no session holds is not checked: with auto-reconnect
+    // on, recovering it would reopen its pools only to close them again.
+    let mut held = Vec::with_capacity(connection_ids.len());
+    for connection_id in connection_ids {
+        if owners(state, &connection_id).is_empty() {
+            crate::health_check::unregister_connection(&connection_id).await;
+            tracker.forget(&connection_id);
+        } else {
+            held.push(connection_id);
+        }
+    }
+    if held.is_empty() {
         return;
     }
-    let results = futures::future::join_all(connection_ids.into_iter().map(|id| async move {
+    let results = futures::future::join_all(held.into_iter().map(|id| async move {
         let (lease, outcome) = ping_saved(runtime, state, &id).await;
         (id, lease, outcome)
     }))
@@ -275,6 +287,7 @@ async fn recover_connection(
 
     match attempt {
         Ok(_) if owners(state, connection_id).is_empty() => {
+            crate::health_check::unregister_connection(connection_id).await;
             close_connection_resources(runtime, &[], connection_id).await;
         }
         Ok(released_sessions) => {

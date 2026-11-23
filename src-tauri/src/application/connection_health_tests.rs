@@ -329,6 +329,74 @@ async fn auto_reconnect_reopens_a_failed_web_connection() {
     fixture.finish().await;
 }
 
+/// Logout and session expiry (`clear_session`) drop the session from
+/// `web_active_connections` but leave the connection registered. With
+/// auto-reconnect on, the loop used to reconnect it, find no owner, close the
+/// pool again, and repeat every `FAILURE_THRESHOLD` ticks.
+#[tokio::test]
+async fn a_connection_no_session_holds_is_unregistered_not_reconnected() {
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    let fixture = Fixture::new().await;
+    crate::application::persistence::save_config(
+        &fixture.runtime,
+        crate::config::AppConfig {
+            auto_reconnect: Some(true),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let session = Uuid::new_v4();
+    fixture.open_in(session).await;
+    fixture
+        .state
+        .web_active_connections
+        .lock()
+        .unwrap()
+        .remove(&session);
+    fixture.close_pool().await;
+    fixture.events.clear();
+
+    let mut tracker = tracker();
+    for cycle in 0..3 {
+        fixture.ticks(&mut tracker, FAILURE_THRESHOLD).await;
+        assert!(
+            !fixture.registered().await,
+            "still registered after cycle {cycle}"
+        );
+        assert!(!fixture.has_pool().await, "pool reopened in cycle {cycle}");
+    }
+    assert!(fixture.events.sent(CONNECTION_LIFECYCLE_EVENT).is_empty());
+    assert!(fixture
+        .events
+        .sent(CONNECTION_HEALTH_FAILED_EVENT)
+        .is_empty());
+    fixture.finish().await;
+}
+
+/// With auto-reconnect off, a connection no session holds is not pinged
+/// either: it leaves the registry on the next tick.
+#[tokio::test]
+async fn a_healthy_connection_no_session_holds_leaves_the_registry() {
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    let fixture = Fixture::new().await;
+    let session = Uuid::new_v4();
+    fixture.open_in(session).await;
+    fixture
+        .state
+        .web_active_connections
+        .lock()
+        .unwrap()
+        .remove(&session);
+    fixture.events.clear();
+
+    let mut tracker = tracker();
+    fixture.ticks(&mut tracker, 1).await;
+
+    assert!(!fixture.registered().await);
+    assert!(fixture.events.sent(CONNECTION_LIFECYCLE_EVENT).is_empty());
+    fixture.finish().await;
+}
+
 #[test]
 fn a_disabled_or_unset_interval_reads_from_the_config() {
     let temp = tempfile::tempdir().unwrap();
