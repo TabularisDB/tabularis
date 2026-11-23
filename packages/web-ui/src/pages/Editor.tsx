@@ -5634,7 +5634,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 <div
                     className={
                         verticalTabs
-                            ? 'order-first flex h-9 shrink-0 border-b border-default'
+                            ? 'order-first flex h-9 shrink-0 border-b border-default [&>:first-child]:border-l-0'
                             : 'contents'
                     }
                 >
