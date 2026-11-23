@@ -250,16 +250,21 @@ const FieldInput = ({
     autoFocus?: boolean;
     className?: string;
 }) => {
+    const inputId = useId();
     const [showPassword, setShowPassword] = useState(false);
     const isPassword = type === 'password';
 
     return (
         <div className={clsx('flex flex-col gap-1', className)}>
-            <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
+            <label
+                htmlFor={inputId}
+                className="text-[10px] uppercase font-semibold tracking-wider text-muted"
+            >
                 {label}
             </label>
             <div className="relative group">
                 <input
+                    id={inputId}
                     type={isPassword ? (showPassword ? 'text' : 'password') : type}
                     value={value ?? ''}
                     onChange={(e) => onChange(e.target.value)}
