@@ -1,7 +1,7 @@
 use super::recorded_save::{
     image_select_sql, restore_update_sql, unsupported_reason, ColumnMeta, TableMeta,
-    UNSUPPORTED_KEY_MISMATCH, UNSUPPORTED_NOT_A_BASE_TABLE, UNSUPPORTED_NO_PRIMARY_KEY,
-    UNSUPPORTED_UNKNOWN_COLUMN,
+    UNSUPPORTED_INHERITANCE_PARENT, UNSUPPORTED_KEY_MISMATCH, UNSUPPORTED_NOT_A_BASE_TABLE,
+    UNSUPPORTED_NO_PRIMARY_KEY, UNSUPPORTED_UNKNOWN_COLUMN,
 };
 use serde_json::json;
 use std::collections::HashMap;
@@ -9,6 +9,7 @@ use std::collections::HashMap;
 fn meta(relkind: &str, pk: &[&str], columns: &[&str]) -> TableMeta {
     TableMeta {
         relkind: relkind.to_string(),
+        has_children: false,
         has_triggers: false,
         pk_columns: pk.iter().map(|c| c.to_string()).collect(),
         columns: columns
@@ -97,7 +98,7 @@ fn rejects_unknown_columns() {
 fn image_select_reads_text_with_a_size_guard_and_optional_lock() {
     let columns = vec!["we\"ird".to_string(), "b".to_string()];
     let sql = image_select_sql("s", "t", &columns, "\"id\" = $1", true);
-    assert!(sql.starts_with("SELECT (\"we\"\"ird\" IS NULL), CASE WHEN octet_length(\"we\"\"ird\"::text) > 65536 THEN NULL ELSE \"we\"\"ird\"::text END, (\"b\" IS NULL)"));
+    assert!(sql.starts_with("SELECT (\"we\"\"ird\" IS NOT DISTINCT FROM NULL), CASE WHEN octet_length(\"we\"\"ird\"::text) > 65536 THEN NULL ELSE \"we\"\"ird\"::text END, (\"b\" IS NOT DISTINCT FROM NULL)"));
     assert!(sql.ends_with("FROM \"s\".\"t\" WHERE \"id\" = $1 FOR UPDATE"));
     assert!(!image_select_sql("s", "t", &columns, "\"id\" = $1", false).contains("FOR UPDATE"));
 }
@@ -113,5 +114,15 @@ fn restore_update_casts_text_parameters_to_the_column_type() {
     assert_eq!(
         sql,
         "UPDATE \"s\".\"t\" SET \"price\" = CAST($1 AS numeric(10,2)), \"blob\" = CAST($2 AS bytea) WHERE \"id\" = $3"
+    );
+}
+
+#[test]
+fn refuses_an_inheritance_parent() {
+    let mut meta = meta("r", &["id"], &["id", "status"]);
+    meta.has_children = true;
+    assert_eq!(
+        unsupported_reason(Some(&meta), &key(&["id"]), &["status".to_string()]),
+        Some(UNSUPPORTED_INHERITANCE_PARENT)
     );
 }

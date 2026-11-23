@@ -3860,7 +3860,7 @@
     "recording": {
       "label": "Registrar as edições salvas da grade",
       "description": "Guarda os valores antes e depois de cada edição salva para que você possa revisá-los e restaurá-los. Somente atualizações de uma única tabela PostgreSQL com chave primária são registradas.",
-      "storage": "Os valores registrados são armazenados sem criptografia neste dispositivo, em um arquivo que só você pode ler, apenas para esta conexão. Registros antigos são removidos automaticamente.",
+      "storage": "Os valores registrados são armazenados sem criptografia na pasta de dados do Tabularis, na máquina que executa o Tabularis, em um arquivo legível apenas pela conta que o executa. Os registros valem apenas para esta conexão. Registros antigos são removidos automaticamente.",
       "unsupported": "O driver desta conexão não consegue registrar edições salvas."
     },
     "empty": "Nenhuma alteração salva foi registrada para esta tabela.",

@@ -3553,7 +3553,7 @@
     "recording": {
       "label": "Registrar las ediciones guardadas de la cuadrícula",
       "description": "Conserva los valores anteriores y posteriores de cada edición guardada para que puedas revisarlos y restaurarlos. Solo se registran las actualizaciones de una única tabla de PostgreSQL con clave primaria.",
-      "storage": "Los valores registrados se almacenan sin cifrar en este dispositivo, en un archivo que solo tú puedes leer y solo para esta conexión. Los registros antiguos se eliminan automáticamente.",
+      "storage": "Los valores registrados se almacenan sin cifrar en la carpeta de datos de Tabularis, en el equipo donde se ejecuta Tabularis, en un archivo que solo puede leer la cuenta que lo ejecuta. Los registros se aplican solo a esta conexión. Los registros antiguos se eliminan automáticamente.",
       "unsupported": "El controlador de esta conexión no puede registrar las ediciones guardadas."
     },
     "empty": "No se ha registrado ningún cambio guardado para esta tabla.",

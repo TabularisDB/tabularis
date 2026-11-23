@@ -3652,7 +3652,7 @@
     "recording": {
       "label": "Registra le modifiche salvate della griglia",
       "description": "Conserva i valori prima e dopo ogni modifica salvata, così puoi controllarli e ripristinarli. Vengono registrati solo gli aggiornamenti di una singola tabella PostgreSQL con chiave primaria.",
-      "storage": "I valori registrati sono archiviati senza cifratura su questo dispositivo, in un file leggibile solo da te e solo per questa connessione. I record vecchi vengono rimossi automaticamente.",
+      "storage": "I valori registrati sono archiviati senza cifratura nella cartella dati di Tabularis, sulla macchina che esegue Tabularis, in un file leggibile solo dall'account che lo esegue. I record riguardano solo questa connessione. I record vecchi vengono rimossi automaticamente.",
       "unsupported": "Il driver di questa connessione non può registrare le modifiche salvate."
     },
     "empty": "Nessuna modifica salvata è stata registrata per questa tabella.",

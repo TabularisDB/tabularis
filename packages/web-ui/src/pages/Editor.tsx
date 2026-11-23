@@ -651,6 +651,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         {query: string; index: number}[]
     >([]);
     const [isSaveHistoryOpen, setIsSaveHistoryOpen] = useState(false);
+    // The tab the history was opened from; a restore may finish after the
+    // user has moved to another tab.
+    const saveHistoryTabIdRef = useRef<string | null>(null);
     const [isDmlPreviewOpen, setIsDmlPreviewOpen] = useState(false);
     const [dmlPreview, setDmlPreview] = useState<DmlPreview | null>(null);
     const [dmlPreviewError, setDmlPreviewError] = useState<string | null>(null);
@@ -4353,11 +4356,16 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
             // Updates
             if (updates.length > 0) {
+                // The save still goes ahead when the status cannot be read, but
+                // the user is told it may not have been recorded.
                 const saveStatus = isKeyless
                     ? null
                     : await client
                           .call('get_save_history_status', {connectionId: activeConnectionId})
-                          .catch(() => null);
+                          .catch(() => {
+                              recordingFailures++;
+                              return null;
+                          });
                 if (isKeyless) {
                     // Without a primary key the WHERE clause matches every identity
                     // column, so each UPDATE invalidates the previous values used to
@@ -4522,22 +4530,17 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     // Reload the grid after a restore, keeping whatever is still staged.
     const handleSaveHistoryRestored = useCallback(() => {
-        if (!activeTab) return;
-        void runQuery(
-            undefined,
-            activeTab.page,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            {
-                pendingChanges: activeTab.pendingChanges,
-                pendingDeletions: activeTab.pendingDeletions,
-                pendingInsertions: activeTab.pendingInsertions,
-            },
-        );
-    }, [activeTab, runQuery]);
+        const originId = saveHistoryTabIdRef.current;
+        const tab = originId
+            ? tabsRef.current.find((candidate) => candidate.id === originId)
+            : null;
+        if (!tab) return;
+        void runQuery(undefined, tab.page, tab.id, undefined, undefined, undefined, undefined, {
+            pendingChanges: tab.pendingChanges,
+            pendingDeletions: tab.pendingDeletions,
+            pendingInsertions: tab.pendingInsertions,
+        });
+    }, [runQuery]);
 
     // Cmd/Ctrl+S: commit the active tab's pending grid changes (like TablePlus).
     useEffect(() => {
@@ -6805,7 +6808,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 {saveHistorySupported && (
                                                     <button
                                                         type="button"
-                                                        onClick={() => setIsSaveHistoryOpen(true)}
+                                                        onClick={() => {
+                                                            saveHistoryTabIdRef.current =
+                                                                activeTab?.id ?? null;
+                                                            setIsSaveHistoryOpen(true);
+                                                        }}
                                                         className="flex items-center justify-center w-7 h-7 text-secondary hover:text-primary hover:bg-surface-secondary rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                                                         title={t('saveHistory.openAction')}
                                                         aria-label={t('saveHistory.openAction')}

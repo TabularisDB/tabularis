@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useId, useState} from 'react';
+import {useCallback, useEffect, useId, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {History, Loader2, Trash2, X} from 'lucide-react';
 import {Modal} from '@/components/ui/Modal';
@@ -101,7 +101,12 @@ export const SaveHistoryModal = ({
         [showAlert, t],
     );
 
+    // Responses of superseded requests are dropped.
+    const loadGeneration = useRef(0);
+    const planGeneration = useRef(0);
+
     const reload = useCallback(async () => {
+        const generation = ++loadGeneration.current;
         try {
             const [status, records] = await Promise.all([
                 client.call('get_save_history_status', {connectionId}),
@@ -112,14 +117,21 @@ export const SaveHistoryModal = ({
                     ...(database ? {database} : {}),
                 }),
             ]);
+            if (generation !== loadGeneration.current) return;
             setData({key: requestKey, status, records});
         } catch (error) {
+            if (generation !== loadGeneration.current) return;
             failure('saveHistory.errors.load', error);
         }
     }, [client, connectionId, table, schema, database, requestKey, failure]);
 
     useEffect(() => {
-        if (isOpen) void reload();
+        if (isOpen) {
+            void reload();
+        } else {
+            loadGeneration.current++;
+            planGeneration.current++;
+        }
     }, [isOpen, reload]);
 
     const current = data?.key === requestKey ? data : null;
@@ -128,6 +140,8 @@ export const SaveHistoryModal = ({
     const planLoading = !!selected && !plan && !planFailed;
 
     const handleClose = useCallback(() => {
+        loadGeneration.current++;
+        planGeneration.current++;
         setSelectedId(null);
         setPlanState(null);
         setPlanFailed(null);
@@ -136,11 +150,14 @@ export const SaveHistoryModal = ({
 
     const loadPlan = useCallback(
         async (recordId: string) => {
+            const generation = ++planGeneration.current;
             try {
                 const next = await client.call('plan_save_restore', {connectionId, recordId});
+                if (generation !== planGeneration.current) return;
                 setPlanState(next);
                 setPlanFailed(null);
             } catch (error) {
+                if (generation !== planGeneration.current) return;
                 setPlanFailed(String(error));
                 failure('saveHistory.errors.plan', error);
             }

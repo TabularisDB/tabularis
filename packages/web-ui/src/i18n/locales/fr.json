@@ -3795,7 +3795,7 @@
     "recording": {
       "label": "Enregistrer l'historique des modifications de la grille",
       "description": "Conserve les valeurs avant et après chaque modification enregistrée afin que vous puissiez les examiner et les restaurer. Seules les mises à jour d'une seule table PostgreSQL ayant une clé primaire sont enregistrées.",
-      "storage": "Les valeurs enregistrées sont stockées sans chiffrement sur cet appareil, dans un fichier que vous seul pouvez lire, pour cette connexion uniquement. Les anciens enregistrements sont supprimés automatiquement.",
+      "storage": "Les valeurs enregistrées sont stockées sans chiffrement dans le dossier de données de Tabularis, sur la machine qui exécute Tabularis, dans un fichier lisible uniquement par le compte qui l'exécute. Les enregistrements ne concernent que cette connexion. Les anciens enregistrements sont supprimés automatiquement.",
       "unsupported": "Le pilote de cette connexion ne peut pas enregistrer les modifications."
     },
     "empty": "Aucune modification enregistrée pour cette table.",

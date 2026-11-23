@@ -878,57 +878,84 @@ async fn prepare_update(
     schema: &str,
     max_blob_size: u64,
 ) -> Result<PreparedUpdate, String> {
-    let column_data_type = match get_column_data_type(pool, schema, table, col_name).await {
-        Ok(data_type) => data_type,
-        Err(err) => {
-            log::debug!(
-                "Could not load PostgreSQL column metadata for {}.{}.{}: {}",
-                schema,
-                table,
-                col_name,
-                err
-            );
-            None
-        }
-    };
-    // get_column_data_type already unfolds 'USER-DEFINED' to the real udt_name,
-    // so hstore columns report as plain "hstore" here.
-    let hstore_oid = if column_data_type.as_deref() == Some("hstore") {
-        get_hstore_oid_for_column(pool, schema, table, col_name)
-            .await
-            .unwrap_or(None)
-    } else {
-        None
-    };
+    prepare_row_update(
+        pool,
+        table,
+        pk_map,
+        vec![(col_name.to_string(), new_val)],
+        schema,
+        max_blob_size,
+    )
+    .await
+}
 
+/// One `UPDATE` assigning every change of a row, matched by the key as it
+/// is before the update.
+async fn prepare_row_update(
+    pool: &deadpool_postgres::Pool,
+    table: &str,
+    pk_map: &HashMap<String, serde_json::Value>,
+    changes: Vec<(String, serde_json::Value)>,
+    schema: &str,
+    max_blob_size: u64,
+) -> Result<PreparedUpdate, String> {
     let enum_types = get_enum_column_types(pool, schema, table).await;
-    let new_val_for_context = new_val.clone();
-
-    let mut query = format!(
-        "UPDATE \"{}\".\"{}\" SET \"{}\" = ",
-        escape_identifier(schema),
-        escape_identifier(table),
-        escape_identifier(col_name)
-    );
-
+    let mut assignments = Vec::with_capacity(changes.len());
     let mut bound_params: Vec<(Box<dyn tokio_postgres::types::ToSql + Send + Sync>, Type)> =
         Vec::new();
+    let mut column_data_type = None;
 
-    let bound = bind_pg_value(
-        new_val,
-        bound_params.len() + 1,
-        PgValueOptions {
-            column_type: column_data_type.as_deref(),
-            enum_type: enum_types.get(col_name).map(|s| s.as_str()),
-            max_blob_size,
-            allow_default: true,
-            hstore_oid,
-        },
-    )?;
-    query.push_str(&bound.sql);
-    if let Some(param) = bound.param {
-        bound_params.push(param);
+    for (col_name, new_val) in &changes {
+        let data_type = match get_column_data_type(pool, schema, table, col_name).await {
+            Ok(data_type) => data_type,
+            Err(err) => {
+                log::debug!(
+                    "Could not load PostgreSQL column metadata for {}.{}.{}: {}",
+                    schema,
+                    table,
+                    col_name,
+                    err
+                );
+                None
+            }
+        };
+        // get_column_data_type already unfolds 'USER-DEFINED' to the real udt_name,
+        // so hstore columns report as plain "hstore" here.
+        let hstore_oid = if data_type.as_deref() == Some("hstore") {
+            get_hstore_oid_for_column(pool, schema, table, col_name)
+                .await
+                .unwrap_or(None)
+        } else {
+            None
+        };
+        let bound = bind_pg_value(
+            new_val.clone(),
+            bound_params.len() + 1,
+            PgValueOptions {
+                column_type: data_type.as_deref(),
+                enum_type: enum_types.get(col_name.as_str()).map(|s| s.as_str()),
+                max_blob_size,
+                allow_default: true,
+                hstore_oid,
+            },
+        )?;
+        assignments.push(format!(
+            "\"{}\" = {}",
+            escape_identifier(col_name),
+            bound.sql
+        ));
+        if let Some(param) = bound.param {
+            bound_params.push(param);
+        }
+        column_data_type = data_type;
     }
+
+    let mut query = format!(
+        "UPDATE \"{}\".\"{}\" SET {}",
+        escape_identifier(schema),
+        escape_identifier(table),
+        assignments.join(", ")
+    );
 
     let pk_types = get_pk_column_types(pool, schema, table, pk_map).await;
     let (predicate, pk_params) = build_pk_map_predicate(pk_map, &pk_types, bound_params.len() + 1)?;
@@ -946,13 +973,26 @@ async fn prepare_update(
         .cloned()
         .unwrap_or(serde_json::Value::Null);
 
+    let (col_name, new_val, column_data_type) = match changes.as_slice() {
+        [(name, value)] => (name.clone(), value.clone(), column_data_type),
+        _ => (
+            changes
+                .iter()
+                .map(|(name, _)| name.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+            serde_json::Value::Object(changes.iter().cloned().collect()),
+            None,
+        ),
+    };
+
     Ok(PreparedUpdate {
         query,
         bound_params,
         schema: schema.to_string(),
         table: table.to_string(),
-        col_name: col_name.to_string(),
-        new_val: new_val_for_context,
+        col_name,
+        new_val,
         column_data_type,
         first_pk_col,
         first_pk_val,

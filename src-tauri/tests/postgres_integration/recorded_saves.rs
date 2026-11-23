@@ -144,7 +144,7 @@ async fn test_recorded_update_captures_verified_before_and_after_values() {
     )
     .await
     .unwrap();
-    assert_eq!(update.affected, 2);
+    assert_eq!(update.affected, 1);
     let capture = captured(update);
     assert!(!capture.key_changed);
     assert!(!capture.has_triggers);
@@ -406,8 +406,14 @@ async fn test_restore_gives_up_on_a_row_that_stays_locked() {
         .await
         .unwrap();
 
-    let outcome = restore_capture("rec_locked", 1, &capture).await;
+    // The server's 5s lock timeout must end the wait, not the test's deadline.
+    let outcome = tokio::time::timeout(
+        Duration::from_secs(20),
+        restore_capture("rec_locked", 1, &capture),
+    )
+    .await;
     holder.batch_execute("ROLLBACK").await.unwrap();
+    let outcome = outcome.expect("the restore must stop waiting once the lock timeout expires");
     let error = outcome.expect_err("a locked row must not hang the restore");
     assert!(error.contains("lock timeout"), "{error}");
     assert_eq!(
@@ -496,6 +502,70 @@ async fn test_changing_the_key_is_recorded_as_a_move_that_cannot_be_restored() {
 
 #[tokio::test]
 #[ignore]
+async fn test_a_key_change_keeps_the_other_edits_of_the_same_save() {
+    require_pg!();
+    fresh_orders("rec_move_all").await;
+    let update = save(
+        "rec_move_all",
+        1,
+        vec![("id", json!(50)), ("status", json!("closed"))],
+    )
+    .await
+    .unwrap();
+    assert_eq!(update.affected, 1);
+    assert_eq!(
+        scalar("SELECT status FROM rec_move_all WHERE id = 50").await,
+        json!("closed")
+    );
+    sql("DROP TABLE rec_move_all").await;
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_an_inheritance_parent_is_written_but_not_recorded() {
+    require_pg!();
+    sql("DROP TABLE IF EXISTS rec_child").await;
+    fresh_orders("rec_parent").await;
+    sql("CREATE TABLE rec_child () INHERITS (rec_parent)").await;
+    let update = save("rec_parent", 1, vec![("status", json!("closed"))])
+        .await
+        .unwrap();
+    assert_eq!(skipped(&update), "inheritance_parent");
+    assert_eq!(
+        scalar("SELECT status FROM rec_parent WHERE id = 1").await,
+        json!("closed")
+    );
+    sql("DROP TABLE rec_child").await;
+    sql("DROP TABLE rec_parent").await;
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_a_cascading_foreign_key_on_a_recorded_column_blocks_restore() {
+    require_pg!();
+    sql("DROP TABLE IF EXISTS rec_fk_child").await;
+    sql("DROP TABLE IF EXISTS rec_fk_parent").await;
+    sql("CREATE TABLE rec_fk_parent (id integer PRIMARY KEY, code text UNIQUE, note text)").await;
+    sql("INSERT INTO rec_fk_parent VALUES (1, 'A', 'x')").await;
+    sql("CREATE TABLE rec_fk_child (id integer PRIMARY KEY, code text REFERENCES rec_fk_parent (code) ON UPDATE CASCADE)").await;
+    let code = captured(
+        save("rec_fk_parent", 1, vec![("code", json!("B"))])
+            .await
+            .unwrap(),
+    );
+    assert!(code.has_triggers, "a cascade is an untracked side effect");
+    let note = captured(
+        save("rec_fk_parent", 1, vec![("note", json!("y"))])
+            .await
+            .unwrap(),
+    );
+    assert!(!note.has_triggers, "unrelated columns stay restorable");
+    sql("DROP TABLE rec_fk_child").await;
+    sql("DROP TABLE rec_fk_parent").await;
+}
+
+#[tokio::test]
+#[ignore]
 async fn test_tables_with_triggers_and_generated_columns_are_flagged() {
     require_pg!();
     fresh_orders("rec_trigger").await;
@@ -566,7 +636,7 @@ async fn test_a_failing_change_rolls_back_the_whole_row() {
     let outcome = save(
         "rec_partial",
         1,
-        vec![("status", json!("closed")), ("qty", json!("not a number"))],
+        vec![("status", json!("closed")), ("qty", json!("100000000"))],
     )
     .await;
     assert!(outcome.is_err());
@@ -744,7 +814,7 @@ mod application_flow {
         )
         .await
         .unwrap();
-        assert_eq!(saved.affected, 2);
+        assert_eq!(saved.affected, 1);
         let record_id = saved.record_id.expect("the save is recorded");
 
         let unchanged = change(&runtime, "rec_flow", 2, vec![("status", json!("open"))])

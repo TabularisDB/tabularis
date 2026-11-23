@@ -6,8 +6,8 @@
 //! never logged, bounded by the limits in [`super::model`] and removed with
 //! their connection. A file that cannot be parsed is reported and left alone.
 
-use super::model::SaveHistoryFile;
 use super::model::SaveRecord;
+use super::model::{SaveHistoryFile, MAX_STORE_BYTES};
 use super::plan::prune;
 use crate::application::productivity::validate_storage_key;
 use chrono::Utc;
@@ -89,6 +89,14 @@ pub fn is_enabled(data_dir: &Path, connection_id: &str) -> Result<bool, String> 
 }
 
 pub fn append(data_dir: &Path, connection_id: &str, record: SaveRecord) -> Result<(), String> {
+    // Pruning always keeps the newest record, so an oversized one would
+    // otherwise push out the whole history and still exceed the limit.
+    let size = serde_json::to_vec(&record)
+        .map(|bytes| bytes.len())
+        .map_err(|error| error.to_string())?;
+    if size > MAX_STORE_BYTES {
+        return Err("The recorded save is too large to keep".to_string());
+    }
     update(data_dir, connection_id, |file| {
         file.records.push(record);
         Ok(())

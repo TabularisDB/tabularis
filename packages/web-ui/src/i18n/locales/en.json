@@ -3856,7 +3856,7 @@
     "recording": {
       "label": "Record saved grid edits",
       "description": "Keeps the values before and after each saved edit so you can review and restore them. Only updates to a single PostgreSQL table with a primary key are recorded.",
-      "storage": "Recorded values are stored unencrypted on this device, in a file only you can read, for this connection only. Old records are removed automatically.",
+      "storage": "Recorded values are stored unencrypted in the Tabularis data folder on the machine that runs Tabularis, in a file readable only by the account that runs it. Records apply to this connection only. Old records are removed automatically.",
       "unsupported": "This connection's driver cannot record saved edits."
     },
     "empty": "No saved changes have been recorded for this table.",

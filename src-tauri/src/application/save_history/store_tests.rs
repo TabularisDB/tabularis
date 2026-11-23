@@ -117,3 +117,22 @@ fn prunes_while_writing() {
         .collect();
     assert_eq!(ids, vec!["new"]);
 }
+
+#[test]
+fn refuses_a_record_larger_than_the_store_limit_and_keeps_the_history() {
+    let dir = tempfile::tempdir().unwrap();
+    append(dir.path(), "c1", record("keep")).unwrap();
+    let mut huge = record("huge");
+    huge.key = BTreeMap::from([(
+        "id".to_string(),
+        json!("k".repeat(super::model::MAX_STORE_BYTES)),
+    )]);
+    assert!(append(dir.path(), "c1", huge).is_err());
+    let ids: Vec<_> = load(dir.path(), "c1")
+        .unwrap()
+        .records
+        .into_iter()
+        .map(|r| r.id)
+        .collect();
+    assert_eq!(ids, vec!["keep"]);
+}

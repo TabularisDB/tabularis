@@ -3737,7 +3737,7 @@
     "recording": {
       "label": "I-record ang mga na-save na pag-edit sa grid",
       "description": "Iniingatan ang mga halaga bago at pagkatapos ng bawat na-save na pag-edit para masuri at maibalik mo ang mga ito. Mga update lang sa iisang PostgreSQL table na may primary key ang nire-record.",
-      "storage": "Ang mga naka-record na halaga ay iniimbak nang walang encryption sa device na ito, sa file na ikaw lang ang makakabasa, para sa koneksyong ito lang. Awtomatikong inaalis ang mga lumang record.",
+      "storage": "Ang mga naka-record na halaga ay iniimbak nang walang encryption sa data folder ng Tabularis sa makinang nagpapatakbo ng Tabularis, sa file na mababasa lang ng account na nagpapatakbo nito. Para sa koneksyong ito lang ang mga record. Awtomatikong inaalis ang mga lumang record.",
       "unsupported": "Hindi kayang i-record ng driver ng koneksyong ito ang mga na-save na pag-edit."
     },
     "empty": "Walang naka-record na na-save na pagbabago para sa table na ito.",

@@ -3789,7 +3789,7 @@
     "recording": {
       "label": "Ghi lại các chỉnh sửa lưới đã lưu",
       "description": "Giữ các giá trị trước và sau mỗi chỉnh sửa đã lưu để bạn xem lại và khôi phục. Chỉ ghi lại các cập nhật trên một bảng PostgreSQL duy nhất có khóa chính.",
-      "storage": "Các giá trị được ghi lại lưu không mã hóa trên thiết bị này, trong một tệp chỉ bạn đọc được, chỉ cho kết nối này. Bản ghi cũ được xóa tự động.",
+      "storage": "Các giá trị được ghi lại lưu không mã hóa trong thư mục dữ liệu của Tabularis trên máy chạy Tabularis, trong một tệp chỉ tài khoản chạy Tabularis đọc được. Bản ghi chỉ áp dụng cho kết nối này. Bản ghi cũ được xóa tự động.",
       "unsupported": "Trình điều khiển của kết nối này không thể ghi lại các chỉnh sửa đã lưu."
     },
     "empty": "Chưa có thay đổi đã lưu nào được ghi lại cho bảng này.",

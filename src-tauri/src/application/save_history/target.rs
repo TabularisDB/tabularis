@@ -25,6 +25,7 @@ pub fn expand_target(
                 .ok_or_else(|| format!("SSH connection with ID {id} not found"))?;
             expanded.ssh_host = Some(ssh.host);
             expanded.ssh_port = Some(ssh.port);
+            expanded.ssh_user = Some(ssh.user);
         }
     }
     if expanded.k8s_enabled.unwrap_or(false) {
@@ -80,6 +81,7 @@ pub fn target_fingerprint(params: &ConnectionParams) -> String {
         params.ssh_enabled.unwrap_or(false),
         normalized(&params.ssh_host),
         params.ssh_port,
+        params.ssh_user.as_deref().map(str::trim),
         params.k8s_enabled.unwrap_or(false),
         params.k8s_kubeconfig_path,
         params.k8s_context,

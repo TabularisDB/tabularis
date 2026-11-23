@@ -213,6 +213,9 @@ pub async fn save_row(
 ) -> Result<RecordedSaveResponse, String> {
     let data_dir = runtime.paths.data_dir();
     let enabled = store::is_enabled(data_dir, connection_id).unwrap_or(false);
+    // Fingerprinted before the write, so the record names the target the
+    // write was started against.
+    let target = current_target(runtime, connection_id);
     let (driver, params) = connect(runtime, session_id, connection_id, database.as_deref()).await?;
     if !enabled || !driver.supports_recorded_saves() {
         let mut affected = 0;
@@ -263,13 +266,14 @@ pub async fn save_row(
         }
     };
     let key: BTreeMap<String, Value> = pk_map.into_iter().collect();
-    // Pin the database the write went to, so a later change of the
-    // connection's selected database cannot redirect a restore.
-    let database = match &params.database {
-        DatabaseSelection::Single(name) if !name.is_empty() => Some(name.clone()),
-        _ => database,
+    // Pin the database the write went to (the first one of a multiple
+    // selection), so a later change of the connection's selected database
+    // cannot redirect a restore.
+    let database = match params.database.primary() {
+        "" => database,
+        name => Some(name.to_string()),
     };
-    let record = match current_target(runtime, connection_id) {
+    let record = match target {
         Ok(target) => build_record(
             Uuid::new_v4().to_string(),
             Utc::now().to_rfc3339(),
@@ -314,6 +318,14 @@ pub async fn save_row(
     }
 }
 
+/// The history without the records the retention policy has already expired,
+/// which are only removed from the file on the next write.
+fn load_retained(runtime: &RuntimeContext, connection_id: &str) -> Result<SaveHistoryFile, String> {
+    let mut file = store::load(runtime.paths.data_dir(), connection_id)?;
+    prune(&mut file, Utc::now());
+    Ok(file)
+}
+
 /// Newest first.
 pub fn list(
     runtime: &RuntimeContext,
@@ -322,7 +334,7 @@ pub fn list(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<Vec<SaveRecord>, String> {
-    let mut records = store::load(runtime.paths.data_dir(), connection_id)?.records;
+    let mut records = load_retained(runtime, connection_id)?.records;
     records.retain(|record| {
         table.as_ref().map_or(true, |table| &record.table == table)
             && (schema.is_none() || record.schema == schema)
@@ -345,7 +357,7 @@ fn find_record(
     connection_id: &str,
     record_id: &str,
 ) -> Result<SaveRecord, String> {
-    store::load(runtime.paths.data_dir(), connection_id)?
+    load_retained(runtime, connection_id)?
         .records
         .into_iter()
         .find(|record| record.id == record_id)

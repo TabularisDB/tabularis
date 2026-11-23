@@ -3624,7 +3624,7 @@
     "recording": {
       "label": "Gespeicherte Grid-Änderungen aufzeichnen",
       "description": "Speichert die Werte vor und nach jeder gespeicherten Änderung, damit du sie prüfen und wiederherstellen kannst. Aufgezeichnet werden nur Updates einer einzelnen PostgreSQL-Tabelle mit Primärschlüssel.",
-      "storage": "Aufgezeichnete Werte werden unverschlüsselt auf diesem Gerät gespeichert, in einer Datei, die nur du lesen kannst, und nur für diese Verbindung. Alte Einträge werden automatisch entfernt.",
+      "storage": "Aufgezeichnete Werte werden unverschlüsselt im Tabularis-Datenordner auf dem Rechner gespeichert, auf dem Tabularis läuft, in einer Datei, die nur das ausführende Konto lesen kann. Die Einträge gelten nur für diese Verbindung. Alte Einträge werden automatisch entfernt.",
       "unsupported": "Der Treiber dieser Verbindung kann gespeicherte Änderungen nicht aufzeichnen."
     },
     "empty": "Für diese Tabelle wurden keine gespeicherten Änderungen aufgezeichnet.",

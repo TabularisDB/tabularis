@@ -68,6 +68,10 @@ fn changes_when_a_tunnel_points_elsewhere() {
     let mut ssh = base();
     ssh.ssh_enabled = Some(true);
     ssh.ssh_host = Some("bastion-a".to_string());
+    ssh.ssh_user = Some("prod".to_string());
+    let mut relogin = ssh.clone();
+    relogin.ssh_user = Some("staging".to_string());
+    assert_ne!(target_fingerprint(&ssh), target_fingerprint(&relogin));
     let mut moved = ssh.clone();
     moved.ssh_host = Some("bastion-b".to_string());
     assert_ne!(target_fingerprint(&base()), target_fingerprint(&ssh));

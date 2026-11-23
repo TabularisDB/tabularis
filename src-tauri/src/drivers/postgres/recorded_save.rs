@@ -10,7 +10,7 @@
 use super::binding::{build_pk_map_predicate, TypedPgParam};
 use super::client::{format_pg_error, get_client};
 use super::helpers::escape_identifier;
-use super::{get_pk_column_types, prepare_update};
+use super::{get_pk_column_types, prepare_row_update};
 use crate::drivers::recorded_save::{
     CellImage, ColumnCapture, RecordedCapture, RecordedUpdate, RestoreColumn, RestoreOutcome,
     RowCapture, MAX_CAPTURED_VALUE_BYTES, OMITTED_KEY_CHANGED, OMITTED_TOO_LARGE,
@@ -22,12 +22,23 @@ use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{GenericClient, Row};
 
 const RESTORE_LOCK_TIMEOUT_SQL: &str = "SET LOCAL lock_timeout = '5s'";
+/// Text forms depend on session settings. Every image is read, compared and
+/// cast back under these, so a restore cannot read a date or a float
+/// differently from how it was captured.
+const CAPTURE_FORMAT_SQL: &str = "SET LOCAL DateStyle = 'ISO, MDY'; SET LOCAL IntervalStyle = 'postgres'; SET LOCAL extra_float_digits = 3; SET LOCAL bytea_output = 'hex'";
+const CAPTURE_FORMAT_RESET_SQL: &str =
+    "RESET DateStyle; RESET IntervalStyle; RESET extra_float_digits; RESET bytea_output";
 const OMITTED_ROW_MISSING: &str = "row_missing";
 
 pub(super) const UNSUPPORTED_NOT_A_BASE_TABLE: &str = "not_a_base_table";
 pub(super) const UNSUPPORTED_NO_PRIMARY_KEY: &str = "no_primary_key";
 pub(super) const UNSUPPORTED_KEY_MISMATCH: &str = "key_mismatch";
 pub(super) const UNSUPPORTED_UNKNOWN_COLUMN: &str = "unknown_column";
+pub(super) const UNSUPPORTED_INHERITANCE_PARENT: &str = "inheritance_parent";
+/// Raised when the catalog cannot be read, e.g. on a server older than
+/// PostgreSQL 12, which has no `pg_attribute.attgenerated`.
+pub(super) const UNSUPPORTED_METADATA_UNAVAILABLE: &str = "metadata_unavailable";
+const SKIPPED_CAPTURE_UNAVAILABLE: &str = "capture_unavailable";
 
 pub(super) struct ColumnMeta {
     pub data_type: String,
@@ -36,6 +47,10 @@ pub(super) struct ColumnMeta {
 
 pub(super) struct TableMeta {
     pub relkind: String,
+    /// Inheritance children would be read and updated through the parent.
+    pub has_children: bool,
+    /// Triggers, or foreign-key actions on the recorded columns: effects a
+    /// restore does not track.
     pub has_triggers: bool,
     pub pk_columns: Vec<String>,
     pub columns: HashMap<String, ColumnMeta>,
@@ -53,6 +68,9 @@ pub(super) fn unsupported_reason(
     };
     if meta.relkind != "r" {
         return Some(UNSUPPORTED_NOT_A_BASE_TABLE);
+    }
+    if meta.has_children {
+        return Some(UNSUPPORTED_INHERITANCE_PARENT);
     }
     if meta.pk_columns.is_empty() {
         return Some(UNSUPPORTED_NO_PRIMARY_KEY);
@@ -90,7 +108,7 @@ pub(super) fn image_select_sql(
         .map(|name| {
             let column = format!("\"{}\"", escape_identifier(name));
             format!(
-                "({column} IS NULL), CASE WHEN octet_length({column}::text) > {MAX_CAPTURED_VALUE_BYTES} THEN NULL ELSE {column}::text END"
+                "({column} IS NOT DISTINCT FROM NULL), CASE WHEN octet_length({column}::text) > {MAX_CAPTURED_VALUE_BYTES} THEN NULL ELSE {column}::text END"
             )
         })
         .collect();
@@ -181,6 +199,44 @@ async fn select_images(
     }
 }
 
+/// Reads images under the capture format inside a savepoint. A failure that
+/// only concerns reading (no `SELECT` privilege on a column, say) is handed
+/// back and leaves the surrounding transaction usable.
+async fn select_images_isolated(
+    tx: &mut deadpool_postgres::Transaction<'_>,
+    sql: &str,
+    key_params: &[TypedPgParam],
+    count: usize,
+) -> Result<Result<Option<Vec<CellImage>>, String>, String> {
+    let savepoint = tx.transaction().await.map_err(|e| format_pg_error(&e))?;
+    let read = async {
+        savepoint
+            .batch_execute(CAPTURE_FORMAT_SQL)
+            .await
+            .map_err(|e| format_pg_error(&e))?;
+        let images = select_images(&*savepoint, sql, key_params, count).await?;
+        savepoint
+            .batch_execute(CAPTURE_FORMAT_RESET_SQL)
+            .await
+            .map_err(|e| format_pg_error(&e))?;
+        Ok::<_, String>(images)
+    }
+    .await;
+    match read {
+        Ok(images) => {
+            savepoint.commit().await.map_err(|e| format_pg_error(&e))?;
+            Ok(Ok(images))
+        }
+        Err(error) => {
+            savepoint
+                .rollback()
+                .await
+                .map_err(|e| format_pg_error(&e))?;
+            Ok(Err(error))
+        }
+    }
+}
+
 async fn load_table_meta(
     client: &impl GenericClient,
     schema: &str,
@@ -190,7 +246,8 @@ async fn load_table_meta(
     let rows = client
         .query(
             "SELECT c.oid, c.relkind::text, \
-EXISTS (SELECT 1 FROM pg_trigger t WHERE t.tgrelid = c.oid AND NOT t.tgisinternal AND t.tgenabled <> 'D') \
+EXISTS (SELECT 1 FROM pg_trigger t WHERE t.tgrelid = c.oid AND NOT t.tgisinternal AND t.tgenabled <> 'D'), \
+EXISTS (SELECT 1 FROM pg_inherits h WHERE h.inhparent = c.oid) \
 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace \
 WHERE n.nspname = $1 AND c.relname = $2",
             &[&schema, &table],
@@ -203,12 +260,14 @@ WHERE n.nspname = $1 AND c.relname = $2",
     let oid: u32 = row.get(0);
     let relkind: String = row.get(1);
     let has_triggers: bool = row.get(2);
+    let has_children: bool = row.get(3);
 
     let pk_columns = client
         .query(
             "SELECT a.attname::text FROM pg_index i \
-JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY (i.indkey) \
-WHERE i.indrelid = $1 AND i.indisprimary ORDER BY a.attname::text",
+CROSS JOIN LATERAL unnest(i.indkey::int2[]) WITH ORDINALITY AS k(attnum, ord) \
+JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum \
+WHERE i.indrelid = $1 AND i.indisprimary AND k.ord <= i.indnkeyatts ORDER BY a.attname::text",
             &[&oid],
         )
         .await
@@ -218,6 +277,16 @@ WHERE i.indrelid = $1 AND i.indisprimary ORDER BY a.attname::text",
         .collect();
 
     let wanted: Vec<String> = columns.to_vec();
+    let has_fk_actions: bool = client
+        .query_one(
+            "SELECT EXISTS (SELECT 1 FROM pg_constraint c \
+JOIN pg_attribute a ON a.attrelid = c.confrelid AND a.attnum = ANY (c.confkey) \
+WHERE c.confrelid = $1 AND c.contype = 'f' AND c.confupdtype IN ('c', 'n', 'd') AND a.attname::text = ANY ($2))",
+            &[&oid, &wanted],
+        )
+        .await
+        .map_err(|e| format_pg_error(&e))?
+        .get(0);
     let columns = client
         .query(
             "SELECT a.attname::text, format_type(a.atttypid, a.atttypmod), a.attgenerated::text <> '' \
@@ -241,7 +310,8 @@ WHERE a.attrelid = $1 AND a.attnum > 0 AND NOT a.attisdropped AND a.attname::tex
 
     Ok(Some(TableMeta {
         relkind,
-        has_triggers,
+        has_children,
+        has_triggers: has_triggers || has_fk_actions,
         pk_columns,
         columns,
     }))
@@ -262,26 +332,25 @@ pub(super) async fn update_row_recorded(
     let names: Vec<String> = changes.iter().map(|(name, _)| name.clone()).collect();
 
     // Everything that needs the pool is done before the transaction takes a
-    // connection of its own.
-    let mut prepared = Vec::with_capacity(changes.len());
-    for (name, value) in changes {
-        prepared
-            .push(prepare_update(&pool, table, pk_map, &name, value, schema, max_blob_size).await?);
-    }
+    // connection of its own. All columns go into one UPDATE, so a changed key
+    // cannot leave the other assignments without a row to match.
+    let prepared = prepare_row_update(&pool, table, pk_map, changes, schema, max_blob_size).await?;
     let pk_types = get_pk_column_types(&pool, schema, table, pk_map).await;
     let (predicate, key_params) = build_pk_map_predicate(pk_map, &pk_types, 1)?;
 
     let mut client = get_client(&pool).await?;
-    let meta = match load_table_meta(&**client, schema, table, &names).await {
-        Ok(meta) => meta,
+    let (meta, mut unsupported) = match load_table_meta(&**client, schema, table, &names).await {
+        Ok(meta) => {
+            let reason = unsupported_reason(meta.as_ref(), pk_map, &names);
+            (meta, reason)
+        }
         Err(error) => {
             log::debug!("Could not inspect {schema}.{table} for a recorded save: {error}");
-            None
+            (None, Some(UNSUPPORTED_METADATA_UNAVAILABLE))
         }
     };
-    let unsupported = unsupported_reason(meta.as_ref(), pk_map, &names);
 
-    let tx = client
+    let mut tx = client
         .transaction()
         .await
         .map_err(|e| format_pg_error(&e))?;
@@ -289,9 +358,9 @@ pub(super) async fn update_row_recorded(
     let mut before = None;
     if unsupported.is_none() {
         let sql = image_select_sql(schema, table, &names, &predicate, true);
-        match select_images(&*tx, &sql, &key_params, names.len()).await? {
-            Some(images) => before = Some(images),
-            None => {
+        match select_images_isolated(&mut tx, &sql, &key_params, names.len()).await? {
+            Ok(Some(images)) => before = Some(images),
+            Ok(None) => {
                 let _ = tx.rollback().await;
                 return Ok(RecordedUpdate {
                     affected: 0,
@@ -300,55 +369,71 @@ pub(super) async fn update_row_recorded(
                     },
                 });
             }
+            Err(error) => {
+                log::debug!("Could not read {schema}.{table} before a recorded save: {error}");
+                unsupported = Some(SKIPPED_CAPTURE_UNAVAILABLE);
+            }
         }
     }
 
-    let mut affected = 0;
-    for update in &prepared {
-        let params_ref = update.params_ref();
-        let types: Vec<Type> = params_ref.iter().map(|(_, t)| t.clone()).collect();
-        let values: Vec<&(dyn ToSql + Sync)> = params_ref.iter().map(|(v, _)| *v).collect();
-        let statement = tx
-            .prepare_typed(&update.query, &types)
-            .await
-            .map_err(|e| update.describe_error(format_pg_error(&e)))?;
-        affected += tx
-            .execute(&statement, &values)
-            .await
-            .map_err(|e| update.describe_error(format_pg_error(&e)))?;
-    }
+    let params_ref = prepared.params_ref();
+    let types: Vec<Type> = params_ref.iter().map(|(_, t)| t.clone()).collect();
+    let values: Vec<&(dyn ToSql + Sync)> = params_ref.iter().map(|(v, _)| *v).collect();
+    let statement = tx
+        .prepare_typed(&prepared.query, &types)
+        .await
+        .map_err(|e| prepared.describe_error(format_pg_error(&e)))?;
+    let affected = tx
+        .execute(&statement, &values)
+        .await
+        .map_err(|e| prepared.describe_error(format_pg_error(&e)))?;
 
     let capture = match (unsupported, before, meta) {
         (None, Some(before), Some(meta)) => {
             let key_changed = names.iter().any(|name| meta.pk_columns.contains(name));
             let after = if key_changed {
-                omitted_images(names.len(), OMITTED_KEY_CHANGED)
+                Some(omitted_images(names.len(), OMITTED_KEY_CHANGED))
             } else {
                 let sql = image_select_sql(schema, table, &names, &predicate, false);
-                select_images(&*tx, &sql, &key_params, names.len())
-                    .await?
-                    .unwrap_or_else(|| omitted_images(names.len(), OMITTED_ROW_MISSING))
-            };
-            let columns = names
-                .iter()
-                .zip(before)
-                .zip(after)
-                .map(|((name, pre), post)| {
-                    let column = &meta.columns[name];
-                    ColumnCapture {
-                        name: name.clone(),
-                        data_type: column.data_type.clone(),
-                        generated: column.generated,
-                        pre,
-                        post,
+                match select_images_isolated(&mut tx, &sql, &key_params, names.len()).await? {
+                    Ok(images) => Some(
+                        images.unwrap_or_else(|| omitted_images(names.len(), OMITTED_ROW_MISSING)),
+                    ),
+                    Err(error) => {
+                        log::debug!(
+                            "Could not read {schema}.{table} after a recorded save: {error}"
+                        );
+                        None
                     }
-                })
-                .collect();
-            RecordedCapture::Captured(RowCapture {
-                columns,
-                has_triggers: meta.has_triggers,
-                key_changed,
-            })
+                }
+            };
+            match after {
+                Some(after) => {
+                    let columns = names
+                        .iter()
+                        .zip(before)
+                        .zip(after)
+                        .map(|((name, pre), post)| {
+                            let column = &meta.columns[name];
+                            ColumnCapture {
+                                name: name.clone(),
+                                data_type: column.data_type.clone(),
+                                generated: column.generated,
+                                pre,
+                                post,
+                            }
+                        })
+                        .collect();
+                    RecordedCapture::Captured(RowCapture {
+                        columns,
+                        has_triggers: meta.has_triggers,
+                        key_changed,
+                    })
+                }
+                None => RecordedCapture::Skipped {
+                    reason: SKIPPED_CAPTURE_UNAVAILABLE.to_string(),
+                },
+            }
         }
         (reason, _, _) => RecordedCapture::Skipped {
             reason: reason.unwrap_or(UNSUPPORTED_NOT_A_BASE_TABLE).to_string(),
@@ -377,9 +462,18 @@ pub(super) async fn read_row_images(
     let pool = get_postgres_pool(params).await?;
     let pk_types = get_pk_column_types(&pool, schema, table, pk_map).await;
     let (predicate, key_params) = build_pk_map_predicate(pk_map, &pk_types, 1)?;
-    let client = get_client(&pool).await?;
+    let mut client = get_client(&pool).await?;
     let sql = image_select_sql(schema, table, columns, &predicate, false);
-    select_images(&**client, &sql, &key_params, columns.len()).await
+    let tx = client
+        .transaction()
+        .await
+        .map_err(|e| format_pg_error(&e))?;
+    tx.batch_execute(CAPTURE_FORMAT_SQL)
+        .await
+        .map_err(|e| format_pg_error(&e))?;
+    let images = select_images(&*tx, &sql, &key_params, columns.len()).await?;
+    tx.rollback().await.map_err(|e| format_pg_error(&e))?;
+    Ok(images)
 }
 
 pub(super) async fn restore_row_images(
@@ -406,7 +500,7 @@ pub(super) async fn restore_row_images(
     }
     let meta = meta.ok_or_else(|| UNSUPPORTED_NOT_A_BASE_TABLE.to_string())?;
     if meta.has_triggers {
-        return Err("This table has triggers, so a restore is refused".to_string());
+        return Err("This table has triggers or foreign-key actions on these columns, so a restore is refused".to_string());
     }
     let mut assignments = Vec::with_capacity(columns.len());
     let mut value_params: Vec<TypedPgParam> = Vec::with_capacity(columns.len());
@@ -433,6 +527,9 @@ pub(super) async fn restore_row_images(
         .await
         .map_err(|e| format_pg_error(&e))?;
     tx.batch_execute(RESTORE_LOCK_TIMEOUT_SQL)
+        .await
+        .map_err(|e| format_pg_error(&e))?;
+    tx.batch_execute(CAPTURE_FORMAT_SQL)
         .await
         .map_err(|e| format_pg_error(&e))?;
 
