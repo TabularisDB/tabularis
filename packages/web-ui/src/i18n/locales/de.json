@@ -2314,7 +2314,8 @@
           "number": "Zahl",
           "boolean": "Boolesch",
           "date": "Datum",
-          "select": "Liste"
+          "select": "Liste",
+          "unknown": "Unbekannt"
         },
         "issues": {
           "invalidNumber": "Gib eine Zahl wie 42 oder -0.5 ein",
@@ -2324,7 +2325,8 @@
           "noOptions": "Füge mindestens eine Option hinzu",
           "required": "Ein Wert ist erforderlich",
           "emptyNeedsNull": "Gib einen Wert ein oder aktiviere NULL",
-          "cellReference": "Ein typisierter Wert darf keinen Zellverweis enthalten"
+          "cellReference": "Ein typisierter Wert darf keinen Zellverweis enthalten",
+          "unknownType": "Diese Version von Tabularis kennt diesen Typ nicht"
         },
         "errors": {
           "invalid": "Parameter @{{name}} kann nicht gesendet werden: {{reason}}",

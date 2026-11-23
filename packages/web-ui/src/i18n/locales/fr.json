@@ -2351,7 +2351,8 @@
           "number": "Nombre",
           "boolean": "Booléen",
           "date": "Date",
-          "select": "Liste"
+          "select": "Liste",
+          "unknown": "Inconnu"
         },
         "issues": {
           "invalidNumber": "Saisissez un nombre tel que 42 ou -0.5",
@@ -2361,7 +2362,8 @@
           "noOptions": "Ajoutez au moins une option",
           "required": "Une valeur est requise",
           "emptyNeedsNull": "Saisissez une valeur ou cochez NULL",
-          "cellReference": "Une valeur typée ne peut pas contenir de référence à une cellule"
+          "cellReference": "Une valeur typée ne peut pas contenir de référence à une cellule",
+          "unknownType": "Cette version de Tabularis ne connaît pas ce type"
         },
         "errors": {
           "invalid": "Le paramètre @{{name}} ne peut pas être envoyé : {{reason}}",
