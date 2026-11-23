@@ -841,6 +841,13 @@
     "fontSizeDesc": "アプリケーション全体で使用される基本フォントサイズを調整します (10〜20px)。",
     "preview": "プレビュー",
     "fontPreviewText": "いろはにほへと ちりぬるを わかよたれそ つねならむ",
+    "tabLayout": {
+      "title": "エディタのタブ",
+      "label": "タブのレイアウト",
+      "description": "開いているタブをエディタの上部に表示するか、左側の一覧として表示します。",
+      "horizontal": "横",
+      "vertical": "縦"
+    },
     "dataGrid": {
       "zebraStripes": "交互の行背景",
       "zebraStripesDesc": "1行おきに背景を網掛けし、横幅の広いテーブルでも行を追いやすくします。",

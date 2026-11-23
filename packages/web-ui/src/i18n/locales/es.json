@@ -857,6 +857,13 @@
     "fontSizeDesc": "Ajusta el tamaño base de fuente usado en la aplicación (10-20px).",
     "preview": "Vista Previa",
     "fontPreviewText": "El veloz zorro marrón salta sobre el perro perezoso",
+    "tabLayout": {
+      "title": "Pestañas del editor",
+      "label": "Disposición de las pestañas",
+      "description": "Muestra las pestañas abiertas en la parte superior del editor o como una lista en el lado izquierdo.",
+      "horizontal": "Horizontal",
+      "vertical": "Vertical"
+    },
     "dataGrid": {
       "zebraStripes": "Fondo de filas alternas",
       "zebraStripesDesc": "Sombrea una fila de cada dos para seguir más fácilmente una fila en tablas anchas.",

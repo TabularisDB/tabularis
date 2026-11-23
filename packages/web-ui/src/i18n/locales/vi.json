@@ -848,6 +848,13 @@
       "confirm": "Xác nhận",
       "cancel": "Hủy"
     },
+    "tabLayout": {
+      "title": "Tab của trình soạn thảo",
+      "label": "Bố cục tab",
+      "description": "Hiển thị các tab đang mở ở phía trên trình soạn thảo hoặc dưới dạng danh sách ở bên trái.",
+      "horizontal": "Ngang",
+      "vertical": "Dọc"
+    },
     "dataGrid": {
       "title": "Lưới dữ liệu",
       "stickyHeaders": "Ghim tiêu đề cột",

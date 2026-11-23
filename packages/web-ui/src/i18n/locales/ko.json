@@ -794,6 +794,13 @@
       "confirm": "확인",
       "cancel": "취소"
     },
+    "tabLayout": {
+      "title": "에디터 탭",
+      "label": "탭 배치",
+      "description": "열린 탭을 에디터 상단에 표시하거나 왼쪽 목록으로 표시합니다.",
+      "horizontal": "가로",
+      "vertical": "세로"
+    },
     "dataGrid": {
       "zebraStripes": "줄무늬 행 배경",
       "zebraStripesDesc": "넓은 테이블에서 행을 더 쉽게 추적할 수 있도록 한 행 건너 음영을 적용합니다.",

@@ -826,6 +826,13 @@
     "fontSizeDesc": "Passt die in der gesamten Anwendung verwendete Grundschriftgröße an (10-20 px).",
     "preview": "Vorschau",
     "fontPreviewText": "Franz jagt im komplett verwahrlosten Taxi quer durch Bayern",
+    "tabLayout": {
+      "title": "Editor-Tabs",
+      "label": "Tab-Anordnung",
+      "description": "Offene Tabs am oberen Rand des Editors oder als Liste an der linken Seite anzeigen.",
+      "horizontal": "Horizontal",
+      "vertical": "Vertikal"
+    },
     "dataGrid": {
       "zebraStripes": "Abwechselnder Zeilenhintergrund",
       "zebraStripesDesc": "Hebt jede zweite Zeile hervor, damit Sie eine Zeile auch in breiten Tabellen leichter verfolgen können.",

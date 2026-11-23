@@ -860,6 +860,13 @@
       "confirm": "Confirmer",
       "cancel": "Annuler"
     },
+    "tabLayout": {
+      "title": "Onglets de l'éditeur",
+      "label": "Disposition des onglets",
+      "description": "Affiche les onglets ouverts en haut de l'éditeur ou sous forme de liste sur le côté gauche.",
+      "horizontal": "Horizontale",
+      "vertical": "Verticale"
+    },
     "dataGrid": {
       "zebraStripes": "Arrière-plan alterné des lignes",
       "zebraStripesDesc": "Ombrage une ligne sur deux pour suivre plus facilement une ligne dans les tableaux larges.",

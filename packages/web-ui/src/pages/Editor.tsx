@@ -214,6 +214,7 @@ import {useToast} from '@/hooks/useToast';
 import {useDatabase} from '@/hooks/useDatabase';
 import {useDrivers} from '@/hooks/useDrivers';
 import {getConnectionAccent} from '@/utils/driverUI';
+import {resolveTabLayout} from '@/utils/tabLayout';
 import {useSavedQueries} from '@/hooks/useSavedQueries';
 import {useQueryHistory} from '@/hooks/useQueryHistory';
 import {useSettings} from '@/hooks/useSettings';
@@ -960,6 +961,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const requestDmlPreviewRef = useRef<(sql: string, tabId?: string) => void>(null!);
     const supportsDmlPreviewRef = useRef(false);
     const tabScrollRef = useRef<HTMLDivElement>(null);
+    // Tabs run along the top by default, or down the left side when set to vertical.
+    const verticalTabs = resolveTabLayout(settings.tabLayout) === 'vertical';
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
 
@@ -1001,11 +1004,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     // Tab reordering via native HTML5 drag-and-drop. `dropPos` is a gap index
     // into `tabs` (0 = before the first tab, tabs.length = after the last);
-    // `dropIndicatorLeft` is its pixel offset within the scroll container, used
+    // `dropIndicatorOffset` is its pixel offset within the scroll container, used
     // to render the insertion line.
     const [dragTabId, setDragTabId] = useState<string | null>(null);
     const [dropPos, setDropPos] = useState<number | null>(null);
-    const [dropIndicatorLeft, setDropIndicatorLeft] = useState<number | null>(null);
+    const [dropIndicatorOffset, setDropIndicatorOffset] = useState<number | null>(null);
     const autoScrollRafRef = useRef<number | null>(null);
     const autoScrollSpeedRef = useRef(0);
 
@@ -1028,11 +1031,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 autoScrollRafRef.current = null;
                 return;
             }
-            el.scrollLeft += speed;
+            if (verticalTabs) el.scrollTop += speed;
+            else el.scrollLeft += speed;
             autoScrollRafRef.current = requestAnimationFrame(tick);
         };
         tick();
-    }, []);
+    }, [verticalTabs]);
 
     useEffect(() => stopTabAutoScroll, [stopTabAutoScroll]);
 
@@ -1046,36 +1050,42 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const handleTabDragEnd = useCallback(() => {
         setDragTabId(null);
         setDropPos(null);
-        setDropIndicatorLeft(null);
+        setDropIndicatorOffset(null);
         stopTabAutoScroll();
     }, [stopTabAutoScroll]);
 
-    // Pixel offset of the insertion line for a gap: the left edge of the tab after it,
-    // or the right edge of the last tab.
-    const tabGapLeft = useCallback((gap: number): number => {
-        const tabEls = Array.from(
-            tabScrollRef.current?.querySelectorAll<HTMLElement>('[data-tab-id]') ?? [],
-        );
-        const next = tabEls[gap];
-        if (next) return next.offsetLeft;
-        const last = tabEls.at(-1);
-        return last ? last.offsetLeft + last.offsetWidth : 0;
-    }, []);
+    // Pixel offset of the insertion line for a gap: the leading edge (left, or top for
+    // vertical tabs) of the tab after it, or the trailing edge of the last tab.
+    const tabGapOffset = useCallback(
+        (gap: number): number => {
+            const tabEls = Array.from(
+                tabScrollRef.current?.querySelectorAll<HTMLElement>('[data-tab-id]') ?? [],
+            );
+            const start = (el: HTMLElement) => (verticalTabs ? el.offsetTop : el.offsetLeft);
+            const next = tabEls[gap];
+            if (next) return start(next);
+            const last = tabEls.at(-1);
+            return last ? start(last) + (verticalTabs ? last.offsetHeight : last.offsetWidth) : 0;
+        },
+        [verticalTabs],
+    );
 
     const handleTabDragOver = useCallback(
         (index: number) => (e: React.DragEvent<HTMLDivElement>) => {
             if (!dragTabId) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
-            // Left half of the tab drops before it, right half drops after it. Pinned
+            // First half of the tab drops before it, second half drops after it. Pinned
             // tabs stay before unpinned ones, so the gap is kept in the dragged tab's group.
             const rect = e.currentTarget.getBoundingClientRect();
-            const after = e.clientX > rect.left + rect.width / 2;
+            const after = verticalTabs
+                ? e.clientY > rect.top + rect.height / 2
+                : e.clientX > rect.left + rect.width / 2;
             const gap = clampTabGap(tabs, dragTabId, after ? index + 1 : index);
             setDropPos(gap);
-            setDropIndicatorLeft(tabGapLeft(gap));
+            setDropIndicatorOffset(tabGapOffset(gap));
         },
-        [dragTabId, tabs, tabGapLeft],
+        [dragTabId, tabs, tabGapOffset, verticalTabs],
     );
 
     // Drive edge auto-scroll from the scroll container, and fall back to
@@ -1087,10 +1097,15 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             if (!container) return;
             e.preventDefault();
             const containerRect = container.getBoundingClientRect();
-            const speed = computeAutoScrollSpeed(
-                {top: containerRect.left, bottom: containerRect.right},
-                e.clientX,
-            );
+            const speed = verticalTabs
+                ? computeAutoScrollSpeed(
+                      {top: containerRect.top, bottom: containerRect.bottom},
+                      e.clientY,
+                  )
+                : computeAutoScrollSpeed(
+                      {top: containerRect.left, bottom: containerRect.right},
+                      e.clientX,
+                  );
             autoScrollSpeedRef.current = speed;
             if (speed !== 0 && autoScrollRafRef.current === null) {
                 autoScrollRafRef.current = requestAnimationFrame(stepTabAutoScroll);
@@ -1098,10 +1113,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             if (e.target === container) {
                 const gap = clampTabGap(tabs, dragTabId, tabs.length);
                 setDropPos(gap);
-                setDropIndicatorLeft(tabGapLeft(gap));
+                setDropIndicatorOffset(tabGapOffset(gap));
             }
         },
-        [dragTabId, tabs, stepTabAutoScroll, tabGapLeft],
+        [dragTabId, tabs, stepTabAutoScroll, tabGapOffset, verticalTabs],
     );
 
     const handleTabsDrop = useCallback(
@@ -1112,7 +1127,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             const insertAt = dropPos;
             setDragTabId(null);
             setDropPos(null);
-            setDropIndicatorLeft(null);
+            setDropIndicatorOffset(null);
             if (fromTabId === null || insertAt === null) return;
             reorderTab(fromTabId, insertAt);
         },
@@ -5334,42 +5349,61 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const tabTint = (percent: number) => tint(tabAccentColor, percent);
 
     return (
-        <div ref={editorRootRef} className="flex flex-col h-full bg-base">
+        <div
+            ref={editorRootRef}
+            className={clsx('relative flex flex-col h-full bg-base', verticalTabs && 'pl-56')}
+        >
             {commandPaletteScopeBridge}
             {/* Tab Bar — tinted with the active connection's accent color */}
             <div
-                className="flex items-center bg-elevated border-b border-default h-9 shrink-0"
+                className={clsx(
+                    'flex bg-elevated shrink-0',
+                    verticalTabs
+                        ? 'absolute left-0 top-0 bottom-0 z-20 w-56 flex-col border-r border-default'
+                        : 'items-center border-b border-default h-9',
+                )}
                 style={
                     tabBarAccent
                         ? {
-                              // Vertical accent wash (stronger at top) + accent-tinted bottom
+                              // Vertical accent wash (stronger at top) + accent-tinted edge
                               // border so the bar reads as part of the active connection.
                               backgroundImage: `linear-gradient(${tabBarAccent}30, ${tabBarAccent}20)`,
-                              borderBottomColor: `${tabBarAccent}50`,
+                              ...(verticalTabs
+                                  ? {borderRightColor: `${tabBarAccent}50`}
+                                  : {borderBottomColor: `${tabBarAccent}50`}),
                           }
                         : undefined
                 }
             >
-                <button
-                    onClick={() => scrollTabs('left')}
-                    disabled={!canScrollLeft}
-                    className="flex items-center justify-center w-7 h-full text-muted border-r border-default shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:enabled:text-primary hover:enabled:bg-surface-secondary"
-                >
-                    <ChevronLeft size={14} />
-                </button>
-                <button
-                    onClick={() => scrollTabs('right')}
-                    disabled={!canScrollRight}
-                    className="flex items-center justify-center w-7 h-full text-muted border-r border-default shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:enabled:text-primary hover:enabled:bg-surface-secondary"
-                >
-                    <ChevronRight size={14} />
-                </button>
+                {!verticalTabs && (
+                    <>
+                        <button
+                            onClick={() => scrollTabs('left')}
+                            disabled={!canScrollLeft}
+                            className="flex items-center justify-center w-7 h-full text-muted border-r border-default shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:enabled:text-primary hover:enabled:bg-surface-secondary"
+                        >
+                            <ChevronLeft size={14} />
+                        </button>
+                        <button
+                            onClick={() => scrollTabs('right')}
+                            disabled={!canScrollRight}
+                            className="flex items-center justify-center w-7 h-full text-muted border-r border-default shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:enabled:text-primary hover:enabled:bg-surface-secondary"
+                        >
+                            <ChevronRight size={14} />
+                        </button>
+                    </>
+                )}
                 <div
                     ref={tabScrollRef}
                     onScroll={updateScrollArrows}
                     onDragOver={handleTabsContainerDragOver}
                     onDrop={handleTabsDrop}
-                    className="flex flex-1 overflow-x-auto no-scrollbar h-full relative"
+                    className={clsx(
+                        'flex flex-1 no-scrollbar relative',
+                        verticalTabs
+                            ? 'flex-col overflow-y-auto min-h-0'
+                            : 'overflow-x-auto h-full',
+                    )}
                 >
                     {/* Always mounted, so a screen reader announces when the active tab opens a transaction. */}
                     <span role="status" className="sr-only">
@@ -5411,7 +5445,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 }
                             }}
                             className={clsx(
-                                'flex items-center gap-2 px-3 h-full border-r border-default cursor-pointer min-w-[140px] max-w-[220px] text-xs transition-all duration-150 group relative select-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
+                                'flex items-center gap-2 px-3 cursor-pointer text-xs transition-all duration-150 group relative select-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
+                                verticalTabs
+                                    ? 'h-8 w-full shrink-0 border-b border-default'
+                                    : 'h-full border-r border-default min-w-[140px] max-w-[220px]',
                                 activeTabId === tab.id
                                     ? 'bg-base text-primary font-medium'
                                     : 'text-muted hover:bg-[var(--tab-hover)] hover:text-secondary',
@@ -5432,7 +5469,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                         >
                             {activeTabId === tab.id && (
                                 <div
-                                    className="absolute top-0 left-0 right-0 h-[2px] rounded-b-sm"
+                                    className={
+                                        verticalTabs
+                                            ? 'absolute top-0 bottom-0 left-0 w-[2px] rounded-r-sm'
+                                            : 'absolute top-0 left-0 right-0 h-[2px] rounded-b-sm'
+                                    }
                                     style={{
                                         backgroundColor: `${tabTint(80)}`,
                                         boxShadow: `0 0 5px ${tabTint(35)}`,
@@ -5574,59 +5615,76 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                             )}
                         </div>
                     ))}
-                    {dragTabId && dropIndicatorLeft !== null && (
+                    {dragTabId && dropIndicatorOffset !== null && (
                         <div
-                            className="absolute top-0 bottom-0 w-0.5 pointer-events-none z-10"
-                            style={{left: dropIndicatorLeft, backgroundColor: tabAccentColor}}
+                            className={clsx(
+                                'absolute pointer-events-none z-10',
+                                verticalTabs ? 'left-0 right-0 h-0.5' : 'top-0 bottom-0 w-0.5',
+                            )}
+                            style={{
+                                ...(verticalTabs
+                                    ? {top: dropIndicatorOffset}
+                                    : {left: dropIndicatorOffset}),
+                                backgroundColor: tabAccentColor,
+                            }}
                         />
                     )}
                 </div>
-                <button
-                    onClick={() =>
-                        addTab({
-                            type: 'console',
-                            ...(isMultiDb ? {schema: selectedDatabases[0]} : {}),
-                        })
+                {/* Beside the tabs when horizontal, a row above them when vertical. */}
+                <div
+                    className={
+                        verticalTabs
+                            ? 'order-first flex h-9 shrink-0 border-b border-default [&>:first-child]:border-l-0'
+                            : 'contents'
                     }
-                    className="flex items-center justify-center w-9 h-full text-muted hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
-                    title={t('editor.newConsole')}
                 >
-                    <Plus size={16} />
-                </button>
-                <button
-                    onClick={handleOpenSqlFile}
-                    className="flex items-center justify-center w-9 h-full text-accent-info hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
-                    title={t('editor.openSqlFile')}
-                >
-                    <FolderOpen size={16} />
-                </button>
-                <button
-                    onClick={() => addTab({type: 'query_builder'})}
-                    className="flex items-center justify-center w-9 h-full text-accent-secondary hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
-                    title={t('editor.newVisualQuery')}
-                >
-                    <Network size={16} />
-                </button>
-                <button
-                    onClick={async () => {
-                        if (!activeConnectionId) return;
-                        const title = 'Notebook';
-                        const {notebookId} = await createNotebook(
-                            title,
-                            activeConnectionId,
-                            client,
-                        );
-                        addTab({
-                            type: 'notebook',
-                            notebookId,
-                            ...(isMultiDb ? {schema: selectedDatabases[0]} : {}),
-                        });
-                    }}
-                    className="flex items-center justify-center w-9 h-full text-accent-warning hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
-                    title={t('editor.newNotebook')}
-                >
-                    <BookOpen size={16} />
-                </button>
+                    <button
+                        onClick={() =>
+                            addTab({
+                                type: 'console',
+                                ...(isMultiDb ? {schema: selectedDatabases[0]} : {}),
+                            })
+                        }
+                        className="flex items-center justify-center w-9 h-full text-muted hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
+                        title={t('editor.newConsole')}
+                    >
+                        <Plus size={16} />
+                    </button>
+                    <button
+                        onClick={handleOpenSqlFile}
+                        className="flex items-center justify-center w-9 h-full text-accent-info hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
+                        title={t('editor.openSqlFile')}
+                    >
+                        <FolderOpen size={16} />
+                    </button>
+                    <button
+                        onClick={() => addTab({type: 'query_builder'})}
+                        className="flex items-center justify-center w-9 h-full text-accent-secondary hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
+                        title={t('editor.newVisualQuery')}
+                    >
+                        <Network size={16} />
+                    </button>
+                    <button
+                        onClick={async () => {
+                            if (!activeConnectionId) return;
+                            const title = 'Notebook';
+                            const {notebookId} = await createNotebook(
+                                title,
+                                activeConnectionId,
+                                client,
+                            );
+                            addTab({
+                                type: 'notebook',
+                                notebookId,
+                                ...(isMultiDb ? {schema: selectedDatabases[0]} : {}),
+                            });
+                        }}
+                        className="flex items-center justify-center w-9 h-full text-accent-warning hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
+                        title={t('editor.newNotebook')}
+                    >
+                        <BookOpen size={16} />
+                    </button>
+                </div>
             </div>
 
             {/* Toolbar — hidden for full-height workspace, notebook and users tabs. A size container so buttons can

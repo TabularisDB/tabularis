@@ -865,6 +865,13 @@
     "fontSizeDesc": "Regola la dimensione base del font usata nell'applicazione (10-20px).",
     "preview": "Anteprima",
     "fontPreviewText": "La volpe marrone salta sopra il cane pigro",
+    "tabLayout": {
+      "title": "Schede dell'editor",
+      "label": "Disposizione delle schede",
+      "description": "Mostra le schede aperte nella parte superiore dell'editor oppure come elenco sul lato sinistro.",
+      "horizontal": "Orizzontale",
+      "vertical": "Verticale"
+    },
     "dataGrid": {
       "title": "Griglia dati",
       "stickyHeaders": "Intestazioni colonne fisse",
