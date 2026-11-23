@@ -1365,8 +1365,9 @@ export const NewConnectionModal = ({
                     setSshTabError(true);
                     return;
                 }
-                await testSshConnection(selected, {progressId}, client);
-                target = `${selected.user}@${selected.host}:${selected.port}`;
+                const user = formData.ssh_user?.trim() || selected.user;
+                await testSshConnection({...selected, user}, {progressId}, client);
+                target = `${user}@${selected.host}:${selected.port}`;
             } else {
                 const port = formData.ssh_port || 22;
                 await testSshConnection(
@@ -4214,7 +4215,6 @@ export const NewConnectionModal = ({
                                     setSshMode(mode);
                                     if (mode === 'existing') {
                                         updateField('ssh_host', undefined);
-                                        updateField('ssh_user', undefined);
                                         updateField('ssh_password', undefined);
                                         updateField('ssh_key_file', undefined);
                                         updateField('ssh_key_passphrase', undefined);
@@ -4262,6 +4262,19 @@ export const NewConnectionModal = ({
                                     searchable={false}
                                 />
                             </div>
+                            <FieldInput
+                                label={t('newConnection.sshUser')}
+                                value={formData.ssh_user}
+                                onChange={(v) => updateSshField('ssh_user', v || undefined)}
+                                placeholder={
+                                    sshConnections.find(
+                                        (conn) => conn.id === formData.ssh_connection_id,
+                                    )?.user ?? 'user'
+                                }
+                            />
+                            <p className="text-xs text-muted">
+                                {t('newConnection.sshUserOverrideHint')}
+                            </p>
                             <button
                                 type="button"
                                 onClick={() => setIsSshModalOpen(true)}

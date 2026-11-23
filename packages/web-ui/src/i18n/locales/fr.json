@@ -1536,6 +1536,7 @@
     "sshHost": "Hôte SSH",
     "sshPort": "Port SSH",
     "sshUser": "Utilisateur SSH",
+    "sshUserOverrideHint": "Facultatif. Laissez vide pour utiliser l'utilisateur de la connexion SSH sélectionnée.",
     "sshPassword": "Mot de passe SSH",
     "sshPasswordMissing": "Mot de passe SSH manquant. Veuillez le ressaisir.",
     "sshPasswordPlaceholder": "Saisir le mot de passe SSH",

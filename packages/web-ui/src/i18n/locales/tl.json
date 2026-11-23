@@ -1529,6 +1529,7 @@
     "sshHost": "SSH Host",
     "sshPort": "SSH Port",
     "sshUser": "SSH User",
+    "sshUserOverrideHint": "Opsyonal. Iwanang blangko para gamitin ang user ng napiling SSH connection.",
     "sshPassword": "SSH Password",
     "sshPasswordMissing": "Walang SSH Password. Pakilagay muli.",
     "sshPasswordPlaceholder": "Ilagay ang SSH password",

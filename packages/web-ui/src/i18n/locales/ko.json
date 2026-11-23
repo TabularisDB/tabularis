@@ -1463,6 +1463,7 @@
     "sshHost": "SSH 호스트",
     "sshPort": "SSH 포트",
     "sshUser": "SSH 사용자",
+    "sshUserOverrideHint": "선택 사항. 비워 두면 선택한 SSH 연결의 사용자를 사용합니다.",
     "sshPassword": "SSH 비밀번호",
     "sshPasswordMissing": "SSH 비밀번호가 없습니다. 다시 입력해 주세요.",
     "sshPasswordPlaceholder": "SSH 비밀번호 입력",

@@ -178,7 +178,8 @@ async fn expand_ssh_params_for_mcp(
 
     expanded.ssh_host = Some(ssh.host);
     expanded.ssh_port = Some(ssh.port);
-    expanded.ssh_user = Some(ssh.user);
+    expanded.ssh_user =
+        Some(crate::application::tunnels::user_override(params).unwrap_or(ssh.user));
     expanded.ssh_password = ssh.password;
     expanded.ssh_key_file = ssh.key_file;
     expanded.ssh_key_passphrase = ssh.key_passphrase;

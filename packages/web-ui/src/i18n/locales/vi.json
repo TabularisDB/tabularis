@@ -1559,6 +1559,7 @@
     "sshHost": "SSH Host",
     "sshPort": "Cổng SSH",
     "sshUser": "Người dùng SSH",
+    "sshUserOverrideHint": "Tùy chọn. Để trống để dùng người dùng của kết nối SSH đã chọn.",
     "sshPassword": "Mật khẩu SSH",
     "sshPasswordMissing": "Thiếu mật khẩu SSH. Hãy nhập lại.",
     "sshPasswordPlaceholder": "Nhập mật khẩu SSH",

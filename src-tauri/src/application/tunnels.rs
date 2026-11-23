@@ -455,6 +455,16 @@ pub fn delete_k8s_connection(runtime: &RuntimeContext, id: &str) -> Result<(), S
     save_json(&path, &connections)
 }
 
+/// The SSH user set on a connection that uses a saved SSH profile, if any.
+pub fn user_override(params: &ConnectionParams) -> Option<String> {
+    params
+        .ssh_user
+        .as_deref()
+        .map(str::trim)
+        .filter(|user| !user.is_empty())
+        .map(str::to_string)
+}
+
 pub fn expand_connection_params(
     runtime: &RuntimeContext,
     params: &ConnectionParams,
@@ -465,7 +475,8 @@ pub fn expand_connection_params(
             let ssh = get_ssh_connection(runtime, id, true)?;
             expanded.ssh_host = Some(ssh.host);
             expanded.ssh_port = Some(ssh.port);
-            expanded.ssh_user = Some(ssh.user);
+            // A non-empty user on the connection overrides the profile's user.
+            expanded.ssh_user = Some(user_override(params).unwrap_or(ssh.user));
             expanded.ssh_password = ssh.password;
             expanded.ssh_key_file = ssh.key_file;
             expanded.ssh_key_passphrase = ssh.key_passphrase;

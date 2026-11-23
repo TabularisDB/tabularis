@@ -1565,6 +1565,7 @@
         "sshHost": "SSH 主機",
         "sshPort": "SSH 連接埠",
         "sshUser": "SSH 使用者",
+        "sshUserOverrideHint": "選填。留空則使用所選 SSH 連線的使用者。",
         "sshPassword": "SSH 密碼",
         "sshPasswordMissing": "SSH 密碼缺失。請重新輸入。",
         "sshPasswordPlaceholder": "輸入 SSH 密碼",
