@@ -2297,6 +2297,42 @@
       "paramName": "名前",
       "paramValue": "値",
       "invalidParamName": "不正なパラメータ名です",
+      "params": {
+        "type": "タイプ",
+        "value": "値",
+        "null": "NULL",
+        "required": "必須",
+        "options": "選択肢（1行に1つ）",
+        "remove": "パラメータを削除",
+        "apply": "適用",
+        "discard": "破棄",
+        "unapplied": "未適用の変更",
+        "rawHint": "「そのまま」の値は入力したとおりに SQL に貼り付けられます。SQL の値として送信するにはタイプを選択してください。タイプ付きの値は「適用」をクリックすると反映されます。",
+        "unsupportedDriver": "この接続ではタイプ付きパラメータを使用できません。ドライバーが PostgreSQL、MySQL、SQLite のいずれの方言も宣言していないためです。値は入力したとおりに SQL に貼り付けられます。",
+        "types": {
+          "raw": "そのまま",
+          "text": "テキスト",
+          "number": "数値",
+          "boolean": "真偽値",
+          "date": "日付",
+          "select": "リスト"
+        },
+        "issues": {
+          "invalidNumber": "42 や -0.5 のような数値を入力してください",
+          "invalidDate": "有効な日付ではありません",
+          "invalidBoolean": "true または false である必要があります",
+          "invalidOption": "選択肢のいずれかを選んでください",
+          "noOptions": "選択肢を1つ以上追加してください",
+          "required": "値が必要です",
+          "emptyNeedsNull": "値を入力するか、NULL にチェックを入れてください",
+          "cellReference": "タイプ付きの値にセル参照を含めることはできません"
+        },
+        "errors": {
+          "invalid": "パラメータ @{{name}} を送信できません: {{reason}}",
+          "quoted": "パラメータ @{{name}} にはタイプがあるため、{{reference}} を引用符の中に置くことはできません。タイプ付きの値は SQL の値全体として挿入されます。引用符を削除するか、パラメータを「そのまま」に戻してください。",
+          "unsupported": "パラメータ @{{name}} にはタイプがありますが、この接続ではタイプ付きパラメータを使用できません。ここで使用するには「そのまま」に戻してください。"
+        }
+      },
       "parallelExecution": "並列実行 (すべて実行)",
       "disableCell": "セルを無効化",
       "enableCell": "セルを有効化",

@@ -2250,6 +2250,42 @@
       "paramName": "이름",
       "paramValue": "값",
       "invalidParamName": "잘못된 매개변수 이름입니다",
+      "params": {
+        "type": "타입",
+        "value": "값",
+        "null": "NULL",
+        "required": "필수",
+        "options": "옵션(한 줄에 하나씩)",
+        "remove": "매개변수 제거",
+        "apply": "적용",
+        "discard": "버리기",
+        "unapplied": "적용되지 않은 변경 사항",
+        "rawHint": "원본 값은 입력한 그대로 SQL에 붙여 넣어집니다. SQL 값으로 보내려면 타입을 선택하세요. 타입이 지정된 값은 적용을 클릭하면 반영됩니다.",
+        "unsupportedDriver": "이 연결에서는 타입이 지정된 매개변수를 사용할 수 없습니다. 드라이버가 PostgreSQL, MySQL 또는 SQLite 방언을 선언하지 않기 때문입니다. 값은 입력한 그대로 SQL에 붙여 넣어집니다.",
+        "types": {
+          "raw": "원본",
+          "text": "텍스트",
+          "number": "숫자",
+          "boolean": "불리언",
+          "date": "날짜",
+          "select": "목록"
+        },
+        "issues": {
+          "invalidNumber": "42 또는 -0.5와 같은 숫자를 입력하세요",
+          "invalidDate": "유효한 날짜가 아닙니다",
+          "invalidBoolean": "true 또는 false여야 합니다",
+          "invalidOption": "옵션 중 하나를 선택하세요",
+          "noOptions": "옵션을 하나 이상 추가하세요",
+          "required": "값이 필요합니다",
+          "emptyNeedsNull": "값을 입력하거나 NULL을 선택하세요",
+          "cellReference": "타입이 지정된 값에는 셀 참조를 포함할 수 없습니다"
+        },
+        "errors": {
+          "invalid": "매개변수 @{{name}}을(를) 보낼 수 없습니다: {{reason}}",
+          "quoted": "매개변수 @{{name}}에는 타입이 있으므로 {{reference}}을(를) 따옴표 안에 둘 수 없습니다. 타입이 지정된 값은 하나의 SQL 값 전체로 삽입됩니다. 따옴표를 제거하거나 매개변수를 원본으로 되돌리세요.",
+          "unsupported": "매개변수 @{{name}}에는 타입이 있지만 이 연결에서는 타입이 지정된 매개변수를 사용할 수 없습니다. 여기에서 사용하려면 원본으로 되돌리세요."
+        }
+      },
       "parallelExecution": "병렬 실행 (모두 실행)",
       "disableCell": "셀 비활성화",
       "enableCell": "셀 활성화",

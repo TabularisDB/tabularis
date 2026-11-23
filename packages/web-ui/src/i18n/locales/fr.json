@@ -2326,6 +2326,42 @@
       "paramName": "nom",
       "paramValue": "valeur",
       "invalidParamName": "Nom de paramètre invalide",
+      "params": {
+        "type": "Type",
+        "value": "Valeur",
+        "null": "NULL",
+        "required": "Requis",
+        "options": "Options, une par ligne",
+        "remove": "Supprimer le paramètre",
+        "apply": "Appliquer",
+        "discard": "Abandonner",
+        "unapplied": "Modifications non appliquées",
+        "rawHint": "Une valeur brute est collée dans le SQL telle qu'elle est saisie. Choisissez un type pour l'envoyer comme valeur SQL ; les valeurs typées prennent effet lorsque vous cliquez sur Appliquer.",
+        "unsupportedDriver": "Les paramètres typés ne sont pas disponibles sur cette connexion : son pilote ne déclare pas de dialecte PostgreSQL, MySQL ou SQLite. Les valeurs sont collées dans le SQL telles qu'elles sont saisies.",
+        "types": {
+          "raw": "Brut",
+          "text": "Texte",
+          "number": "Nombre",
+          "boolean": "Booléen",
+          "date": "Date",
+          "select": "Liste"
+        },
+        "issues": {
+          "invalidNumber": "Saisissez un nombre tel que 42 ou -0.5",
+          "invalidDate": "Date invalide",
+          "invalidBoolean": "Doit être true ou false",
+          "invalidOption": "Choisissez l'une des options",
+          "noOptions": "Ajoutez au moins une option",
+          "required": "Une valeur est requise",
+          "emptyNeedsNull": "Saisissez une valeur ou cochez NULL",
+          "cellReference": "Une valeur typée ne peut pas contenir de référence à une cellule"
+        },
+        "errors": {
+          "invalid": "Le paramètre @{{name}} ne peut pas être envoyé : {{reason}}",
+          "quoted": "Le paramètre @{{name}} a un type, donc {{reference}} ne peut pas se trouver entre guillemets : une valeur typée est insérée comme une valeur SQL entière. Supprimez les guillemets ou remettez le paramètre sur Brut.",
+          "unsupported": "Le paramètre @{{name}} a un type et les paramètres typés ne sont pas disponibles sur cette connexion. Remettez-le sur Brut pour l'utiliser ici."
+        }
+      },
       "parallelExecution": "Exécution parallèle (Tout exécuter)",
       "disableCell": "Désactiver la cellule",
       "enableCell": "Activer la cellule",

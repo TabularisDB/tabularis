@@ -2328,6 +2328,42 @@
       "paramName": "tên",
       "paramValue": "giá trị",
       "invalidParamName": "Tên tham số không hợp lệ",
+      "params": {
+        "type": "Kiểu",
+        "value": "Giá trị",
+        "null": "NULL",
+        "required": "Bắt buộc",
+        "options": "Tùy chọn, mỗi dòng một giá trị",
+        "remove": "Gỡ tham số",
+        "apply": "Áp dụng",
+        "discard": "Hủy bỏ",
+        "unapplied": "Có thay đổi chưa áp dụng",
+        "rawHint": "Giá trị gốc được dán vào SQL đúng như bạn nhập. Hãy chọn một kiểu để gửi nó dưới dạng giá trị SQL; giá trị có kiểu sẽ có hiệu lực khi bạn nhấp Áp dụng.",
+        "unsupportedDriver": "Tham số có kiểu không khả dụng trên kết nối này: driver của kết nối không khai báo phương ngữ PostgreSQL, MySQL hay SQLite. Giá trị được dán vào SQL đúng như bạn nhập.",
+        "types": {
+          "raw": "Gốc",
+          "text": "Văn bản",
+          "number": "Số",
+          "boolean": "Boolean",
+          "date": "Ngày",
+          "select": "Danh sách"
+        },
+        "issues": {
+          "invalidNumber": "Nhập một số như 42 hoặc -0.5",
+          "invalidDate": "Ngày không hợp lệ",
+          "invalidBoolean": "Phải là true hoặc false",
+          "invalidOption": "Hãy chọn một trong các tùy chọn",
+          "noOptions": "Thêm ít nhất một tùy chọn",
+          "required": "Cần có giá trị",
+          "emptyNeedsNull": "Nhập giá trị hoặc chọn NULL",
+          "cellReference": "Giá trị có kiểu không được chứa tham chiếu ô"
+        },
+        "errors": {
+          "invalid": "Không thể gửi tham số @{{name}}: {{reason}}",
+          "quoted": "Tham số @{{name}} có kiểu nên {{reference}} không được nằm trong dấu nháy: giá trị có kiểu được chèn thành một giá trị SQL hoàn chỉnh. Hãy bỏ dấu nháy hoặc đặt tham số về Gốc.",
+          "unsupported": "Tham số @{{name}} có kiểu, nhưng tham số có kiểu không khả dụng trên kết nối này. Hãy đặt về Gốc để dùng ở đây."
+        }
+      },
       "parallelExecution": "Chạy song song (Chạy tất cả)",
       "disableCell": "Tắt ô",
       "enableCell": "Bật ô",

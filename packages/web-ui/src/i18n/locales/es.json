@@ -2263,6 +2263,42 @@
       "paramName": "nombre",
       "paramValue": "valor",
       "invalidParamName": "Nombre de parámetro no válido",
+      "params": {
+        "type": "Tipo",
+        "value": "Valor",
+        "null": "NULL",
+        "required": "Requerido",
+        "options": "Opciones, una por línea",
+        "remove": "Eliminar parámetro",
+        "apply": "Aplicar",
+        "discard": "Descartar",
+        "unapplied": "Cambios sin aplicar",
+        "rawHint": "Un valor sin formato se pega en el SQL tal como se escribe. Elige un tipo para enviarlo como valor SQL; los valores con tipo se aplican al pulsar Aplicar.",
+        "unsupportedDriver": "Los parámetros con tipo no están disponibles en esta conexión: su controlador no declara un dialecto PostgreSQL, MySQL o SQLite. Los valores se pegan en el SQL tal como se escriben.",
+        "types": {
+          "raw": "Sin formato",
+          "text": "Texto",
+          "number": "Número",
+          "boolean": "Booleano",
+          "date": "Fecha",
+          "select": "Lista"
+        },
+        "issues": {
+          "invalidNumber": "Introduce un número como 42 o -0.5",
+          "invalidDate": "No es una fecha válida",
+          "invalidBoolean": "Debe ser true o false",
+          "invalidOption": "Elige una de las opciones",
+          "noOptions": "Añade al menos una opción",
+          "required": "Se requiere un valor",
+          "emptyNeedsNull": "Introduce un valor o marca NULL",
+          "cellReference": "Un valor con tipo no puede contener una referencia a una celda"
+        },
+        "errors": {
+          "invalid": "El parámetro @{{name}} no se puede enviar: {{reason}}",
+          "quoted": "El parámetro @{{name}} tiene un tipo, así que {{reference}} no puede ir entre comillas: un valor con tipo se inserta como un valor SQL completo. Quita las comillas o vuelve a poner el parámetro en Sin formato.",
+          "unsupported": "El parámetro @{{name}} tiene un tipo y los parámetros con tipo no están disponibles en esta conexión. Vuelve a ponerlo en Sin formato para usarlo aquí."
+        }
+      },
       "parallelExecution": "Ejecución Paralela (Ejecutar Todo)",
       "disableCell": "Desactivar celda",
       "enableCell": "Activar celda",

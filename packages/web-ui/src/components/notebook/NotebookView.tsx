@@ -49,7 +49,12 @@ import {
     findUnresolvedDependencies,
     variableOptionsForDriver,
 } from '@/utils/notebookVariables';
-import {resolveParams} from '@/utils/notebookParams';
+import {
+    resolveParams,
+    supportsTypedParams,
+    type ParamDrafts,
+    type ParamError,
+} from '@/utils/notebookParams';
 import {resolveSqlSyntax} from '@/utils/sqlSyntax';
 import {addHistoryEntry, createHistoryEntry} from '@/utils/notebookHistory';
 import {
@@ -106,6 +111,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const {activeSchema, activeCapabilities, selectedDatabases, activeDriver} = useDatabase();
     // Lets notebook parameters skip `@name` inside string literals and comments.
     const sqlDialect = resolveSqlSyntax(activeCapabilities);
+    const typedParamsSupported = supportsTypedParams(sqlDialect);
     const variableOptions = useMemo(
         () => variableOptionsForDriver(activeCapabilities ?? activeDriver, activeDriver),
         [activeCapabilities, activeDriver],
@@ -137,6 +143,9 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const [isClearOutputsConfirmOpen, setIsClearOutputsConfirmOpen] = useState(false);
     const [viewMode, setViewMode] = useState<NotebookViewMode>('edit');
     const [executedParamsByCell, setExecutedParamsByCell] = useState<Record<string, string>>({});
+    // Rows edited in the Parameters panel and not applied yet. Kept here so they
+    // survive a switch between Edit and Report view; never saved, never in undo.
+    const [paramDrafts, setParamDrafts] = useState<ParamDrafts>({});
     const [dragIndex, setDragIndex] = useState<number | null>(null);
     // Gap-based insertion point in [0, cells.length]; `null` while not dragging.
     const [dropPos, setDropPos] = useState<number | null>(null);
@@ -364,6 +373,21 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         [updateNotebook],
     );
 
+    /** Why typed parameters stop a cell, one line per parameter. */
+    const describeParamErrors = useCallback(
+        (errors: ParamError[]) =>
+            errors
+                .map(({name, reference, kind, issue}) =>
+                    t(`editor.notebook.params.errors.${kind}`, {
+                        name,
+                        reference,
+                        reason: issue ? t(`editor.notebook.params.issues.${issue}`) : '',
+                    }),
+                )
+                .join('\n'),
+        [t],
+    );
+
     const runCellInner = useCallback(
         async (cellId: string): Promise<CellRunOutcome> => {
             const cell = cellsRef.current.find((c) => c.id === cellId);
@@ -396,6 +420,16 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 const paramResult = resolveParams(sql, params, sqlDialect);
                 if (paramResult.unresolvedParams.length > 0) {
                     // Only warn, don't block — unresolved @params might be SQL variables
+                }
+                // A typed parameter that cannot be written as a value stops the cell:
+                // its reference is still in the SQL and must not reach the database.
+                if (paramResult.errors.length > 0) {
+                    updateCell(cellId, {
+                        error: describeParamErrors(paramResult.errors),
+                        isLoading: false,
+                        result: null,
+                    });
+                    return;
                 }
                 sql = paramResult.sql;
             }
@@ -530,6 +564,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             params,
             currentParamsSignature,
             sqlDialect,
+            describeParamErrors,
             variableOptions,
             guardQueryExecution,
             t,
@@ -792,11 +827,13 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             // Update the tab to point to the new notebook
             updateTab(tab.id, {notebookId: newId, title});
 
-            // Update local state — a different notebook now, so drop its history.
+            // Update local state — a different notebook now, so drop its history
+            // and any parameter drafts of the one it replaces.
             setNotebook(importedState);
             notebookRef.current = importedState;
             cellsRef.current = importedCells;
             resetHistory();
+            setParamDrafts({});
 
             showAlert(t('editor.notebook.importSuccess'), {kind: 'info'});
         } catch {
@@ -989,6 +1026,18 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         }
     }, []);
 
+    // The query plan explains what the cell would run: parameters first, then
+    // cell references. A parameter that cannot be sent stops the plan as well.
+    const queryPlanProps = (cell: NotebookCell) => {
+        if (cell.type !== 'sql' || !cell.isQueryPlanVisible || cell.isDisabled) return {};
+        const resolved = resolveParams(cell.content.trim(), params, sqlDialect);
+        return {
+            explainQuery: resolveQueryVariables(resolved.sql, cells, variableOptions),
+            explainError:
+                resolved.errors.length > 0 ? describeParamErrors(resolved.errors) : undefined,
+        };
+    };
+
     const toolbarProps = {
         onAddSqlCell: () => addCell('sql'),
         onAddMarkdownCell: () => addCell('markdown'),
@@ -1092,6 +1141,9 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                     cells={cells}
                     params={params}
                     onParamsChange={handleParamsChange}
+                    paramDrafts={paramDrafts}
+                    onParamDraftsChange={setParamDrafts}
+                    typedParamsSupported={typedParamsSupported}
                     runAllResult={runAllResult}
                     onDismissRunAllResult={() => setRunAllResult(null)}
                     onSwitchToEdit={() => handleViewModeChange('edit')}
@@ -1112,7 +1164,13 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                         onDragOver={handleContainerDragOver}
                         className="flex-1 overflow-auto p-4 space-y-0"
                     >
-                        <ParamsPanel params={params} onParamsChange={handleParamsChange} />
+                        <ParamsPanel
+                            params={params}
+                            onParamsChange={handleParamsChange}
+                            drafts={paramDrafts}
+                            onDraftsChange={setParamDrafts}
+                            typedSupported={typedParamsSupported}
+                        />
                         <NotebookOutline
                             cells={cells}
                             onScrollToCell={scrollToCell}
@@ -1165,21 +1223,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                                     onDuplicate={() => duplicateCell(cell.id)}
                                     canDuplicate={!isExecuting}
                                     connectionId={connectionId}
-                                    explainQuery={
-                                        cell.type === 'sql' &&
-                                        cell.isQueryPlanVisible &&
-                                        !cell.isDisabled
-                                            ? resolveQueryVariables(
-                                                  resolveParams(
-                                                      cell.content.trim(),
-                                                      params,
-                                                      sqlDialect,
-                                                  ).sql,
-                                                  cells,
-                                                  variableOptions,
-                                              )
-                                            : undefined
-                                    }
+                                    {...queryPlanProps(cell)}
                                     activeSchema={cell.schema || effectiveSchema || undefined}
                                     selectedDatabases={isMultiDb ? selectedDatabases : undefined}
                                     onSchemaChange={
