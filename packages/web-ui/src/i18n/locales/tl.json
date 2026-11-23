@@ -2324,6 +2324,42 @@
       "paramName": "pangalan",
       "paramValue": "halaga",
       "invalidParamName": "Invalid na pangalan ng parameter",
+      "params": {
+        "type": "Uri",
+        "value": "Value",
+        "null": "NULL",
+        "required": "Kailangan",
+        "options": "Mga opsyon, isa bawat linya",
+        "remove": "Alisin ang parameter",
+        "apply": "Ilapat",
+        "discard": "I-discard",
+        "unapplied": "Mga pagbabagong hindi pa nailalapat",
+        "rawHint": "Ang raw na value ay idinidikit sa SQL kung paano ito tina-type. Pumili ng uri para ipadala ito bilang SQL value; nagkakabisa ang mga typed na value kapag na-click mo ang Ilapat.",
+        "unsupportedDriver": "Hindi available ang mga typed na parameter sa koneksyong ito: hindi nagdedeklara ang driver nito ng PostgreSQL, MySQL o SQLite na dialect. Idinidikit ang mga value sa SQL kung paano ito tina-type.",
+        "types": {
+          "raw": "Raw",
+          "text": "Teksto",
+          "number": "Numero",
+          "boolean": "Boolean",
+          "date": "Petsa",
+          "select": "Listahan"
+        },
+        "issues": {
+          "invalidNumber": "Maglagay ng numero gaya ng 42 o -0.5",
+          "invalidDate": "Hindi valid na petsa",
+          "invalidBoolean": "Dapat ay true o false",
+          "invalidOption": "Pumili ng isa sa mga opsyon",
+          "noOptions": "Magdagdag ng kahit isang opsyon",
+          "required": "Kailangan ng value",
+          "emptyNeedsNull": "Maglagay ng value o i-check ang NULL",
+          "cellReference": "Hindi maaaring maglaman ng reference sa cell ang typed na value"
+        },
+        "errors": {
+          "invalid": "Hindi maipadala ang parameter na @{{name}}: {{reason}}",
+          "quoted": "May uri ang parameter na @{{name}}, kaya hindi maaaring nasa loob ng mga panipi ang {{reference}}: ipinapasok ang typed na value bilang isang buong SQL value. Alisin ang mga panipi, o ibalik sa Raw ang parameter.",
+          "unsupported": "May uri ang parameter na @{{name}}, at hindi available ang mga typed na parameter sa koneksyong ito. Ibalik ito sa Raw para magamit dito."
+        }
+      },
       "parallelExecution": "Parallel Execution (Patakbuhin Lahat)",
       "disableCell": "I-disable ang cell",
       "enableCell": "I-enable ang cell",

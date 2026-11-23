@@ -2340,6 +2340,42 @@
             "paramName": "名稱",
             "paramValue": "值",
             "invalidParamName": "引數名稱無效",
+            "params": {
+                "type": "類型",
+                "value": "值",
+                "null": "NULL",
+                "required": "必需",
+                "options": "選項，每行一個",
+                "remove": "移除引數",
+                "apply": "應用",
+                "discard": "捨棄",
+                "unapplied": "尚未應用的更改",
+                "rawHint": "原始值會依輸入內容直接貼到 SQL 中。選擇一種類型即可將其作為 SQL 值傳送；帶類型的值在點選「應用」後生效。",
+                "unsupportedDriver": "此連線不支援帶類型的引數：其驅動程式未宣告 PostgreSQL、MySQL 或 SQLite 方言。值會依輸入內容直接貼到 SQL 中。",
+                "types": {
+                    "raw": "原始",
+                    "text": "文字",
+                    "number": "數字",
+                    "boolean": "布林值",
+                    "date": "日期",
+                    "select": "清單"
+                },
+                "issues": {
+                    "invalidNumber": "請輸入數字，例如 42 或 -0.5",
+                    "invalidDate": "不是有效的日期",
+                    "invalidBoolean": "必須為 true 或 false",
+                    "invalidOption": "請選擇其中一個選項",
+                    "noOptions": "請至少新增一個選項",
+                    "required": "必須提供值",
+                    "emptyNeedsNull": "請輸入值或勾選 NULL",
+                    "cellReference": "帶類型的值不能包含儲存格引用"
+                },
+                "errors": {
+                    "invalid": "無法傳送引數 @{{name}}：{{reason}}",
+                    "quoted": "引數 @{{name}} 帶有類型，因此 {{reference}} 不能放在引號內：帶類型的值會作為完整的 SQL 值插入。請移除引號，或將該引數改回「原始」。",
+                    "unsupported": "引數 @{{name}} 帶有類型，但此連線不支援帶類型的引數。請將其改回「原始」後再於此處使用。"
+                }
+            },
             "parallelExecution": "並行執行（全部執行）",
             "disableCell": "停用儲存格",
             "enableCell": "啟用儲存格",

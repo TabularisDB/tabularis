@@ -2357,6 +2357,42 @@
       "paramName": "nome",
       "paramValue": "valore",
       "invalidParamName": "Nome parametro non valido",
+      "params": {
+        "type": "Tipo",
+        "value": "Valore",
+        "null": "NULL",
+        "required": "Obbligatorio",
+        "options": "Opzioni, una per riga",
+        "remove": "Rimuovi parametro",
+        "apply": "Applica",
+        "discard": "Scarta",
+        "unapplied": "Modifiche non applicate",
+        "rawHint": "Un valore grezzo viene incollato nell'SQL così come è scritto. Scegli un tipo per inviarlo come valore SQL; i valori tipizzati hanno effetto quando fai clic su Applica.",
+        "unsupportedDriver": "I parametri tipizzati non sono disponibili su questa connessione: il suo driver non dichiara un dialetto PostgreSQL, MySQL o SQLite. I valori vengono incollati nell'SQL così come sono scritti.",
+        "types": {
+          "raw": "Grezzo",
+          "text": "Testo",
+          "number": "Numero",
+          "boolean": "Booleano",
+          "date": "Data",
+          "select": "Elenco"
+        },
+        "issues": {
+          "invalidNumber": "Inserisci un numero come 42 o -0.5",
+          "invalidDate": "Data non valida",
+          "invalidBoolean": "Deve essere true o false",
+          "invalidOption": "Scegli una delle opzioni",
+          "noOptions": "Aggiungi almeno un'opzione",
+          "required": "È richiesto un valore",
+          "emptyNeedsNull": "Inserisci un valore o seleziona NULL",
+          "cellReference": "Un valore tipizzato non può contenere un riferimento a una cella"
+        },
+        "errors": {
+          "invalid": "Il parametro @{{name}} non può essere inviato: {{reason}}",
+          "quoted": "Il parametro @{{name}} ha un tipo, quindi {{reference}} non può stare tra virgolette: un valore tipizzato viene inserito come un intero valore SQL. Rimuovi le virgolette oppure riporta il parametro su Grezzo.",
+          "unsupported": "Il parametro @{{name}} ha un tipo e i parametri tipizzati non sono disponibili su questa connessione. Riportalo su Grezzo per usarlo qui."
+        }
+      },
       "parallelExecution": "Esecuzione Parallela (Esegui Tutto)",
       "disableCell": "Disattiva cella",
       "enableCell": "Attiva cella",

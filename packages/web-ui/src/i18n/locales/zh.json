@@ -2262,6 +2262,42 @@
       "paramName": "名称",
       "paramValue": "值",
       "invalidParamName": "参数名称无效",
+      "params": {
+        "type": "类型",
+        "value": "值",
+        "null": "NULL",
+        "required": "必需",
+        "options": "选项，每行一个",
+        "remove": "移除参数",
+        "apply": "应用",
+        "discard": "放弃",
+        "unapplied": "未应用的更改",
+        "rawHint": "原始值会按输入的内容直接粘贴到 SQL 中。选择一种类型即可将其作为 SQL 值发送；带类型的值在点击“应用”后生效。",
+        "unsupportedDriver": "此连接不支持带类型的参数：其驱动未声明 PostgreSQL、MySQL 或 SQLite 方言。值会按输入的内容直接粘贴到 SQL 中。",
+        "types": {
+          "raw": "原始",
+          "text": "文本",
+          "number": "数字",
+          "boolean": "布尔值",
+          "date": "日期",
+          "select": "列表"
+        },
+        "issues": {
+          "invalidNumber": "请输入数字，例如 42 或 -0.5",
+          "invalidDate": "不是有效的日期",
+          "invalidBoolean": "必须为 true 或 false",
+          "invalidOption": "请选择其中一个选项",
+          "noOptions": "请至少添加一个选项",
+          "required": "必须提供值",
+          "emptyNeedsNull": "请输入值或勾选 NULL",
+          "cellReference": "带类型的值不能包含单元格引用"
+        },
+        "errors": {
+          "invalid": "无法发送参数 @{{name}}：{{reason}}",
+          "quoted": "参数 @{{name}} 带有类型，因此 {{reference}} 不能放在引号内：带类型的值会作为完整的 SQL 值插入。请去掉引号，或将该参数改回“原始”。",
+          "unsupported": "参数 @{{name}} 带有类型，但此连接不支持带类型的参数。请将其改回“原始”后再在此处使用。"
+        }
+      },
       "parallelExecution": "并行执行（全部运行）",
       "disableCell": "禁用单元格",
       "enableCell": "启用单元格",

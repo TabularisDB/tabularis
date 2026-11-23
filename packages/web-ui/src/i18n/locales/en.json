@@ -2370,6 +2370,42 @@
       "paramName": "name",
       "paramValue": "value",
       "invalidParamName": "Invalid parameter name",
+      "params": {
+        "type": "Type",
+        "value": "Value",
+        "null": "NULL",
+        "required": "Required",
+        "options": "Options, one per line",
+        "remove": "Remove parameter",
+        "apply": "Apply",
+        "discard": "Discard",
+        "unapplied": "Unapplied changes",
+        "rawHint": "A raw value is pasted into the SQL as typed. Pick a type to send it as a SQL value; typed values take effect when you click Apply.",
+        "unsupportedDriver": "Typed parameters are not available on this connection: its driver does not declare a PostgreSQL, MySQL or SQLite dialect. Values are pasted into the SQL as typed.",
+        "types": {
+          "raw": "Raw",
+          "text": "Text",
+          "number": "Number",
+          "boolean": "Boolean",
+          "date": "Date",
+          "select": "List"
+        },
+        "issues": {
+          "invalidNumber": "Enter a number such as 42 or -0.5",
+          "invalidDate": "Not a valid date",
+          "invalidBoolean": "Must be true or false",
+          "invalidOption": "Pick one of the options",
+          "noOptions": "Add at least one option",
+          "required": "A value is required",
+          "emptyNeedsNull": "Enter a value or tick NULL",
+          "cellReference": "A typed value cannot contain a cell reference"
+        },
+        "errors": {
+          "invalid": "Parameter @{{name}} cannot be sent: {{reason}}",
+          "quoted": "Parameter @{{name}} has a type, so {{reference}} cannot sit inside quotes: a typed value is inserted as a whole SQL value. Remove the quotes, or set the parameter back to Raw.",
+          "unsupported": "Parameter @{{name}} has a type, and typed parameters are not available on this connection. Set it back to Raw to use it here."
+        }
+      },
       "parallelExecution": "Parallel Execution (Run All)",
       "disableCell": "Disable cell",
       "enableCell": "Enable cell",

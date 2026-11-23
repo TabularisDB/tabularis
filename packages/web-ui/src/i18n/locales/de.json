@@ -2296,6 +2296,42 @@
       "paramName": "name",
       "paramValue": "wert",
       "invalidParamName": "Ungültiger Parametername",
+      "params": {
+        "type": "Typ",
+        "value": "Wert",
+        "null": "NULL",
+        "required": "Erforderlich",
+        "options": "Optionen, eine pro Zeile",
+        "remove": "Parameter entfernen",
+        "apply": "Anwenden",
+        "discard": "Verwerfen",
+        "unapplied": "Nicht angewendete Änderungen",
+        "rawHint": "Ein Rohwert wird so in das SQL eingefügt, wie er eingegeben wurde. Wähle einen Typ, um ihn als SQL-Wert zu senden; typisierte Werte gelten erst nach einem Klick auf „Anwenden“.",
+        "unsupportedDriver": "Typisierte Parameter sind für diese Verbindung nicht verfügbar: Ihr Treiber deklariert keinen PostgreSQL-, MySQL- oder SQLite-Dialekt. Werte werden so in das SQL eingefügt, wie sie eingegeben wurden.",
+        "types": {
+          "raw": "Rohtext",
+          "text": "Text",
+          "number": "Zahl",
+          "boolean": "Boolesch",
+          "date": "Datum",
+          "select": "Liste"
+        },
+        "issues": {
+          "invalidNumber": "Gib eine Zahl wie 42 oder -0.5 ein",
+          "invalidDate": "Kein gültiges Datum",
+          "invalidBoolean": "Muss true oder false sein",
+          "invalidOption": "Wähle eine der Optionen",
+          "noOptions": "Füge mindestens eine Option hinzu",
+          "required": "Ein Wert ist erforderlich",
+          "emptyNeedsNull": "Gib einen Wert ein oder aktiviere NULL",
+          "cellReference": "Ein typisierter Wert darf keinen Zellverweis enthalten"
+        },
+        "errors": {
+          "invalid": "Parameter @{{name}} kann nicht gesendet werden: {{reason}}",
+          "quoted": "Parameter @{{name}} hat einen Typ, daher darf {{reference}} nicht in Anführungszeichen stehen: Ein typisierter Wert wird als ganzer SQL-Wert eingefügt. Entferne die Anführungszeichen oder stelle den Parameter wieder auf „Rohtext“.",
+          "unsupported": "Parameter @{{name}} hat einen Typ, und typisierte Parameter sind für diese Verbindung nicht verfügbar. Stelle ihn wieder auf „Rohtext“, um ihn hier zu verwenden."
+        }
+      },
       "parallelExecution": "Parallele Ausführung (Alle ausführen)",
       "disableCell": "Zelle deaktivieren",
       "enableCell": "Zelle aktivieren",
