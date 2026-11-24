@@ -449,6 +449,17 @@ WHERE id = 1`;
             expect(classifyDangerousQuery('ANALYZE TABLE orders')).toBe(null);
         });
 
+        it('sees an executing prefix behind a leading # comment (MySQL)', () => {
+            expect(classifyDangerousQuery('ANALYZE DELETE FROM orders')).toBe('no-where');
+            expect(classifyDangerousQuery('# nightly\nANALYZE DELETE FROM orders')).toBe(
+                'no-where',
+            );
+            expect(
+                classifyDangerousQuery('# a\n  # b\nEXPLAIN ANALYZE UPDATE orders SET note = 1'),
+            ).toBe('no-where');
+            expect(classifyDangerousQuery('# plan only\nEXPLAIN DELETE FROM orders')).toBe(null);
+        });
+
         it('leaves EXPLAIN without ANALYZE alone, since it only plans', () => {
             expect(classifyDangerousQuery('EXPLAIN DELETE FROM orders')).toBe(null);
             expect(classifyDangerousQuery('EXPLAIN (ANALYZE false) DELETE FROM orders')).toBe(null);

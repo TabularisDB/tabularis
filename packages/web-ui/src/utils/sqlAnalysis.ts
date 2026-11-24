@@ -220,16 +220,17 @@ function explainOptionsAnalyze(options: string): boolean {
 // returned without the prefix. Plain EXPLAIN only plans and is kept whole.
 function executedStatement(cleaned: string): string {
     const trimmed = cleaned.trim();
-    const parenthesized = /^explain\s*\(([^)]*)\)\s*/i.exec(trimmed);
+    // Leading `#` lines are MySQL comments here, as in classifyDangerousQuery:
+    // no dialect can start a statement with `#`.
+    const head = trimmed.replace(/^(?:#[^\n]*(?:\n|$)\s*)+/, '');
+    const parenthesized = /^explain\s*\(([^)]*)\)\s*/i.exec(head);
     if (parenthesized) {
         return explainOptionsAnalyze(parenthesized[1])
-            ? trimmed.slice(parenthesized[0].length)
+            ? head.slice(parenthesized[0].length)
             : trimmed;
     }
-    const analyze = /^(?:explain\s+)?analy[sz]e\s+(?:verbose\s+|format\s*=\s*\w+\s+)*/i.exec(
-        trimmed,
-    );
-    return analyze ? trimmed.slice(analyze[0].length) : trimmed;
+    const analyze = /^(?:explain\s+)?analy[sz]e\s+(?:verbose\s+|format\s*=\s*\w+\s+)*/i.exec(head);
+    return analyze ? head.slice(analyze[0].length) : trimmed;
 }
 
 // Classifies a single statement's danger, or null when it is safe to run
