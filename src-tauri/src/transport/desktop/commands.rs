@@ -907,9 +907,10 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
         let mut conn_file = persistence::read_connections_file(&conn_path)?;
 
         // Check if any connections have old embedded SSH params
-        let needs_migration = conn_file.connections.iter().any(|c| {
-            c.params.ssh_enabled.unwrap_or(false) && c.params.ssh_connection_id.is_none()
-        });
+        let needs_migration = conn_file
+            .connections
+            .iter()
+            .any(|c| c.params.ssh_enabled.unwrap_or(false) && c.params.ssh_connection_id.is_none());
 
         if !needs_migration {
             return Ok(None);
@@ -1007,8 +1008,7 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
         }
 
         // Save migrated SSH connections
-        let ssh_json =
-            serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
+        let ssh_json = serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
         persistence::write_private_file(&ssh_path, ssh_json)?;
 
         // Save migrated connections using new format (preserving groups)

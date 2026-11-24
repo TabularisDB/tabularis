@@ -209,6 +209,7 @@ mod tests {
         let file = ConnectionsFile {
             groups: Vec::new(),
             // Builtin "postgres" is always skipped, regardless of ssl_mode.
+            credential_profiles: Vec::new(),
             connections: vec![saved_connection("postgres", Some("required"))],
             tags: Vec::new(),
             ..Default::default()
@@ -291,6 +292,7 @@ mod tests {
         let path = dir.path().join("connections.json");
         let file = ConnectionsFile {
             groups: Vec::new(),
+            credential_profiles: Vec::new(),
             connections: vec![
                 saved_connection("postgres", None),
                 saved_connection("mysql", None),
@@ -322,6 +324,7 @@ mod tests {
         let path = dir.path().join("connections.json");
         let file = ConnectionsFile {
             groups: Vec::new(),
+            credential_profiles: Vec::new(),
             connections: vec![
                 saved_connection("postgresql", None),
                 saved_connection("mysql", None),
@@ -349,6 +352,7 @@ mod tests {
         let path = dir.path().join("connections.json");
         let file = ConnectionsFile {
             groups: Vec::new(),
+            credential_profiles: Vec::new(),
             connections: vec![saved_connection("postgres", None)],
             tags: Vec::new(),
         };

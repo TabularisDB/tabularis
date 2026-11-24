@@ -1819,7 +1819,9 @@ fn collect_secret_values_keeps_other_passwords_when_one_profile_read_fails() {
         }),
     );
     let values = collect_secret_values(&runtime).unwrap();
-    assert!(values.iter().any(|value| value == "readable-profile-secret"));
+    assert!(values
+        .iter()
+        .any(|value| value == "readable-profile-secret"));
     assert!(values.iter().any(|value| value == "connection-secret"));
     assert!(!values.iter().any(|value| value == "failing-profile-secret"));
 }
@@ -3789,22 +3791,13 @@ fn update_group_racing_profile_delete_does_not_resurrect_the_profile() {
         "profile-secret".to_string(),
     )
     .unwrap();
-    let group = create_group(
-        &runtime,
-        &state,
-        "Projects".to_string(),
-        None,
-    )
-    .unwrap();
+    let group = create_group(&runtime, &state, "Projects".to_string(), None).unwrap();
     let group_id = group.id.clone();
     let renamed_group_id = group_id.clone();
     let writer_runtime = runtime.clone();
     let writer_state = Arc::clone(&state);
-    let (writer_result, delete_result) = run_profile_delete_after_writer_read(
-        &runtime,
-        &state,
-        profile.id.clone(),
-        move || {
+    let (writer_result, delete_result) =
+        run_profile_delete_after_writer_read(&runtime, &state, profile.id.clone(), move || {
             update_group(
                 &writer_runtime,
                 &writer_state,
@@ -3814,8 +3807,7 @@ fn update_group_racing_profile_delete_does_not_resurrect_the_profile() {
                 None,
             )
             .map(|_| ())
-        },
-    );
+        });
     assert_writer_and_profile_delete_both_apply(
         &runtime,
         &profile.id,
@@ -3854,11 +3846,8 @@ fn update_connection_tag_racing_profile_delete_does_not_resurrect_the_profile() 
     let edited_tag_id = tag_id.clone();
     let writer_runtime = runtime.clone();
     let writer_state = Arc::clone(&state);
-    let (writer_result, delete_result) = run_profile_delete_after_writer_read(
-        &runtime,
-        &state,
-        profile.id.clone(),
-        move || {
+    let (writer_result, delete_result) =
+        run_profile_delete_after_writer_read(&runtime, &state, profile.id.clone(), move || {
             update_connection_tag(
                 &writer_runtime,
                 &writer_state,
@@ -3866,8 +3855,7 @@ fn update_connection_tag_racing_profile_delete_does_not_resurrect_the_profile() 
                 "Staging".to_string(),
                 "#00ff00".to_string(),
             )
-        },
-    );
+        });
     assert_writer_and_profile_delete_both_apply(
         &runtime,
         &profile.id,
@@ -3910,11 +3898,8 @@ fn set_selected_databases_racing_profile_delete_does_not_resurrect_the_profile()
     let selected_connection_id = connection_id.clone();
     let writer_runtime = runtime.clone();
     let writer_state = Arc::clone(&state);
-    let (writer_result, delete_result) = run_profile_delete_after_writer_read(
-        &runtime,
-        &state,
-        profile.id.clone(),
-        move || {
+    let (writer_result, delete_result) =
+        run_profile_delete_after_writer_read(&runtime, &state, profile.id.clone(), move || {
             tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
@@ -3925,8 +3910,7 @@ fn set_selected_databases_racing_profile_delete_does_not_resurrect_the_profile()
                     &connection_id,
                     vec!["analytics".to_string(), "warehouse".to_string()],
                 ))
-        },
-    );
+        });
     assert_writer_and_profile_delete_both_apply(
         &runtime,
         &profile.id,
@@ -3940,10 +3924,7 @@ fn set_selected_databases_racing_profile_delete_does_not_resurrect_the_profile()
                 .expect("database selection must persist");
             assert_eq!(
                 connection.params.database,
-                DatabaseSelection::Multiple(vec![
-                    "analytics".to_string(),
-                    "warehouse".to_string()
-                ])
+                DatabaseSelection::Multiple(vec!["analytics".to_string(), "warehouse".to_string()])
             );
         },
     );
@@ -3974,12 +3955,10 @@ fn delete_connection_racing_profile_delete_does_not_resurrect_the_profile() {
     let deleted_connection_id = connection_id.clone();
     let writer_runtime = runtime.clone();
     let writer_state = Arc::clone(&state);
-    let (writer_result, delete_result) = run_profile_delete_after_writer_read(
-        &runtime,
-        &state,
-        profile.id.clone(),
-        move || delete_connection(&writer_runtime, &writer_state, &connection_id),
-    );
+    let (writer_result, delete_result) =
+        run_profile_delete_after_writer_read(&runtime, &state, profile.id.clone(), move || {
+            delete_connection(&writer_runtime, &writer_state, &connection_id)
+        });
     assert_writer_and_profile_delete_both_apply(
         &runtime,
         &profile.id,

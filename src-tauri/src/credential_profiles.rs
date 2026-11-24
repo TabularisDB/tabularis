@@ -110,7 +110,9 @@ pub fn create_profile_impl(
         .iter()
         .any(|profile| profile.name.eq_ignore_ascii_case(name))
     {
-        return Err(format!("A credential profile named \"{name}\" already exists"));
+        return Err(format!(
+            "A credential profile named \"{name}\" already exists"
+        ));
     }
     let id = Uuid::new_v4().to_string();
     validate_profile_keychain_namespace(file, &id)?;
@@ -136,7 +138,9 @@ pub fn update_profile_impl(
         .iter()
         .any(|profile| profile.id != id && profile.name.eq_ignore_ascii_case(name))
     {
-        return Err(format!("A credential profile named \"{name}\" already exists"));
+        return Err(format!(
+            "A credential profile named \"{name}\" already exists"
+        ));
     }
     let profile = file
         .credential_profiles
