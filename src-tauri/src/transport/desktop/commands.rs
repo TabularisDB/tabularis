@@ -52,8 +52,12 @@ async fn execute_connection_command<R: Runtime>(
 #[tauri::command]
 pub async fn get_connections<R: Runtime>(app: AppHandle<R>) -> Result<serde_json::Value, String> {
     migrate_ssh_connections(&app).await.ok();
-    migrate_builtin_driver_ids(&app).await.ok();
-    migrate_postgres_ssl_mode_spelling(&app).await.ok();
+    if let Err(e) = migrate_builtin_driver_ids(&app).await {
+        log::warn!("Driver-id migration failed: {e}");
+    }
+    if let Err(e) = migrate_postgres_ssl_mode_spelling(&app).await {
+        log::warn!("SSL-mode spelling migration failed: {e}");
+    }
     execute_connection_command(
         &app,
         crate::application::connections::ConnectionCommand::GetConnections,
@@ -66,8 +70,12 @@ pub async fn get_connections_with_groups<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<serde_json::Value, String> {
     migrate_ssh_connections(&app).await.ok();
-    migrate_builtin_driver_ids(&app).await.ok();
-    migrate_postgres_ssl_mode_spelling(&app).await.ok();
+    if let Err(e) = migrate_builtin_driver_ids(&app).await {
+        log::warn!("Driver-id migration failed: {e}");
+    }
+    if let Err(e) = migrate_postgres_ssl_mode_spelling(&app).await {
+        log::warn!("SSL-mode spelling migration failed: {e}");
+    }
     execute_connection_command(
         &app,
         crate::application::connections::ConnectionCommand::GetConnectionsWithGroups,

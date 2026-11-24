@@ -114,16 +114,26 @@ pub async fn bootstrap_application(
         // ("postgresql") before the ssl-mode migration tries to resolve their
         // dialect — otherwise the removed "postgres" driver can't resolve and
         // stale ssl_mode spellings are skipped for one launch cycle.
-        crate::connection_migrations::migrate_builtin_driver_ids_at_path(
+        match crate::connection_migrations::migrate_builtin_driver_ids_at_path(
             &context.paths.connections_file(),
         )
         .await
-        .ok();
-        crate::connection_migrations::migrate_postgres_ssl_mode_spelling_at_path(
+        {
+            Ok(true) => {}
+            Ok(false) => {
+                log::info!("Driver-id migration: nothing to migrate or skipped (file changed concurrently)");
+            }
+            Err(e) => {
+                log::warn!("Driver-id migration failed: {e}. Connections on \"postgres\" will be retried next launch.");
+            }
+        }
+        if let Err(e) = crate::connection_migrations::migrate_postgres_ssl_mode_spelling_at_path(
             &context.paths.connections_file(),
         )
         .await
-        .ok();
+        {
+            log::warn!("SSL-mode spelling migration failed: {e}");
+        }
     }
 
     Ok(BootstrappedApplication { context, config })
