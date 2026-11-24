@@ -483,6 +483,72 @@ async fn standalone_does_not_inspect_credentials_at_startup() {
     assert!(!error.contains("shorter than"), "{error}");
 }
 
+fn runtime_with_credential_profile(
+    root: &std::path::Path,
+    password: &str,
+) -> Arc<dyn ApplicationApi> {
+    let secrets = Arc::new(MemorySecrets::default());
+    secrets
+        .set(
+            &crate::application::connections::profile_db_secret_account("shared-profile"),
+            password,
+        )
+        .unwrap();
+    let runtime = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            root.to_path_buf(),
+            root.to_path_buf(),
+        )),
+        Arc::new(crate::runtime::events::NoopRuntimeEvents),
+        secrets,
+    );
+    let mut params = base_params();
+    params.credential_profile_id = Some("shared-profile".to_string());
+    params.password = None;
+    params.save_in_keychain = Some(true);
+    let file = ConnectionsFile {
+        connections: vec![saved_connection("linked-1", params, true)],
+        credential_profiles: vec![crate::models::CredentialProfile {
+            id: "shared-profile".to_string(),
+            name: "Shared".to_string(),
+            username: "profile-user".to_string(),
+        }],
+        ..ConnectionsFile::default()
+    };
+    crate::persistence::save_connections_file(&runtime.paths.connections_file(), &file).unwrap();
+    Arc::new(RuntimeApplicationApi::new(
+        runtime,
+        Arc::new(ApplicationState::default()),
+    ))
+}
+
+#[tokio::test]
+async fn credential_profile_passwords_are_scrubbed_in_managed_mode() {
+    let temp = tempfile::tempdir().unwrap();
+    let password = "profile-secret-8c2e";
+    let application = runtime_with_credential_profile(temp.path(), password);
+    let events = WebEventBus::default();
+    server::refresh_secrets(application.as_ref(), events.redactor()).await;
+    let redacted = events
+        .redactor()
+        .redact(&format!("driver rejected password {password}"));
+    assert!(!redacted.contains(password), "{redacted}");
+}
+
+#[tokio::test]
+async fn managed_only_refuses_to_start_with_a_short_credential_profile_password() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut options = options(
+        ManagedConnectionPolicy::managed_only(),
+        Some(crate::cli::WebAuthMode::Password),
+        false,
+    );
+    options.application = runtime_with_credential_profile(temp.path(), "ab");
+    let error = server::run(options).await.unwrap_err();
+    assert!(error.contains("shorter than 4 characters"), "{error}");
+    assert!(!error.contains("'ab'"), "{error}");
+}
+
 #[tokio::test]
 async fn a_short_credential_that_appears_after_startup_is_still_scrubbed() {
     let temp = tempfile::tempdir().unwrap();

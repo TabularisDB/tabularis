@@ -577,6 +577,9 @@
   .z-\[10050\] {
     z-index: 10050;
   }
+  .order-first {
+    order: -9999;
+  }
   .col-span-2 {
     grid-column: span 2 / span 2;
   }
@@ -1260,6 +1263,9 @@
   }
   .w-\[1px\] {
     width: 1px;
+  }
+  .w-\[2px\] {
+    width: 2px;
   }
   .w-\[5\.5rem\] {
     width: 5.5rem;
@@ -2056,6 +2062,10 @@
     border-top-right-radius: var(--radius-md);
     border-bottom-right-radius: var(--radius-md);
   }
+  .rounded-r-sm {
+    border-top-right-radius: var(--radius-sm);
+    border-bottom-right-radius: var(--radius-sm);
+  }
   .rounded-r-xl {
     border-top-right-radius: var(--radius-xl);
     border-bottom-right-radius: var(--radius-xl);
@@ -2202,6 +2212,12 @@
     border-color: var(--color-accent-error);
     @supports (color: color-mix(in lab, red, red)) {
       border-color: color-mix(in oklab, var(--color-accent-error) 60%, transparent);
+    }
+  }
+  .border-accent-info\/25 {
+    border-color: var(--color-accent-info);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--color-accent-info) 25%, transparent);
     }
   }
   .border-accent-primary {
@@ -2572,6 +2588,12 @@
   }
   .bg-accent-info {
     background-color: var(--color-accent-info);
+  }
+  .bg-accent-info\/10 {
+    background-color: var(--color-accent-info);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--color-accent-info) 10%, transparent);
+    }
   }
   .bg-accent-info\/15 {
     background-color: var(--color-accent-info);
@@ -3469,6 +3491,9 @@
   }
   .pl-10 {
     padding-left: calc(var(--spacing) * 10);
+  }
+  .pl-56 {
+    padding-left: calc(var(--spacing) * 56);
   }
   .text-center {
     text-align: center;
@@ -7326,6 +7351,12 @@
   .\[\&\>\*\:last-child\]\:mb-0 {
     &>*:last-child {
       margin-bottom: calc(var(--spacing) * 0);
+    }
+  }
+  .\[\&\>\:first-child\]\:border-l-0 {
+    &>:first-child {
+      border-left-style: var(--tw-border-style);
+      border-left-width: 0px;
     }
   }
   .\[\&\>span\]\:\!bg-transparent {
