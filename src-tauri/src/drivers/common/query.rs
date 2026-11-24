@@ -260,13 +260,16 @@ fn tokenize_sql_with_pos(sql: &str, rules: CommentRules) -> Vec<(String, usize)>
                         i += 1;
                         break;
                     }
-                } else if ch == '\'' {
+                } else if ch == '\'' || ch == '"' || ch == '`' {
+                    // A parenthesis inside a string or quoted identifier
+                    // (`CONCAT(name, ")")`) must not change the depth.
+                    let quote = ch;
                     i += 1;
                     while i < len {
                         let inner = chars[i].1;
                         token.push(inner);
-                        if inner == '\'' {
-                            if i + 1 < len && chars[i + 1].1 == '\'' {
+                        if inner == quote {
+                            if i + 1 < len && chars[i + 1].1 == quote {
                                 i += 1;
                                 token.push(chars[i].1);
                             } else {

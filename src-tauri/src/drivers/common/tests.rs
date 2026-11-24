@@ -455,6 +455,38 @@ fn test_build_paginated_query_honors_user_limit_after_backslash_quoted_string() 
 }
 
 #[test]
+fn test_build_paginated_query_honors_user_limit_after_quoted_parenthesis_in_parens() {
+    // A parenthesis inside a double-quoted or backtick-quoted string within
+    // `(...)` used to end (or never end) the group, so the user's LIMIT was
+    // not found and a second LIMIT was appended.
+    for (q, expected) in [
+        (
+            r#"SELECT CONCAT(name, ")") FROM t LIMIT 5"#,
+            r#"SELECT CONCAT(name, ")") FROM t LIMIT 5 OFFSET 0"#,
+        ),
+        (
+            r#"SELECT * FROM t WHERE c IN ("(") LIMIT 5"#,
+            r#"SELECT * FROM t WHERE c IN ("(") LIMIT 5 OFFSET 0"#,
+        ),
+        (
+            "SELECT * FROM t WHERE c IN (`a)`) LIMIT 5",
+            "SELECT * FROM t WHERE c IN (`a)`) LIMIT 5 OFFSET 0",
+        ),
+        (
+            r#"SELECT * FROM (SELECT "a)""b" FROM t) s LIMIT 5 OFFSET 2"#,
+            r#"SELECT * FROM (SELECT "a)""b" FROM t) s LIMIT 5 OFFSET 2"#,
+        ),
+    ] {
+        assert_eq!(build_paginated_query(q, 100, 1), expected, "{q}");
+        assert_eq!(
+            build_paginated_query_for(q, 100, 1, false, false),
+            expected,
+            "{q}"
+        );
+    }
+}
+
+#[test]
 fn test_build_paginated_query_keeps_mysql_minus_expression() {
     let q = "SELECT 1--2;";
     let result = build_paginated_query(q, 1, 1);
