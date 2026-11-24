@@ -11,6 +11,10 @@ export interface DangerousQueryInfo {
     count: number;
 }
 
+export interface PendingDangerousQuery extends DangerousQueryInfo {
+    confirmationId: number;
+}
+
 /** i18n key pairs for each danger kind, shared by every consumer of the guard. */
 export const DANGEROUS_QUERY_I18N: Record<DangerousQueryKind, {title: string; message: string}> = {
     'no-where': {
@@ -27,31 +31,37 @@ export const DANGEROUS_QUERY_I18N: Record<DangerousQueryKind, {title: string; me
     },
 };
 
+interface QueuedConfirmation {
+    info: PendingDangerousQuery;
+    resolve: (confirmed: boolean) => void;
+}
+
 /**
  * Gates execution of dangerous statements (DELETE/UPDATE with no WHERE, DROP,
  * TRUNCATE) behind a user confirmation. `guardQuery` resolves immediately (no
  * dialog) for safe statements; for dangerous ones it opens the dialog and
  * resolves once the user answers. A second dangerous statement submitted while
- * a dialog is already open is declined immediately instead of replacing the
- * pending one, so the first caller's promise always settles. Pass `false` to
- * disable this guard when a higher-priority safety prompt handles the action.
+ * a dialog is already open waits its turn, so neither caller is dropped or
+ * left pending. Pass `false` to disable this guard when a higher-priority
+ * safety prompt handles the action.
  */
 export function useDangerousQueryGuard(enabled = true) {
-    const [pending, setPending] = useState<DangerousQueryInfo | null>(null);
-    const resolverRef = useRef<((confirmed: boolean) => void) | null>(null);
+    const [pending, setPending] = useState<PendingDangerousQuery | null>(null);
+    const queueRef = useRef<QueuedConfirmation[]>([]);
+    const nextConfirmationId = useRef(0);
 
     const requestConfirmation = useCallback((info: DangerousQueryInfo): Promise<boolean> => {
-        if (resolverRef.current) return Promise.resolve(false);
         return new Promise((resolve) => {
-            resolverRef.current = resolve;
-            setPending(info);
+            const pendingInfo = {...info, confirmationId: nextConfirmationId.current++};
+            queueRef.current.push({info: pendingInfo, resolve});
+            if (queueRef.current.length === 1) setPending(pendingInfo);
         });
     }, []);
 
     const resolve = useCallback((confirmed: boolean) => {
-        resolverRef.current?.(confirmed);
-        resolverRef.current = null;
-        setPending(null);
+        const current = queueRef.current.shift();
+        current?.resolve(confirmed);
+        setPending(queueRef.current[0]?.info ?? null);
     }, []);
 
     const guardQuery = useCallback(

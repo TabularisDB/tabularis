@@ -18,7 +18,11 @@ defineTransportContractSuite('Tauri adapter mock', serializationFixture, async (
             expect(request).toBeUndefined();
             return {groups: [], connections: []};
         }
-        if (command === 'get_ssh_connections' || command === 'get_k8s_connections') {
+        if (
+            command === 'get_ssh_connections' ||
+            command === 'get_k8s_connections' ||
+            command === 'list_credential_profiles'
+        ) {
             expect(request).toBeUndefined();
             return [];
         }
