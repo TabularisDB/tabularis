@@ -128,7 +128,9 @@ pub async fn migrate_postgres_ssl_mode_spelling_at_path(conn_path: &Path) -> Res
         return Ok(false); // Nothing to migrate
     }
 
-    let content_before = fs::read_to_string(conn_path).map_err(|e| e.to_string())?;
+    let content_before = persistence::with_connections_file_exclusive(|| {
+        fs::read_to_string(conn_path).map_err(|e| e.to_string())
+    })?;
     let mut conn_file = persistence::parse_connections_file(&content_before)?;
 
     // Resolve each distinct non-builtin driver id's dialect once, not once
@@ -159,20 +161,19 @@ pub async fn migrate_postgres_ssl_mode_spelling_at_path(conn_path: &Path) -> Res
         return Ok(false); // No migration needed
     }
 
-    // Bail if another process (e.g. the GUI) saved a concurrent edit while
-    // we were computing the migration above — don't blindly overwrite it.
-    let content_now = fs::read_to_string(conn_path).map_err(|e| e.to_string())?;
-    if connections_file_changed_concurrently(&content_before, &content_now) {
-        eprintln!(
-            "[Migration] connections.json changed concurrently — skipping this run, will retry next launch"
-        );
-        return Ok(false);
-    }
-
     eprintln!(
         "[Migration] Rewriting stale ssl_mode spelling on {} postgres-dialect connection(s)",
         migrated_count
     );
-    persistence::save_connections_file(conn_path, &conn_file)?;
-    Ok(true)
+    persistence::with_connections_file_exclusive(|| {
+        let content_now = fs::read_to_string(conn_path).map_err(|e| e.to_string())?;
+        if connections_file_changed_concurrently(&content_before, &content_now) {
+            eprintln!(
+                "[Migration] connections.json changed concurrently — skipping this run, will retry next launch"
+            );
+            return Ok(false);
+        }
+        persistence::write_connections_file(conn_path, &conn_file)?;
+        Ok(true)
+    })
 }

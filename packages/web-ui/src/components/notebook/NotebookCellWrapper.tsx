@@ -24,6 +24,8 @@ interface NotebookCellWrapperProps {
     canDuplicate?: boolean;
     connectionId: string;
     explainQuery?: ResolvedQuery;
+    /** Why the query plan cannot be requested, such as a parameter that cannot be sent. */
+    explainError?: string;
     activeSchema?: string;
     selectedDatabases?: string[];
     onSchemaChange?: (schema: string) => void;
@@ -48,6 +50,7 @@ export function NotebookCellWrapper({
     canDuplicate,
     connectionId,
     explainQuery,
+    explainError,
     activeSchema,
     selectedDatabases,
     onSchemaChange,
@@ -158,6 +161,7 @@ export function NotebookCellWrapper({
                     onToggleQueryPlanVisible={toggleQueryPlan}
                     connectionId={connectionId}
                     explainQuery={explainQuery}
+                    explainError={explainError}
                     schema={activeSchema}
                 />
             ) : !cell.isCollapsed ? (

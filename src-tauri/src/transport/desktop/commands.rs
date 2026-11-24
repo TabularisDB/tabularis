@@ -349,6 +349,67 @@ pub async fn create_connection_tag<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn list_credential_profiles<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<serde_json::Value, String> {
+    execute_connection_command(
+        &app,
+        crate::application::connections::ConnectionCommand::ListCredentialProfiles,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn create_credential_profile<R: Runtime>(
+    app: AppHandle<R>,
+    name: String,
+    username: String,
+    password: String,
+) -> Result<serde_json::Value, String> {
+    execute_connection_command(
+        &app,
+        crate::application::connections::ConnectionCommand::CreateCredentialProfile {
+            name,
+            username,
+            password,
+        },
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn update_credential_profile<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    name: String,
+    username: String,
+    password: Option<String>,
+) -> Result<serde_json::Value, String> {
+    execute_connection_command(
+        &app,
+        crate::application::connections::ConnectionCommand::UpdateCredentialProfile {
+            id,
+            name,
+            username,
+            password,
+        },
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn delete_credential_profile<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    execute_connection_command(
+        &app,
+        crate::application::connections::ConnectionCommand::DeleteCredentialProfile { id },
+    )
+    .await
+}
+
+#[tauri::command]
 pub async fn update_connection_tag<R: Runtime>(
     app: AppHandle<R>,
     id: String,
@@ -478,6 +539,11 @@ fn lookup_saved_connection<R: Runtime>(
 /// SSH secrets, connection URI) but without plugin-owned secrets. Used by the
 /// edit modal and by the Test Connection / Load Databases flows, which resolve
 /// plugin secrets themselves once the pending changes are known.
+///
+/// A referenced credential profile is deliberately left unresolved: the
+/// reference is kept and the password stays `None`, matching the web transport,
+/// so a missing profile secret can never fail the edit form. Execution reads go
+/// through [`find_connection_by_id`], which resolves the profile.
 pub fn find_connection_metadata_by_id<R: Runtime>(
     app: &AppHandle<R>,
     id: &str,
@@ -487,17 +553,23 @@ pub fn find_connection_metadata_by_id<R: Runtime>(
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
     restore_runtime_connection_uri(&cache, &conn.id, &mut conn.params)?;
 
+    let has_profile = conn.params.credential_profile_id.is_some();
     // Load passwords from keychain via the in-memory cache (warm hit = lookup,
     // cold miss = keychain call + cache). Skip IAM-auth connections: their
     // 15-min tokens must come from the `password` field, never the keychain,
     // so a stale token from an older release can't be surfaced in the modal.
+    // A referenced credential profile owns the DB password: the connection's own
+    // keychain entry is skipped here, and the profile is resolved on the
+    // execution path (`find_connection_by_id`) rather than on this metadata read.
     if conn.params.save_in_keychain.unwrap_or(false) && !conn.params.use_iam_auth.unwrap_or(false) {
-        match credential_cache::get_db_password_cached(&cache, &conn.id) {
-            Ok(pwd) => conn.params.password = Some(pwd),
-            Err(e) => eprintln!(
-                "[Keyring Error] Failed to get DB password for {}: {}",
-                conn.id, e
-            ),
+        if !has_profile {
+            match credential_cache::get_db_password_cached(&cache, &conn.id) {
+                Ok(pwd) => conn.params.password = Some(pwd),
+                Err(e) => eprintln!(
+                    "[Keyring Error] Failed to get DB password for {}: {}",
+                    conn.id, e
+                ),
+            }
         }
         if conn.params.ssh_enabled.unwrap_or(false) {
             if let Ok(ssh_pwd) = credential_cache::get_ssh_password_cached(&cache, &conn.id) {
@@ -519,26 +591,32 @@ pub fn find_connection_metadata_by_id<R: Runtime>(
 }
 
 /// Load a connection for driver execution. Unlike the metadata/edit path,
-/// this resolves plugin-owned secrets into `params.extra` only in memory.
+/// this resolves the referenced credential profile and hydrates plugin-owned
+/// secrets into `params.extra` only in memory.
 pub fn find_connection_by_id<R: Runtime>(
     app: &AppHandle<R>,
     id: &str,
 ) -> Result<SavedConnection, String> {
     let mut conn = find_connection_metadata_by_id(app, id)?;
+    if conn.params.credential_profile_id.is_some() {
+        let runtime = app.state::<crate::runtime::RuntimeContext>();
+        let file = persistence::load_connections_file(&runtime.paths.connections_file())?;
+        crate::application::connections::resolve_credential_profile(
+            &mut conn.params,
+            &file.credential_profiles,
+            |profile_id| {
+                runtime
+                    .secrets
+                    .get(&crate::application::connections::profile_db_secret_account(
+                        profile_id,
+                    ))
+            },
+        )
+        .map_err(|error| format!("Failed to load connection '{id}': {error}"))?;
+    }
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
     crate::plugin_secrets::hydrate_connection(&cache, &mut conn);
     Ok(conn)
-}
-
-pub(crate) fn save_connections_and_invalidate<R: Runtime>(
-    app: &AppHandle<R>,
-    path: &std::path::Path,
-    file: &crate::models::ConnectionsFile,
-) -> Result<(), String> {
-    persistence::save_connections_file(path, file)?;
-    app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>()
-        .invalidate();
-    Ok(())
 }
 
 #[tauri::command]
@@ -585,6 +663,7 @@ pub async fn set_selected_databases<R: Runtime>(
 ) -> Result<(), String> {
     crate::application::connections::set_selected_databases(
         &app.state::<crate::runtime::RuntimeContext>(),
+        &app.state::<std::sync::Arc<crate::runtime::state::ApplicationState>>(),
         &connection_id,
         databases,
     )
@@ -820,121 +899,132 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
         return Ok(()); // Nothing to migrate
     }
 
-    // Load connections using persistence (handles both old and new formats)
-    let mut conn_file = persistence::load_connections_file(&conn_path)?;
-    let connections = &conn_file.connections;
-
-    // Check if any connections have old embedded SSH params
-    let needs_migration = connections
-        .iter()
-        .any(|c| c.params.ssh_enabled.unwrap_or(false) && c.params.ssh_connection_id.is_none());
-
-    if !needs_migration {
-        return Ok(()); // No migration needed
-    }
-
-    eprintln!("[Migration] Starting SSH connections migration...");
-
     let ssh_path = get_ssh_config_path(app)?;
-    let mut ssh_connections: Vec<SshConnection> = if ssh_path.exists() {
-        let ssh_content = fs::read_to_string(&ssh_path).map_err(|e| e.to_string())?;
-        serde_json::from_str(&ssh_content).unwrap_or_default()
-    } else {
-        Vec::new()
-    };
+    let migrated_ssh_count = persistence::with_connections_file_exclusive(|| {
+        // Load connections using persistence (handles both old and new formats)
+        let mut conn_file = persistence::read_connections_file(&conn_path)?;
 
-    let mut migrated_connections = Vec::new();
-    let mut ssh_connection_map: HashMap<String, String> = HashMap::new(); // (ssh_key -> ssh_id)
+        // Check if any connections have old embedded SSH params
+        let needs_migration = conn_file.connections.iter().any(|c| {
+            c.params.ssh_enabled.unwrap_or(false) && c.params.ssh_connection_id.is_none()
+        });
 
-    for mut conn in conn_file.connections.clone() {
-        if conn.params.ssh_enabled.unwrap_or(false) && conn.params.ssh_connection_id.is_none() {
-            // Extract SSH params
-            if let (Some(host), Some(user)) = (&conn.params.ssh_host, &conn.params.ssh_user) {
-                let port = conn.params.ssh_port.unwrap_or(22);
-                let key_file = conn.params.ssh_key_file.clone().unwrap_or_default();
-
-                // Create unique key for this SSH config
-                let ssh_key = format!("{}:{}:{}:{}", host, port, user, key_file);
-
-                // Check if we already created an SSH connection for this config
-                let ssh_id = if let Some(existing_id) = ssh_connection_map.get(&ssh_key) {
-                    existing_id.clone()
-                } else {
-                    // Create new SSH connection
-                    let new_ssh_id = Uuid::new_v4().to_string();
-                    let ssh_name = format!("{}@{}", user, host);
-
-                    // Migrate credentials from connection keychain to SSH keychain
-                    if conn.params.save_in_keychain.unwrap_or(false) {
-                        if let Ok(ssh_pwd) = keychain_utils::get_ssh_password(&conn.id, &conn.name)
-                        {
-                            if !ssh_pwd.trim().is_empty() {
-                                keychain_utils::set_ssh_password(&new_ssh_id, &ssh_pwd).ok();
-                            }
-                        }
-                        if let Ok(ssh_pass) =
-                            keychain_utils::get_ssh_key_passphrase(&conn.id, &conn.name)
-                        {
-                            if !ssh_pass.trim().is_empty() {
-                                keychain_utils::set_ssh_key_passphrase(&new_ssh_id, &ssh_pass).ok();
-                            }
-                        }
-                    }
-
-                    let new_ssh_conn = SshConnection {
-                        id: new_ssh_id.clone(),
-                        name: ssh_name,
-                        host: host.clone(),
-                        port,
-                        user: user.clone(),
-                        auth_type: Some(if !key_file.is_empty() {
-                            "ssh_key".to_string()
-                        } else {
-                            "password".to_string()
-                        }),
-                        password: None,
-                        key_file: if key_file.is_empty() {
-                            None
-                        } else {
-                            Some(key_file.clone())
-                        },
-                        key_passphrase: None,
-                        allow_passphrase_prompt: None,
-                        save_in_keychain: conn.params.save_in_keychain,
-                    };
-
-                    ssh_connections.push(new_ssh_conn);
-                    ssh_connection_map.insert(ssh_key, new_ssh_id.clone());
-                    new_ssh_id
-                };
-
-                // Update connection to reference the SSH connection
-                conn.params.ssh_connection_id = Some(ssh_id);
-                // Clear old embedded SSH params
-                conn.params.ssh_host = None;
-                conn.params.ssh_port = None;
-                conn.params.ssh_user = None;
-                conn.params.ssh_password = None;
-                conn.params.ssh_key_file = None;
-                conn.params.ssh_key_passphrase = None;
-            }
+        if !needs_migration {
+            return Ok(None);
         }
 
-        migrated_connections.push(conn);
+        eprintln!("[Migration] Starting SSH connections migration...");
+
+        let mut ssh_connections: Vec<SshConnection> = if ssh_path.exists() {
+            let ssh_content = fs::read_to_string(&ssh_path).map_err(|e| e.to_string())?;
+            serde_json::from_str(&ssh_content).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+
+        let mut migrated_connections = Vec::new();
+        let mut ssh_connection_map: HashMap<String, String> = HashMap::new(); // (ssh_key -> ssh_id)
+
+        for mut conn in conn_file.connections.clone() {
+            if conn.params.ssh_enabled.unwrap_or(false) && conn.params.ssh_connection_id.is_none() {
+                // Extract SSH params
+                if let (Some(host), Some(user)) = (&conn.params.ssh_host, &conn.params.ssh_user) {
+                    let port = conn.params.ssh_port.unwrap_or(22);
+                    let key_file = conn.params.ssh_key_file.clone().unwrap_or_default();
+
+                    // Create unique key for this SSH config
+                    let ssh_key = format!("{}:{}:{}:{}", host, port, user, key_file);
+
+                    // Check if we already created an SSH connection for this config
+                    let ssh_id = if let Some(existing_id) = ssh_connection_map.get(&ssh_key) {
+                        existing_id.clone()
+                    } else {
+                        // Create new SSH connection
+                        let new_ssh_id = Uuid::new_v4().to_string();
+                        let ssh_name = format!("{}@{}", user, host);
+
+                        // Migrate credentials from connection keychain to SSH keychain
+                        if conn.params.save_in_keychain.unwrap_or(false) {
+                            if let Ok(ssh_pwd) =
+                                keychain_utils::get_ssh_password(&conn.id, &conn.name)
+                            {
+                                if !ssh_pwd.trim().is_empty() {
+                                    keychain_utils::set_ssh_password(&new_ssh_id, &ssh_pwd).ok();
+                                }
+                            }
+                            if let Ok(ssh_pass) =
+                                keychain_utils::get_ssh_key_passphrase(&conn.id, &conn.name)
+                            {
+                                if !ssh_pass.trim().is_empty() {
+                                    keychain_utils::set_ssh_key_passphrase(&new_ssh_id, &ssh_pass)
+                                        .ok();
+                                }
+                            }
+                        }
+
+                        let new_ssh_conn = SshConnection {
+                            id: new_ssh_id.clone(),
+                            name: ssh_name,
+                            host: host.clone(),
+                            port,
+                            user: user.clone(),
+                            auth_type: Some(if !key_file.is_empty() {
+                                "ssh_key".to_string()
+                            } else {
+                                "password".to_string()
+                            }),
+                            password: None,
+                            key_file: if key_file.is_empty() {
+                                None
+                            } else {
+                                Some(key_file.clone())
+                            },
+                            key_passphrase: None,
+                            allow_passphrase_prompt: None,
+                            save_in_keychain: conn.params.save_in_keychain,
+                        };
+
+                        ssh_connections.push(new_ssh_conn);
+                        ssh_connection_map.insert(ssh_key, new_ssh_id.clone());
+                        new_ssh_id
+                    };
+
+                    // Update connection to reference the SSH connection
+                    conn.params.ssh_connection_id = Some(ssh_id);
+                    // Clear old embedded SSH params
+                    conn.params.ssh_host = None;
+                    conn.params.ssh_port = None;
+                    conn.params.ssh_user = None;
+                    conn.params.ssh_password = None;
+                    conn.params.ssh_key_file = None;
+                    conn.params.ssh_key_passphrase = None;
+                }
+            }
+
+            migrated_connections.push(conn);
+        }
+
+        // Save migrated SSH connections
+        let ssh_json =
+            serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
+        persistence::write_private_file(&ssh_path, ssh_json)?;
+
+        // Save migrated connections using new format (preserving groups)
+        conn_file.connections = migrated_connections;
+        persistence::write_connections_file(&conn_path, &conn_file)?;
+
+        Ok(Some(ssh_connections.len()))
+    })?;
+
+    if let Some(count) = migrated_ssh_count {
+        app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>()
+            .invalidate();
+        eprintln!(
+            "[Migration] Successfully migrated {} SSH connections",
+            count
+        );
     }
 
-    // Save migrated SSH connections
-    let ssh_json = serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
-    persistence::write_private_file(&ssh_path, ssh_json)?;
-
-    // Save migrated connections using new format (preserving groups)
-    conn_file.connections = migrated_connections;
-    save_connections_and_invalidate(app, &conn_path, &conn_file)?;
-
-    eprintln!(
-        "[Migration] Successfully migrated {} SSH connections",
-        ssh_connections.len()
-    );
     Ok(())
 }
 

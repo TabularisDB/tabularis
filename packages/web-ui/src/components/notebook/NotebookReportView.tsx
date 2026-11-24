@@ -4,6 +4,7 @@ import {DataGrid} from '@/components/ui/DataGrid';
 import {ErrorDisplay} from '@/components/ui/ErrorDisplay';
 import type {NotebookCell, NotebookParam, RunAllResult} from '@/types/notebook';
 import {isCellIncludedInReport, isCellOutputOutdated} from '@/utils/notebook';
+import type {ParamDrafts} from '@/utils/notebookParams';
 import {canRenderChart} from '@/utils/notebookChart';
 import {CellChart} from './CellChart';
 import {CellKpi} from './CellKpi';
@@ -15,6 +16,9 @@ interface NotebookReportViewProps {
     cells: NotebookCell[];
     params: NotebookParam[];
     onParamsChange: (params: NotebookParam[]) => void;
+    paramDrafts?: ParamDrafts;
+    onParamDraftsChange?: (drafts: ParamDrafts) => void;
+    typedParamsSupported?: boolean;
     runAllResult: RunAllResult | null;
     onDismissRunAllResult: () => void;
     onSwitchToEdit: () => void;
@@ -112,6 +116,9 @@ export function NotebookReportView({
     cells,
     params,
     onParamsChange,
+    paramDrafts,
+    onParamDraftsChange,
+    typedParamsSupported,
     runAllResult,
     onDismissRunAllResult,
     onSwitchToEdit,
@@ -123,7 +130,13 @@ export function NotebookReportView({
     return (
         <div className="flex-1 overflow-auto p-4 sm:p-6">
             <div className="max-w-4xl mx-auto w-full space-y-4">
-                <ParamsPanel params={params} onParamsChange={onParamsChange} />
+                <ParamsPanel
+                    params={params}
+                    onParamsChange={onParamsChange}
+                    drafts={paramDrafts}
+                    onDraftsChange={onParamDraftsChange}
+                    typedSupported={typedParamsSupported}
+                />
 
                 {runAllResult && (
                     <RunAllSummary result={runAllResult} onDismiss={onDismissRunAllResult} />

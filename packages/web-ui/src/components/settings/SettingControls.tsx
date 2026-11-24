@@ -1,4 +1,13 @@
-import {createContext, useContext, useId, type ReactNode} from 'react';
+import {
+    createContext,
+    useContext,
+    useEffect,
+    useEffectEvent,
+    useId,
+    useRef,
+    useState,
+    type ReactNode,
+} from 'react';
 import clsx from 'clsx';
 
 /* ── Section ── */
@@ -167,21 +176,79 @@ interface SettingSliderProps {
     max: number;
     step: number;
     formatValue?: (value: number) => string;
+    /**
+     * Reports the in-progress value while the thumb is being dragged, and `null`
+     * once the drag ends. When provided, `onChange` is only called when the drag
+     * is released, so settings that reflow the layout (e.g. font size) do not move
+     * the slider out from under the pointer mid-drag.
+     */
+    onDraftChange?: (value: number | null) => void;
 }
 
-export function SettingSlider({value, onChange, min, max, step, formatValue}: SettingSliderProps) {
-    const display = formatValue ? formatValue(value) : String(value);
+/** Reads a range input's value as a float for fractional steps, an integer otherwise. */
+function parseSliderValue(raw: string, step: number): number {
+    return step < 1 ? parseFloat(raw) : parseInt(raw);
+}
+
+export function SettingSlider({
+    value,
+    onChange,
+    min,
+    max,
+    step,
+    formatValue,
+    onDraftChange,
+}: SettingSliderProps) {
+    const [draft, setDraft] = useState<number | null>(null);
+    const [dragging, setDragging] = useState(false);
+    const inputRef = useRef<HTMLInputElement>(null);
+    const shown = draft ?? value;
+    const display = formatValue ? formatValue(shown) : String(shown);
+
+    const endDrag = useEffectEvent(() => {
+        setDragging(false);
+        const next = parseSliderValue(inputRef.current?.value ?? '', step);
+        setDraft(null);
+        onDraftChange?.(null);
+        if (!Number.isNaN(next) && next !== value) onChange(next);
+    });
+
+    // The pointer can be released anywhere, not just over the slider, so the end
+    // of a drag is listened for on the window.
+    useEffect(() => {
+        if (!dragging) return;
+        const handleEnd = () => endDrag();
+        window.addEventListener('pointerup', handleEnd);
+        window.addEventListener('pointercancel', handleEnd);
+        window.addEventListener('blur', handleEnd);
+        return () => {
+            window.removeEventListener('pointerup', handleEnd);
+            window.removeEventListener('pointercancel', handleEnd);
+            window.removeEventListener('blur', handleEnd);
+        };
+    }, [dragging]);
+
     return (
         <div className="flex items-center gap-4 min-w-[200px]">
             <input
+                ref={inputRef}
                 type="range"
                 min={min}
                 max={max}
                 step={step}
-                value={value}
-                onChange={(e) =>
-                    onChange(step < 1 ? parseFloat(e.target.value) : parseInt(e.target.value))
-                }
+                value={shown}
+                onPointerDown={() => {
+                    if (onDraftChange) setDragging(true);
+                }}
+                onChange={(e) => {
+                    const next = parseSliderValue(e.target.value, step);
+                    if (dragging) {
+                        setDraft(next);
+                        onDraftChange?.(next);
+                    } else {
+                        onChange(next);
+                    }
+                }}
                 className="flex-1 h-2 bg-surface-tertiary rounded-lg appearance-none cursor-pointer accent-accent-primary"
             />
             <span className="text-sm font-mono text-primary w-16 text-right">{display}</span>

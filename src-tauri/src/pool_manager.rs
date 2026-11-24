@@ -91,7 +91,6 @@ static POSTGRES_POOLS: Lazy<PgPoolMap> = Lazy::new(|| Arc::new(RwLock::new(HashM
 static SQLITE_POOLS: Lazy<PoolMap<Sqlite>> = Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
 
 const DEFAULT_MYSQL_CONNECT_TIMEOUT_MS: u64 = 60_000;
-const DEFAULT_MYSQL_TIMEZONE: &str = "SYSTEM";
 pub(crate) const DEFAULT_POSTGRES_POOL_MAX_SIZE: usize = 10;
 const MAX_POSTGRES_POOL_MAX_SIZE: usize = 64;
 
@@ -112,11 +111,14 @@ fn mysql_setting_value(key: &str) -> Option<serde_json::Value> {
         .and_then(|plugin| plugin.settings.get(key).cloned())
 }
 
-fn mysql_string_setting(key: &str, default: &str) -> String {
-    mysql_setting_value(key)
+/// The session time zone the user set for MySQL, or `None` to send none and
+/// keep the server's default. Not every server that speaks the MySQL protocol
+/// accepts every value (Apache Doris rejects `SYSTEM`), so nothing is sent
+/// unless the user asked for it.
+pub(crate) fn mysql_timezone_setting() -> Option<String> {
+    mysql_setting_value("timezone")
         .and_then(|value| value.as_str().map(ToOwned::to_owned))
         .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| default.to_string())
 }
 
 fn mysql_numeric_setting(key: &str, default: u64) -> u64 {
@@ -415,7 +417,7 @@ pub(crate) fn build_mysql_options(
     let host = params.host.as_deref().unwrap_or("localhost");
     let port = params.port.unwrap_or(3306);
     let database = override_db.unwrap_or_else(|| params.database.primary());
-    let timezone = mysql_string_setting("timezone", DEFAULT_MYSQL_TIMEZONE);
+    let timezone = mysql_timezone_setting();
     // A local Unix socket replaces host:port (`None` while a tunnel is enabled:
     // the tunnel owns the route then, see `local_unix_socket_path`).
     let local_socket = params.local_unix_socket_path();
