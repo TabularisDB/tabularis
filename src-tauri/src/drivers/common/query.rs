@@ -162,6 +162,9 @@ struct CommentRules {
     hash_comments: bool,
     /// `--` starts a comment only before whitespace or the end (MySQL/MariaDB).
     line_comment_requires_space: bool,
+    /// A negative `LIMIT` count means no limit (SQLite only; MySQL and
+    /// PostgreSQL reject it, and that error must reach the user).
+    negative_limit_unbounded: bool,
 }
 
 /// The rules [`build_paginated_query`] and the public helpers use when no
@@ -169,6 +172,7 @@ struct CommentRules {
 const DEFAULT_COMMENT_RULES: CommentRules = CommentRules {
     hash_comments: true,
     line_comment_requires_space: true,
+    negative_limit_unbounded: false,
 };
 
 /// If a comment starts at `chars[i]`, returns the index just past it: past
@@ -306,14 +310,15 @@ fn tokenize_sql_with_pos(sql: &str, rules: CommentRules) -> Vec<(String, usize)>
 }
 
 /// The row count written after `LIMIT`: `Some(None)` for no limit, `None`
-/// when `word` is not a count. SQLite reads a negative count as no limit,
-/// and `LIMIT -1 OFFSET <n>` is how it skips rows without capping them.
-fn limit_count(word: &str) -> Option<Option<u64>> {
+/// when `word` is not a count. With `negative_limit_unbounded` (SQLite) a
+/// negative count is no limit: `LIMIT -1 OFFSET <n>` is how SQLite skips
+/// rows without capping them.
+fn limit_count(word: &str, negative_limit_unbounded: bool) -> Option<Option<u64>> {
     if let Ok(count) = word.parse::<u64>() {
         return Some(Some(count));
     }
     match word.parse::<i64>() {
-        Ok(count) if count < 0 => Some(None),
+        Ok(count) if count < 0 && negative_limit_unbounded => Some(None),
         _ => None,
     }
 }
@@ -321,7 +326,10 @@ fn limit_count(word: &str) -> Option<Option<u64>> {
 /// A trailing `LIMIT <offset>, <count>`, the form MySQL and SQLite also accept,
 /// with any spacing around the comma. Returns the index of the `LIMIT` token,
 /// the offset and the row count (`None` for SQLite's negative "no limit").
-fn trailing_comma_limit(tokens: &[(String, usize)]) -> Option<(usize, u64, Option<u64>)> {
+fn trailing_comma_limit(
+    tokens: &[(String, usize)],
+    negative_limit_unbounded: bool,
+) -> Option<(usize, u64, Option<u64>)> {
     let limit_index = tokens
         .iter()
         .rposition(|(token, _)| token.eq_ignore_ascii_case("LIMIT"))?;
@@ -331,7 +339,11 @@ fn trailing_comma_limit(tokens: &[(String, usize)]) -> Option<(usize, u64, Optio
     }
     let joined: String = tail.iter().map(|(token, _)| token.as_str()).collect();
     let (offset, count) = joined.split_once(',')?;
-    Some((limit_index, offset.parse().ok()?, limit_count(count)?))
+    Some((
+        limit_index,
+        offset.parse().ok()?,
+        limit_count(count, negative_limit_unbounded)?,
+    ))
 }
 
 /// The row-limiting clauses at the end of a query.
@@ -356,6 +368,7 @@ enum RowLimitClause {
 fn row_limit_clause_before(
     tokens: &[(String, usize)],
     end: usize,
+    negative_limit_unbounded: bool,
 ) -> Option<(usize, RowLimitClause)> {
     let word = |index: usize| tokens[index].0.as_str();
     let is = |index: usize, keyword: &str| word(index).eq_ignore_ascii_case(keyword);
@@ -367,7 +380,7 @@ fn row_limit_clause_before(
         if is(end - 1, "ALL") {
             return Some((end - 2, RowLimitClause::Limit(None)));
         }
-        if let Some(count) = limit_count(word(end - 1)) {
+        if let Some(count) = limit_count(word(end - 1), negative_limit_unbounded) {
             return Some((end - 2, RowLimitClause::Limit(count)));
         }
     }
@@ -402,8 +415,9 @@ fn row_limit_clause_before(
 /// or a limit and an offset clause in either order, as PostgreSQL accepts them
 /// (`LIMIT 5 OFFSET 10`, `OFFSET 10 LIMIT 5`, `LIMIT ALL`,
 /// `OFFSET 10 ROWS FETCH FIRST 5 ROWS ONLY`).
-fn trailing_row_limit(tokens: &[(String, usize)]) -> Option<TrailingRowLimit> {
-    if let Some((start, offset, count)) = trailing_comma_limit(tokens) {
+fn trailing_row_limit(tokens: &[(String, usize)], rules: CommentRules) -> Option<TrailingRowLimit> {
+    let negative_limit_unbounded = rules.negative_limit_unbounded;
+    if let Some((start, offset, count)) = trailing_comma_limit(tokens, negative_limit_unbounded) {
         return Some(TrailingRowLimit {
             start,
             limit: count,
@@ -414,7 +428,9 @@ fn trailing_row_limit(tokens: &[(String, usize)]) -> Option<TrailingRowLimit> {
     let mut limit = None;
     let mut offset = None;
     let mut found_limit = false;
-    while let Some((clause_start, clause)) = row_limit_clause_before(tokens, start) {
+    while let Some((clause_start, clause)) =
+        row_limit_clause_before(tokens, start, negative_limit_unbounded)
+    {
         match clause {
             RowLimitClause::Limit(count) if !found_limit => {
                 found_limit = true;
@@ -446,7 +462,7 @@ pub fn strip_limit_offset(query: &str) -> String {
 fn strip_limit_offset_with(query: &str, rules: CommentRules) -> String {
     let trimmed = query.trim_end();
     let tokens = tokenize_sql_with_pos(trimmed, rules);
-    match trailing_row_limit(&tokens) {
+    match trailing_row_limit(&tokens, rules) {
         Some(row_limit) => trimmed[..tokens[row_limit.start].1].trim_end().to_string(),
         None => trimmed.to_string(),
     }
@@ -477,7 +493,7 @@ pub fn extract_user_offset(query: &str) -> Option<u32> {
 }
 
 fn trailing_row_limit_of(query: &str, rules: CommentRules) -> Option<TrailingRowLimit> {
-    trailing_row_limit(&tokenize_sql_with_pos(query.trim(), rules))
+    trailing_row_limit(&tokenize_sql_with_pos(query.trim(), rules), rules)
 }
 
 /// Build a paginated query by stripping any user-supplied LIMIT/OFFSET and
@@ -507,6 +523,44 @@ pub fn build_paginated_query_for(
     hash_comments: bool,
     line_comment_requires_space: bool,
 ) -> String {
+    build_paginated_query_with(
+        query,
+        page_size,
+        page,
+        CommentRules {
+            hash_comments,
+            line_comment_requires_space,
+            negative_limit_unbounded: false,
+        },
+    )
+}
+
+/// [`build_paginated_query_for`] with SQLite's rules: no `#` comments, `--`
+/// needs no space, and a negative `LIMIT` count means no limit.
+pub fn build_paginated_query_for_sqlite(query: &str, page_size: u32, page: u32) -> String {
+    build_paginated_query_with(
+        query,
+        page_size,
+        page,
+        CommentRules {
+            hash_comments: false,
+            line_comment_requires_space: false,
+            negative_limit_unbounded: true,
+        },
+    )
+}
+
+fn build_paginated_query_with(
+    query: &str,
+    page_size: u32,
+    page: u32,
+    rules: CommentRules,
+) -> String {
+    let CommentRules {
+        hash_comments,
+        line_comment_requires_space,
+        ..
+    } = rules;
     let page_offset = calculate_offset(page, page_size);
     let normalized =
         trim_trailing_statement_terminator(query, hash_comments, line_comment_requires_space);
@@ -515,10 +569,6 @@ pub fn build_paginated_query_for(
             Some(comment_start) => normalized[..comment_start].trim_end(),
             None => normalized,
         };
-    let rules = CommentRules {
-        hash_comments,
-        line_comment_requires_space,
-    };
     let row_limit = trailing_row_limit_of(clause_source, rules);
     let user_limit: Option<u32> = row_limit
         .as_ref()

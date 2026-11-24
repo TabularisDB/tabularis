@@ -355,26 +355,39 @@ fn test_build_paginated_query_reads_sqlite_negative_limit_as_no_limit() {
             "SELECT * FROM t"
         };
         assert_eq!(
-            build_paginated_query_for(q, 100, 2, false, false),
+            super::build_paginated_query_for_sqlite(q, 100, 2),
             format!("{base} LIMIT 101 OFFSET 105"),
             "{q}"
         );
     }
     assert_eq!(
-        build_paginated_query_for("SELECT * FROM t LIMIT -1", 100, 1, false, false),
+        super::build_paginated_query_for_sqlite("SELECT * FROM t LIMIT -1", 100, 1),
         "SELECT * FROM t LIMIT 101 OFFSET 0"
     );
-    assert_eq!(
-        strip_limit_offset("SELECT * FROM t LIMIT -1 OFFSET 5"),
-        "SELECT * FROM t"
-    );
+}
+
+#[test]
+fn test_build_paginated_query_leaves_negative_limit_to_mysql_and_postgres() {
+    // MySQL and PostgreSQL reject a negative LIMIT; the query must still reach
+    // them with it, so the user sees that error instead of a paged result.
+    let q = "SELECT * FROM orders LIMIT -1";
+    for result in [
+        build_paginated_query(q, 100, 1),
+        build_paginated_query_for(q, 100, 1, true, true),
+        build_paginated_query_for(q, 100, 1, false, false),
+    ] {
+        assert!(
+            result.starts_with("SELECT * FROM orders LIMIT -1 "),
+            "{result}"
+        );
+    }
     assert_eq!(
         super::extract_user_limit("SELECT * FROM t LIMIT -1 OFFSET 5"),
         None
     );
     assert_eq!(
-        super::extract_user_offset("SELECT * FROM t LIMIT -1 OFFSET 5"),
-        Some(5)
+        strip_limit_offset("SELECT * FROM t LIMIT 5, -1"),
+        "SELECT * FROM t LIMIT 5, -1"
     );
 }
 
