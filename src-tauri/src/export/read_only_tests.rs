@@ -240,3 +240,84 @@ async fn read_only_native_exports_reject_writes_and_policy_reset_statements() {
         json!([{"count":0}])
     );
 }
+
+/// A writable plugin connection whose `execute_query` returns full pages with
+/// no pagination metadata, like PostgreSQL does for `UPDATE ... RETURNING`,
+/// until `last_page`, which is short. Records `(page, limit)` per call.
+async fn paging_plugin_params(last_page: u64) -> (ConnectionParams, Arc<Mutex<Vec<(u64, Value)>>>) {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let recorded = calls.clone();
+    let mut params = plugin_params(false, move |rpc| {
+        assert_eq!(rpc.method, "execute_query");
+        let page = rpc.params["page"].as_u64().unwrap();
+        recorded
+            .lock()
+            .unwrap()
+            .push((page, rpc.params["limit"].clone()));
+        let size = if page >= last_page { 3 } else { 1000 };
+        let rows: Vec<Value> = (0..size).map(|id| json!([id])).collect();
+        Ok(json!({"columns":["id"],"rows":rows,"affected_rows":0}))
+    })
+    .await;
+    params.read_only = false;
+    (params, calls)
+}
+
+#[tokio::test]
+async fn a_writable_plugin_export_runs_a_modifying_statement_exactly_once() {
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    let (params, calls) = paging_plugin_params(3).await;
+
+    for statement in [
+        "UPDATE counters SET value = value + 1 RETURNING id",
+        "INSERT INTO log(id) VALUES (1) RETURNING id",
+        "DELETE FROM log RETURNING id",
+        "WITH changed AS (UPDATE counters SET value = value + 1 RETURNING id) SELECT id FROM changed",
+    ] {
+        calls.lock().unwrap().clear();
+        run_export(
+            &params.driver,
+            &params,
+            statement,
+            Vec::new(),
+            ExportFormat::Json,
+            b',',
+            None,
+            |_| {},
+        )
+        .await
+        .unwrap();
+
+        let calls = calls.lock().unwrap();
+        assert_eq!(
+            calls.len(),
+            1,
+            "{statement} was executed {} times",
+            calls.len()
+        );
+    }
+    crate::drivers::registry::unregister_driver(&params.driver).await;
+}
+
+#[tokio::test]
+async fn a_writable_plugin_export_still_pages_a_plain_select() {
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    let (params, calls) = paging_plugin_params(3).await;
+
+    run_export(
+        &params.driver,
+        &params,
+        "SELECT id FROM items",
+        Vec::new(),
+        ExportFormat::Json,
+        b',',
+        None,
+        |_| {},
+    )
+    .await
+    .unwrap();
+
+    let pages: Vec<u64> = calls.lock().unwrap().iter().map(|c| c.0).collect();
+    assert_eq!(pages, [1, 2, 3]);
+    crate::drivers::registry::unregister_driver(&params.driver).await;
+}

@@ -137,6 +137,15 @@ where
         .ok_or_else(|| format!("Unsupported driver for export: {driver_id}"))?;
     let driver = driver.for_connection(params).await?.unwrap_or(driver);
 
+    // Paging re-sends the query once per page, which is only safe for a read.
+    // Anything else (`UPDATE ... RETURNING`, an unclassifiable statement) runs
+    // exactly once with no row cap, so it neither repeats nor truncates. A
+    // read-only connection was already restricted to reads above.
+    let single_run = !params.read_only
+        && crate::application::read_only::classify_query(driver.as_ref(), params, query).await
+            != "select";
+    let limit = if single_run { None } else { Some(PAGE_SIZE) };
+
     let mut page: u32 = 1;
     loop {
         let result = if params.read_only {
@@ -144,7 +153,7 @@ where
                 driver.as_ref(),
                 params,
                 query,
-                Some(PAGE_SIZE),
+                limit,
                 page,
                 None,
             )
@@ -156,7 +165,7 @@ where
                         driver.as_ref(),
                         params,
                         query,
-                        Some(PAGE_SIZE),
+                        limit,
                         page,
                         None,
                         id,
@@ -165,7 +174,7 @@ where
                 }
                 None => {
                     driver
-                        .execute_query(params, query, Some(PAGE_SIZE), page, None)
+                        .execute_query(params, query, limit, page, None)
                         .await?
                 }
             }
@@ -182,7 +191,7 @@ where
             .map(|pagination| pagination.has_more)
             .unwrap_or(fetched >= PAGE_SIZE);
 
-        if fetched == 0 || !has_more {
+        if single_run || fetched == 0 || !has_more {
             break;
         }
         page += 1;
