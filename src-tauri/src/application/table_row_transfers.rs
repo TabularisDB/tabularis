@@ -170,7 +170,9 @@ enum SameTable {
 /// saved connections the two endpoints came from.
 async fn same_table(source: &Endpoint, target: &Endpoint, selection: &TableSelection) -> SameTable {
     if source.schema != target.schema
-        || selection.source_table != selection.target_table
+        || !selection
+            .source_table
+            .eq_ignore_ascii_case(&selection.target_table)
         || source.params.driver != target.params.driver
     {
         return SameTable::No;
@@ -190,10 +192,11 @@ async fn plan_tables(
     if target.drv.manifest().capabilities.readonly || target.params.read_only {
         issues.push(PlanIssue::new("targetReadOnly", None));
     }
+    // SQLite folds ASCII case in table names, so `dst` and `DST` are one table.
     let mut seen = std::collections::HashSet::new();
     let mut tables = Vec::with_capacity(selections.len());
     for selection in selections {
-        if !seen.insert(selection.target_table.as_str()) {
+        if !seen.insert(selection.target_table.to_ascii_lowercase()) {
             issues.push(PlanIssue::new(
                 "duplicateTargetTable",
                 Some(&selection.target_table),
