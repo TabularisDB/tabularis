@@ -74,6 +74,15 @@ describe('JSON parsing', () => {
         ]);
     });
 
+    it('leaves a cell empty when an object lacks a key named like an Object method', () => {
+        const result = parseClipboardText('[{"id":1},{"id":2,"constructor":"A","toString":"B"}]');
+        expect(result.headers).toEqual(['id', 'constructor', 'tostring']);
+        expect(result.rows).toEqual([
+            ['1', '', ''],
+            ['2', 'A', 'B'],
+        ]);
+    });
+
     it('handles single JSON object', () => {
         const result = parseClipboardText('{"name":"Alice","age":30}');
         expect(result.headers).toEqual(['name', 'age']);

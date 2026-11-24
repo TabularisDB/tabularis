@@ -162,7 +162,12 @@ function parseJsonArray(text: string): {headers: string[]; rows: string[][]} | n
         ];
         const rows = arr.map((obj: Record<string, unknown> | null) =>
             headers.map((h) => {
-                const v = obj !== null && typeof obj === 'object' ? obj[h] : undefined;
+                // Only the object's own keys: a missing `constructor` or
+                // `toString` must not read the inherited Object.prototype value.
+                const v =
+                    obj !== null && typeof obj === 'object' && Object.hasOwn(obj, h)
+                        ? obj[h]
+                        : undefined;
                 if (v === null || v === undefined) return '';
                 if (typeof v === 'object') return JSON.stringify(v);
                 return String(v);
