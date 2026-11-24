@@ -213,6 +213,20 @@ pub(crate) fn migrate_connection_driver_id_in_place(
 /// `Ok(false)` covers "nothing needed migrating" and "skipped because the
 /// file changed concurrently" (see the concurrency note on
 /// [`migrate_postgres_ssl_mode_spelling_at_path`]).
+///
+/// # Known limitation
+///
+/// The concurrent-edit check narrows the race with another writer but does not
+/// close it. The read, the re-read that compares against it, and the save are
+/// three separate steps. The in-process file lock covers only the save, and it
+/// cannot reach a second process (the GUI and `--mcp` do not share it). An edit
+/// that another process commits between the re-read and the save is replaced
+/// by the migrated snapshot. The window is short (the `eprintln!` between the
+/// check and the save is its main cost), only opens on a launch where a
+/// `postgres` connection still needs rewriting, and needs a simultaneous edit
+/// from another process, so it is accepted rather than closed. Closing it
+/// would take a cross-process file lock (or a compare-and-swap commit) held by
+/// every `connections.json` writer.
 pub async fn migrate_builtin_driver_ids_at_path(conn_path: &Path) -> Result<bool, String> {
     if !conn_path.exists() {
         return Ok(false); // Nothing to migrate
