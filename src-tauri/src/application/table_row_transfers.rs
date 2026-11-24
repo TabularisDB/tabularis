@@ -614,14 +614,43 @@ fn sqlite_read_cell(
             let v: Option<String> = row.try_get(index).map_err(|_| wrong())?;
             Ok(v.map_or(TransferValue::Null, TransferValue::Text))
         }
-        SourceKind::Bytes => {
-            let v: Option<Vec<u8>> = row.try_get(index).map_err(|_| wrong())?;
-            Ok(v.map_or(TransferValue::Null, TransferValue::Bytes))
-        }
+        // A BLOB column has no affinity and can hold any storage class. sqlx
+        // decodes TEXT as bytes, which would silently turn text into a blob.
+        SourceKind::Bytes => sqlite_read_stored(row, index),
         _ => {
             let v: Option<String> = row.try_get(index).map_err(|_| wrong())?;
             Ok(v.map_or(TransferValue::Null, TransferValue::Text))
         }
+    }
+}
+
+/// Reads a cell as whatever SQLite actually stored, keeping its storage
+/// class. A declared type only sets an affinity, so the value's own class is
+/// the only reliable guide to how it must be decoded and written back.
+fn sqlite_read_stored(
+    row: &sqlx::sqlite::SqliteRow,
+    index: usize,
+) -> Result<TransferValue, String> {
+    use sqlx::{Row, TypeInfo, ValueRef};
+
+    let wrong = || "A source column returned an unexpected type".to_string();
+    let raw = row.try_get_raw(index).map_err(|_| wrong())?;
+    if raw.is_null() {
+        return Ok(TransferValue::Null);
+    }
+    let class = raw.type_info().name().to_owned();
+    match class.as_str() {
+        "INTEGER" => Ok(TransferValue::Int(row.try_get(index).map_err(|_| wrong())?)),
+        "REAL" => Ok(TransferValue::Float(
+            row.try_get(index).map_err(|_| wrong())?,
+        )),
+        "TEXT" => Ok(TransferValue::Text(
+            row.try_get(index).map_err(|_| wrong())?,
+        )),
+        "BLOB" => Ok(TransferValue::Bytes(
+            row.try_get(index).map_err(|_| wrong())?,
+        )),
+        _ => Err(wrong()),
     }
 }
 

@@ -332,3 +332,80 @@ async fn a_cancel_raised_before_the_first_batch_stops_the_stream_without_writing
         .unwrap();
     assert_eq!(count, 0);
 }
+
+/// Copies `big(id, v <declared>)` between two SQLite files, seeding the source
+/// with `values` (SQL literals, so each keeps its own storage class), and
+/// returns `(id, typeof(v), hex(v))` for source and target.
+async fn copy_typed_column(
+    dir: &std::path::Path,
+    declared: &str,
+    values: &[&str],
+) -> (
+    TableTransferTableResult,
+    Vec<(i64, String, String)>,
+    Vec<(i64, String, String)>,
+) {
+    let source = sqlite_endpoint(&dir.join("typed-src.db")).await;
+    let target = sqlite_endpoint(&dir.join("typed-dst.db")).await;
+    for endpoint in [&source, &target] {
+        let pool = get_sqlite_pool(&endpoint.params).await.unwrap();
+        sqlx::query(&format!(
+            "CREATE TABLE big (id INTEGER PRIMARY KEY, v {declared})"
+        ))
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let pool = get_sqlite_pool(&source.params).await.unwrap();
+    for (id, value) in values.iter().enumerate() {
+        sqlx::query(&format!("INSERT INTO big VALUES ({}, {value})", id + 1))
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    let result = copy_big(dir, source.clone(), target.clone(), 2).await;
+    let read = |endpoint: Endpoint| async move {
+        let pool = get_sqlite_pool(&endpoint.params).await.unwrap();
+        sqlx::query_as::<_, (i64, String, String)>(
+            "SELECT id, typeof(v), hex(v) FROM big ORDER BY id",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap()
+    };
+    (result, read(source).await, read(target).await)
+}
+
+#[tokio::test]
+async fn a_blob_column_keeps_the_storage_class_of_every_value() {
+    let dir = tempfile::tempdir().unwrap();
+
+    // A BLOB column has no affinity, so it can hold a blob, text, an integer
+    // or a real. `typeof` and the bytes must survive the copy.
+    let (result, source, target) = copy_typed_column(
+        dir.path(),
+        "BLOB",
+        &["x'00ff10'", "'abc'", "NULL", "7", "2.5", "x''"],
+    )
+    .await;
+
+    assert_eq!(result.error, None);
+    assert_eq!(result.status, TransferStatus::Completed);
+    assert_eq!(target, source);
+    assert_eq!(
+        target.iter().map(|r| r.1.as_str()).collect::<Vec<_>>(),
+        ["blob", "text", "null", "integer", "real", "blob"]
+    );
+}
+
+#[tokio::test]
+async fn text_stored_in_a_blob_column_stays_text() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let (result, source, target) =
+        copy_typed_column(dir.path(), "BLOB", &["'abc'", "x'616263'"]).await;
+
+    assert_eq!(result.error, None);
+    assert_eq!(source[0].1, "text");
+    assert_eq!(target, source);
+}
