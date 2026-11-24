@@ -635,9 +635,9 @@ async fn get_mysql_pool_for_database_with_id(
         params.host,
         key
     );
-    // sqlx-mysql is built with `tls-native-tls` (not `tls-rustls`) so the OS
-    // trust store is used; a process-level rustls CryptoProvider is not
-    // required here.
+    // sqlx-mysql is built with `tls-rustls-ring-native-roots`: rustls with the
+    // ring provider and the OS trust store. It relies on the process-level
+    // CryptoProvider that `install_process_prerequisites` installs at startup.
     let connect_timeout = mysql_connect_timeout(params);
     let script = startup_script(params);
 
