@@ -297,3 +297,45 @@ fn bool_to_int_preserves_integer_value_from_sqlite_source() {
         Ok(TransferValue::Int(1))
     );
 }
+
+fn decimal_to_real(value: TransferValue) -> Result<TransferValue, ConvertError> {
+    let planned =
+        plan_conversion(SourceKind::Decimal, &TargetType::Sqlite(SqliteTarget::Real)).unwrap();
+    apply(&planned, value)
+}
+
+#[test]
+fn an_integer_a_real_column_cannot_hold_exactly_is_refused() {
+    // 1e18 + 100 rounds to 1e18 + 128 in an f64 yet prints as the same digits.
+    for value in [
+        1_000_000_000_000_000_100_i64,
+        -1_000_000_000_000_000_100,
+        (1 << 53) + 1,
+    ] {
+        assert_eq!(
+            decimal_to_real(TransferValue::Int(value)),
+            Err(ConvertError::Lossy),
+            "{value}"
+        );
+    }
+}
+
+#[test]
+fn an_integer_a_real_column_holds_exactly_still_converts() {
+    for value in [0_i64, 42, -7, 1 << 53, 1_000_000_000_000_000_000] {
+        assert_eq!(
+            decimal_to_real(TransferValue::Int(value)),
+            Ok(TransferValue::Float(value as f64)),
+            "{value}"
+        );
+    }
+}
+
+#[test]
+fn fractional_decimals_are_still_judged_by_their_text() {
+    assert_eq!(decimal_to_real(text("0.1")), Ok(TransferValue::Float(0.1)));
+    assert_eq!(
+        decimal_to_real(text("0.30000000000000004")),
+        Ok(TransferValue::Float(0.30000000000000004))
+    );
+}

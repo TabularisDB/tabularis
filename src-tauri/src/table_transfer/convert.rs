@@ -95,6 +95,32 @@ fn fits_f32(value: f64) -> bool {
     ((value as f32).to_string()).parse::<f64>().ok() == Some(value)
 }
 
+/// True unless `text` is a whole number that `value` does not hold exactly.
+/// Numbers with a fraction, or too long for an `i128`, are judged by their
+/// decimal text instead.
+fn integer_survives(text: &str, value: f64) -> bool {
+    let Some(parts) = parse_decimal(text) else {
+        return true;
+    };
+    if !parts.frac.is_empty() || parts.int.len() > 38 {
+        return true;
+    }
+    let magnitude: i128 = if parts.int.is_empty() {
+        0
+    } else {
+        match parts.int.parse() {
+            Ok(v) => v,
+            Err(_) => return true,
+        }
+    };
+    let expected = if parts.negative {
+        -magnitude
+    } else {
+        magnitude
+    };
+    value as i128 == expected
+}
+
 fn decimal_to_f64(text: &str, bits: u8, allow_non_finite: bool) -> Result<f64, ConvertError> {
     let special = match text {
         "NaN" => Some(f64::NAN),
@@ -113,6 +139,13 @@ fn decimal_to_f64(text: &str, bits: u8, allow_non_finite: bool) -> Result<f64, C
     let value: f64 = text.parse().map_err(|_| ConvertError::Malformed)?;
     if !value.is_finite() {
         return Err(ConvertError::OutOfRange);
+    }
+    // An integer must come back as the same integer. The shortest decimal form
+    // of a rounded float can still print as the original digits (1e18 + 100
+    // rounds to 1e18 + 128 yet prints as 1000000000000000100), so compare the
+    // values, not their text.
+    if !integer_survives(text, value) {
+        return Err(ConvertError::Lossy);
     }
     let shown = if bits == 32 {
         if !fits_f32(value) {
