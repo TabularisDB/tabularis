@@ -779,11 +779,6 @@ mod tests {
     //      the active `sqlx` feature is `tls-rustls-ring-native-roots`
     //      and not `tls-native-tls`, native-tls is unreachable from
     //      the build, so the bug cannot return.
-    //   3. The Postgres path keeps using `rustls-platform-verifier`
-    //      for `verify-full` so non-IAM users who rely on the OS
-    //      trust store (e.g. an internal CA pushed through MDM) keep
-    //      working — the switch for MySQL must not ripple into
-    //      Postgres.
     // -------------------------------------------------------------------
 
     /// Compile-time check that the MySQL TLS backend is rustls, not

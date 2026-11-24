@@ -126,8 +126,6 @@ tauri-plugin-single-instance = { version = "2", features = ["deep-link"], option
 # keychain still work) instead of falling back to the bundled `webpki-roots`
 # (which would silently ignore those CAs).
 rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
-rustls-pemfile = "2"
-rustls-platform-verifier = "0.6"
 notify = "6"
 ulid = "1.2.1"
 argon2 = "0.5"
