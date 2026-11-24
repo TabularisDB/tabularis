@@ -46,7 +46,6 @@ async fn mysql_socket_auth_and_tcp_regression() {
     let mut socket = tcp.clone();
     socket.unix_socket_path = Some(std::env::var("MYSQL_UNIX_SOCKET").expect("MYSQL_UNIX_SOCKET"));
     socket.host = Some("ignored.invalid".to_string());
-    socket.port = Some(1);
     socket.ssl_mode = Some("verify-full".to_string());
     let missing = tempfile::tempdir().unwrap();
     socket.ssl_ca = Some(missing.path().join("ca.pem").display().to_string());
@@ -141,9 +140,11 @@ async fn postgresql_plugin_honors_unix_socket_path() {
         .await
         .expect("TCP authentication via postgresql plugin");
 
-    // Socket: set unix_socket_path + bogus host:port. If the plugin honors
-    // the socket, test_connection succeeds despite the unreachable host.
-    // If it dials TCP, it fails to connect to ignored.invalid:1.
+    // Socket: set unix_socket_path + a bogus host. If the plugin honors the
+    // socket, test_connection succeeds despite the unreachable host. If it
+    // dials TCP, it fails to resolve ignored.invalid. The port stays at the
+    // server's: for a socket directory the port names the socket file
+    // (`.s.PGSQL.<port>`), so changing it would probe a different socket.
     let socket_path = std::env::var("PG_UNIX_SOCKET")
         .expect("PG_UNIX_SOCKET env var must point at the socket dir");
     let mut socket = tcp.clone();
