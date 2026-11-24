@@ -121,11 +121,16 @@ pub(crate) async fn check_connections(
 ) {
     // Logout and session expiry drop the session but leave its connections
     // registered. One that no session holds is not checked: with auto-reconnect
-    // on, recovering it would reopen its pools only to close them again.
+    // on, recovering it would reopen its pools only to close them again. The
+    // holder check and the removal are one registry operation, so a session that
+    // reopens the connection meanwhile keeps it registered.
     let mut held = Vec::with_capacity(connection_ids.len());
     for connection_id in connection_ids {
-        if owners(state, &connection_id).is_empty() {
-            crate::health_check::unregister_connection(&connection_id).await;
+        if crate::health_check::unregister_connection_if(&connection_id, || {
+            owners(state, &connection_id).is_empty()
+        })
+        .await
+        {
             tracker.forget(&connection_id);
         } else {
             held.push(connection_id);
@@ -291,8 +296,12 @@ async fn recover_connection(
         .unwrap_or_else(|_| Err("Reconnect timed out".to_string()));
 
     match attempt {
-        Ok(_) if owners(state, connection_id).is_empty() => {
-            crate::health_check::unregister_connection(connection_id).await;
+        Ok(_)
+            if crate::health_check::unregister_connection_if(connection_id, || {
+                owners(state, connection_id).is_empty()
+            })
+            .await =>
+        {
             close_connection_resources(runtime, &[], connection_id).await;
         }
         Ok(released_sessions) => {

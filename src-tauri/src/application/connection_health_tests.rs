@@ -397,6 +397,62 @@ async fn a_healthy_connection_no_session_holds_leaves_the_registry() {
     fixture.finish().await;
 }
 
+/// A browser session can reopen an orphaned connection while a tick is
+/// removing it. `register_active_connection` adds the session, then registers
+/// the ID; if the tick's holder check ran before the session was added and
+/// its removal ran after the ID was registered, the session would keep the
+/// connection open with no health checks.
+#[tokio::test]
+async fn a_session_reopening_during_orphan_cleanup_keeps_its_health_checks() {
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    let fixture = Fixture::new().await;
+    let (old_session, new_session) = (Uuid::new_v4(), Uuid::new_v4());
+    fixture.open_in(old_session).await;
+    fixture
+        .state
+        .web_active_connections
+        .lock()
+        .unwrap()
+        .remove(&old_session);
+
+    // Hold the registry so the tick and the reopen overlap.
+    let mut registry = crate::health_check::ACTIVE_CONNECTIONS.write().await;
+    let mut tracker = tracker();
+    let tick = check_connections(
+        &fixture.runtime,
+        &fixture.state,
+        &mut tracker,
+        vec![fixture.connection_id.clone()],
+    );
+    let reopen = async {
+        tokio::task::yield_now().await;
+        // What register_active_connection does: add the session, then register.
+        fixture
+            .state
+            .web_active_connections
+            .lock()
+            .unwrap()
+            .entry(new_session)
+            .or_default()
+            .insert(fixture.connection_id.clone());
+        registry.insert(fixture.connection_id.clone());
+        drop(registry);
+    };
+    tokio::join!(tick, reopen);
+
+    assert!(fixture.held_by(new_session));
+    assert!(
+        fixture.registered().await,
+        "the reopened connection must stay registered"
+    );
+    fixture.ticks(&mut tracker, 1).await;
+    assert!(
+        fixture.registered().await,
+        "and be checked on the next tick"
+    );
+    fixture.finish().await;
+}
+
 /// The last holder can log out between the tick's holder check and the
 /// resolve. Resolving then would send an SSH prompt to every session.
 #[tokio::test]
