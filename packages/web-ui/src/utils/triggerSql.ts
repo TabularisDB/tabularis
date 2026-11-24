@@ -96,6 +96,8 @@ export interface TriggerSqlInput {
      * `WHEN` condition.
      */
     existingTail?: {forEach: 'ROW' | 'STATEMENT'; tail: string};
+    /** The `UPDATE OF` column list of an existing trigger, as written (see `eventsSql`). */
+    updateOf?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +141,8 @@ export interface BuildTriggerArgs {
     table: string;
     timing: TriggerTiming;
     events: TriggerEvent[];
+    /** pg/sqlite: the `UPDATE OF` column list of an existing trigger (see `eventsSql`). */
+    updateOf?: string;
     forEach?: 'ROW' | 'STATEMENT';
     /** pg: statements inside the function; mysql/sqlite: full BEGIN ... END block */
     body: string;
@@ -149,6 +153,17 @@ export interface BuildTriggerArgs {
      * `FOR EACH ROW`, e.g. `EXECUTE FUNCTION public.fn()`. No function is created.
      */
     existingTail?: string;
+}
+
+/**
+ * The events of a trigger as SQL, joined with `OR`. While UPDATE is one of
+ * them, an `UPDATE OF` column list loaded from the existing trigger is kept,
+ * so saving an edit does not make the trigger fire on every column.
+ */
+export function eventsSql(events: readonly string[], updateOf?: string): string {
+    return events
+        .map((event) => (event === 'UPDATE' && updateOf ? `UPDATE OF ${updateOf}` : event))
+        .join(' OR ');
 }
 
 // ---------------------------------------------------------------------------
@@ -175,20 +190,44 @@ export function triggerFunctionName(name: string, tableName?: string): string {
  * the invalid `EXECUTE FUNCTION ...` string.
  *
  * Returns the name with quotes stripped and schema qualification preserved
- * (`schema.name`), or `null` when the clause is absent or malformed. Handles
- * both quoted (`"schema"."name"`) and unqualified (`name`) forms.
+ * (`schema.name`), or `null` when the clause is absent or malformed. Use
+ * {@link parseTriggerFunctionRef} to get the schema and name apart: a quoted
+ * name can itself contain a dot.
  */
 export function parseTriggerFunctionName(triggerSql: string): string | null {
-    const match = triggerSql.match(
-        /\bEXECUTE\s+(?:FUNCTION|PROCEDURE)\s+((?:"[^"]+"\s*\.\s*)*"[^"]+"|(?:[A-Za-z_][\w$]*\s*\.\s*)*[A-Za-z_][\w$]*)\s*\(\s*\)/i,
-    );
+    const ref = parseTriggerFunctionRef(triggerSql);
+    if (!ref) return null;
+    return ref.schema === undefined ? ref.name : `${ref.schema}.${ref.name}`;
+}
+
+// One identifier as PostgreSQL prints it: quoted (with `""` for a quote) or bare.
+const PG_IDENTIFIER = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;
+// The clause ends the definition, so it is matched at the end: text that only
+// looks like one, such as a string in the WHEN condition before it, is skipped.
+const EXECUTE_FUNCTION_RE = new RegExp(
+    String.raw`\bEXECUTE\s+(?:FUNCTION|PROCEDURE)\s+(${PG_IDENTIFIER})(?:\s*\.\s*(${PG_IDENTIFIER}))?\s*\(\s*\)\s*;?\s*$`,
+    'i',
+);
+
+function unquotePgIdentifier(identifier: string): string {
+    return identifier.startsWith('"') ? identifier.slice(1, -1).replace(/""/g, '"') : identifier;
+}
+
+/**
+ * The function a PostgreSQL trigger's `EXECUTE FUNCTION|PROCEDURE` clause
+ * calls, as a schema and a name with their quotes removed. Each part may be
+ * quoted or not on its own, as `pg_get_triggerdef` prints it
+ * (`app."AuditLog"()`), and a quoted part may contain dots or `""`.
+ */
+export function parseTriggerFunctionRef(
+    triggerSql: string,
+): {name: string; schema?: string} | null {
+    const match = EXECUTE_FUNCTION_RE.exec(triggerSql);
     if (!match) return null;
-    // Strip double-quotes and the spaces around the dot, collapsing
-    // `"store"."trg_fn"` → `store.trg_fn` and `my_audit` → `my_audit`.
-    return match[1]
-        .replace(/"\s*\.\s*"/g, '.')
-        .replace(/"/g, '')
-        .trim();
+    const [, first, second] = match;
+    return second === undefined
+        ? {name: unquotePgIdentifier(first)}
+        : {schema: unquotePgIdentifier(first), name: unquotePgIdentifier(second)};
 }
 
 /**
@@ -280,11 +319,18 @@ export function buildTriggerFunctionSql(input: TriggerSqlInput): string {
  * excluded `END CASE` from decrementing at all, which left the depth counter
  * permanently inflated for the CASE *statement* form and truncated the body
  * to `null`).
+ *
+ * Keywords are matched in any case, and only in code: a `-- end of checks`
+ * comment, `'end of batch'` in a string or a quoted `"Begin"` name must not
+ * open or close a block.
  */
 export function extractFunctionBody(fnDef: string): string | null {
+    // Search a copy with comments and literals blanked out; it has the same
+    // length, so its indexes slice the original.
+    const code = maskNonCode(fnDef);
     // Locate the outermost BEGIN. A DECLARE block (optional) precedes it.
-    const declareMatch = fnDef.match(/\bDECLARE\b/);
-    const beginMatch = fnDef.match(/\bBEGIN\b/);
+    const declareMatch = code.match(/\bDECLARE\b/i);
+    const beginMatch = code.match(/\bBEGIN\b/i);
     if (!beginMatch || beginMatch.index === undefined) return null;
 
     const hasDeclare =
@@ -302,7 +348,7 @@ export function extractFunctionBody(fnDef: string): string | null {
     // counted as openers) and are excluded entirely.
     let depth = 0;
     let end = -1;
-    const tail = fnDef.slice(beginMatch.index);
+    const tail = code.slice(beginMatch.index);
     const keyword = /\bBEGIN\b|\bCASE\b|\bEND\s+CASE\b|\bEND\b(?!\s+(?:IF|LOOP|CASE)\b)/gi;
     let m: RegExpExecArray | null;
     while ((m = keyword.exec(tail)) !== null) {
@@ -331,6 +377,91 @@ export function extractFunctionBody(fnDef: string): string | null {
 }
 
 /**
+ * Replaces comments, string literals, quoted identifiers and nested
+ * dollar-quoted strings with spaces, keeping every index (and line break) in
+ * place. The first dollar-quoted string is the function body itself
+ * (`AS $function$ … $function$`), so its contents stay as code.
+ */
+function maskNonCode(sql: string): string {
+    const out = sql.split('');
+    const blank = (from: number, to: number) => {
+        for (let k = from; k < to; k++) if (out[k] !== '\n') out[k] = ' ';
+    };
+    let bodyTag: string | null = null;
+    let i = 0;
+    while (i < sql.length) {
+        const rest = sql.slice(i);
+        if (rest.startsWith('--')) {
+            const nl = sql.indexOf('\n', i);
+            const end = nl === -1 ? sql.length : nl;
+            blank(i, end);
+            i = end;
+        } else if (rest.startsWith('/*')) {
+            // PostgreSQL block comments nest.
+            let depth = 0;
+            let j = i;
+            while (j < sql.length) {
+                if (sql.startsWith('/*', j)) {
+                    depth++;
+                    j += 2;
+                } else if (sql.startsWith('*/', j)) {
+                    depth--;
+                    j += 2;
+                    if (depth === 0) break;
+                } else {
+                    j++;
+                }
+            }
+            blank(i, j);
+            i = j;
+        } else if (sql[i] === "'" || sql[i] === '"') {
+            const quote = sql[i];
+            // In an escape string (E'…'), a backslash escapes the next character.
+            const escapes =
+                quote === "'" &&
+                (sql[i - 1] === 'e' || sql[i - 1] === 'E') &&
+                !(i >= 2 && /[\w$]/.test(sql[i - 2]));
+            let j = i + 1;
+            while (j < sql.length) {
+                if (escapes && sql[j] === '\\') {
+                    j += 2;
+                    continue;
+                }
+                if (sql[j] === quote) {
+                    if (sql[j + 1] === quote) {
+                        j += 2;
+                        continue;
+                    }
+                    j++;
+                    break;
+                }
+                j++;
+            }
+            blank(i, j);
+            i = j;
+        } else {
+            const tag = /^\$(?:[A-Za-z_][\w]*)?\$/.exec(rest)?.[0];
+            if (tag === undefined || (i > 0 && /[\w$]/.test(sql[i - 1]))) {
+                i++;
+            } else if (bodyTag === null) {
+                bodyTag = tag;
+                i += tag.length;
+            } else if (tag === bodyTag) {
+                // End of the function body; what follows is the header again.
+                bodyTag = '';
+                i += tag.length;
+            } else {
+                const close = sql.indexOf(tag, i + tag.length);
+                const end = close === -1 ? sql.length : close + tag.length;
+                blank(i, end);
+                i = end;
+            }
+        }
+    }
+    return out.join('');
+}
+
+/**
  * The CREATE TRIGGER statement itself. For PostgreSQL this references the
  * function from `buildTriggerFunctionSql` (created separately — see
  * TriggerEditorModal.handleSave and issue #837) instead of an inline body,
@@ -342,7 +473,7 @@ export function buildTriggerSql(input: TriggerSqlInput): string {
     // MySQL handles schema via the connection — including it in the ON clause causes error 1435
     const isMysql = input.driver === 'mysql';
     const schemaPrefix = !isMysql && input.schema ? `${q(input.schema)}.` : '';
-    const eventStr = input.events.join(' OR ');
+    const eventStr = eventsSql(input.events, isMysql ? undefined : input.updateOf);
     const header = [
         `CREATE TRIGGER ${q(input.name)}`,
         `${input.timing} ${eventStr}`,
@@ -374,7 +505,8 @@ export function buildTriggerSql(input: TriggerSqlInput): string {
 export function buildCreateTriggerStatements(a: BuildTriggerArgs): string[] {
     const q = a.quote ?? ((s: string) => quoteIdent(a.dialect, s));
     const {timing, events} = normalizeSelection(a.dialect, a.timing, a.events);
-    const eventSql = events.join(' OR ');
+    // MySQL triggers have no UPDATE OF.
+    const eventSql = eventsSql(events, a.dialect === 'mysql' ? undefined : a.updateOf);
     const forEach = a.forEach ?? 'ROW';
 
     if (a.dialect === 'postgres') {
@@ -440,17 +572,35 @@ export const buildCreateTriggerSql = (a: BuildTriggerArgs): string =>
 export function parseTriggerDefinition(def: string): {
     timing: TriggerTiming | null;
     events: TriggerEvent[];
+    /** The column list of `UPDATE OF a, b`, as written, if there is one. */
+    updateOf?: string;
 } {
-    const ev = 'INSERT|UPDATE|DELETE';
+    // A column name as PostgreSQL or SQLite may print it: quoted or bare.
+    const ident = String.raw`(?:"(?:[^"]|"")*"|` + '`[^`]*`' + String.raw`|\[[^\]]*\]|[\w$]+)`;
+    const event = String.raw`(?:INSERT|DELETE|UPDATE(?:\s+OF\s+${ident}(?:\s*,\s*${ident})*)?)`;
     const re = new RegExp(
-        `\\b(BEFORE|AFTER|INSTEAD\\s+OF)\\s+((?:${ev})(?:\\s+OR\\s+(?:${ev}))*)`,
+        String.raw`\b(BEFORE|AFTER|INSTEAD\s+OF)\s+(${event}(?:\s+OR\s+${event})*)`,
         'i',
     );
     const m = re.exec(def);
     if (!m) return {timing: null, events: []};
+    // Read the events one by one rather than splitting on OR, which may also
+    // appear inside a quoted column name (`"ship OR pickup"`).
+    const one = new RegExp(
+        String.raw`(INSERT|DELETE|UPDATE)(?:\s+OF\s+(${ident}(?:\s*,\s*${ident})*))?(?:\s+OR\s+)?`,
+        'iy',
+    );
+    let updateOf: string | undefined;
+    const events: TriggerEvent[] = [];
+    for (let e = one.exec(m[2]); e; e = one.exec(m[2])) {
+        events.push(e[1].toUpperCase() as TriggerEvent);
+        if (e[2]) updateOf = e[2];
+        if (one.lastIndex >= m[2].length) break;
+    }
     return {
         timing: m[1].toUpperCase().replace(/\s+/g, ' ') as TriggerTiming,
-        events: m[2].split(/\s+OR\s+/i).map((e) => e.toUpperCase() as TriggerEvent),
+        events,
+        ...(updateOf ? {updateOf} : {}),
     };
 }
 

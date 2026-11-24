@@ -1,6 +1,5 @@
 mod blob;
 mod column_type;
-mod pooled;
 mod query;
 mod routines;
 mod safe_int;
@@ -13,7 +12,6 @@ pub use blob::{
     DEFAULT_MAX_BLOB_SIZE, MAX_BLOB_PREVIEW_SIZE,
 };
 pub use column_type::full_type_if_distinct;
-pub use pooled::DetachOnDrop;
 pub use query::{
     build_paginated_query, build_paginated_query_for, calculate_offset, calculate_query_timing,
     calculate_query_timing_from_start, extract_user_limit, extract_user_offset,

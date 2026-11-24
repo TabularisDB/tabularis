@@ -1072,6 +1072,21 @@ mod tests {
         );
     }
 
+    /// With no Timezone setting, the options must not set `time_zone` at all,
+    /// so the server keeps its own default. Forcing `SYSTEM` made servers that
+    /// reject it (Apache Doris) refuse every connection (#1640). sqlx has no
+    /// getter for the option, so read it from the options' `Debug` output.
+    #[test]
+    fn mysql_options_leave_time_zone_to_the_server_by_default() {
+        let params = mysql_params("required");
+        let opts = build_mysql_options(&params, None).expect("must build");
+        let debug = format!("{opts:?}");
+        assert!(
+            debug.contains("timezone: None"),
+            "no time_zone may be sent without a Timezone setting; got: {debug}"
+        );
+    }
+
     /// Verify the `verify_identity` mode is preserved end-to-end. The
     /// reviewer explicitly asked for "explicit non-RDS regression
     /// testing (VerifyIdentity against an OS-trusted-CA server)".

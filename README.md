@@ -299,6 +299,7 @@ Every release is documented in [CHANGELOG.md](./CHANGELOG.md).
 
 - **Multi-Cell Workspace:** Combine SQL and Markdown cells in a single document, with inline results and bar/line/pie charts.
 - **Cross-Cell Variables:** Reference another cell's full result as a table with `{{cell_N}}` (expanded to a CTE at run time), plus global `@paramName` parameters.
+- **Typed Parameters:** A parameter is raw by default (its value is pasted into the SQL as typed) or opts into a type: text, number, boolean, date or a list of options. Typed values are sent as SQL values, edited as drafts and committed together with **Apply**, on PostgreSQL, MySQL/MariaDB and SQLite dialects.
 - **Run All:** Sequential execution with stop-on-error option and completion summary.
 - **Persistence & Export:** Auto-saved as `.tabularis-notebook` files; export as HTML, CSV, or JSON.
 - Outline panel, drag & drop cell reordering, and AI-generated cell names.
