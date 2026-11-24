@@ -1,8 +1,9 @@
 use super::binary::is_binary_string_type;
 use super::geometry::is_geometry_type;
 use super::resolve_effective_type;
-use super::temporal::{format_mysql_datetime, normalize_mysql_datetime_string};
+use super::temporal::{format_mysql_datetime, format_mysql_time, normalize_mysql_datetime_string};
 use chrono::NaiveDate;
+use sqlx::mysql::types::{MySqlTime, MySqlTimeSign};
 
 #[test]
 fn resolve_effective_type_prefers_known_type() {
@@ -72,4 +73,22 @@ fn detects_geometry_types() {
     assert!(is_geometry_type("POINT"));
     assert!(is_geometry_type("MULTIPOLYGON"));
     assert!(!is_geometry_type("VARCHAR"));
+}
+
+#[test]
+fn format_mysql_time_keeps_the_sign_of_a_negative_time() {
+    let time = MySqlTime::new(MySqlTimeSign::Negative, 1, 0, 0, 0).unwrap();
+    assert_eq!(format_mysql_time(&time), "-01:00:00");
+}
+
+#[test]
+fn format_mysql_time_writes_hours_past_a_day() {
+    let time = MySqlTime::new(MySqlTimeSign::Positive, 838, 59, 59, 0).unwrap();
+    assert_eq!(format_mysql_time(&time), "838:59:59");
+}
+
+#[test]
+fn format_mysql_time_writes_microseconds_only_when_present() {
+    let time = MySqlTime::new(MySqlTimeSign::Negative, 25, 1, 2, 500).unwrap();
+    assert_eq!(format_mysql_time(&time), "-25:01:02.000500");
 }

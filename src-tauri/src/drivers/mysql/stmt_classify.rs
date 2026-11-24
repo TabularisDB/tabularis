@@ -8,6 +8,21 @@ use crate::drivers::sql_syntax::SqlSyntax;
 pub(super) static HASH_COMMENTS: Lazy<bool> =
     Lazy::new(|| SqlSyntax::preset(Some(SqlDialect::Mysql)).hash_comments);
 
+/// Whether `query` is provably one statement: with the terminators at its end
+/// set aside, it holds no `;` at all.
+///
+/// The prepared-statement protocol refuses a text of several statements,
+/// while the text protocol runs every one of them. `;` is the only thing that
+/// separates statements on the wire, so a text without one cannot carry a
+/// second statement, whatever its quoting, its comments or the server's
+/// `sql_mode`. A `;` inside a string or a comment fails the test as well:
+/// that statement keeps the prepared protocol, at the price of a round trip.
+pub(super) fn is_single_statement(query: &str) -> bool {
+    !query
+        .trim_end_matches(|c: char| c == ';' || c.is_whitespace())
+        .contains(';')
+}
+
 /// For `CREATE [OR REPLACE] DEFINER = …` statements the object-type
 /// keyword (`PROCEDURE`/`FUNCTION`/`VIEW`/`TRIGGER`/`EVENT`/`TABLE`)
 /// follows the definer clause. Returns the slice starting at that

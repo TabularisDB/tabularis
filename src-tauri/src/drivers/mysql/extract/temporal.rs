@@ -1,5 +1,38 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
+use sqlx::mysql::types::MySqlTime;
 use sqlx::Row;
+
+/// A `TIME` that is no time of day (negative, or 24 hours and over), written
+/// the way MySQL writes it. `None` for a time of day, which the caller
+/// formats through `chrono` as before.
+///
+/// `chrono::NaiveTime` cannot hold such a value: read through it, the text
+/// protocol fails to parse one and the binary protocol drops its sign.
+pub(super) fn extract_out_of_day_time(
+    row: &sqlx::mysql::MySqlRow,
+    index: usize,
+) -> Option<serde_json::Value> {
+    let time = row.try_get::<MySqlTime, _>(index).ok()?;
+    if time.is_valid_time_of_day() {
+        return None;
+    }
+    Some(serde_json::Value::String(format_mysql_time(&time)))
+}
+
+/// `[-]HH:MM:SS[.ffffff]`, with as many hour digits as the value needs.
+pub(super) fn format_mysql_time(time: &MySqlTime) -> String {
+    let sign = if time.sign().is_negative() { "-" } else { "" };
+    let mut text = format!(
+        "{sign}{:02}:{:02}:{:02}",
+        time.hours(),
+        time.minutes(),
+        time.seconds()
+    );
+    if time.microseconds() != 0 {
+        text.push_str(&format!(".{:06}", time.microseconds()));
+    }
+    text
+}
 
 pub(super) fn extract_temporal_value(
     row: &sqlx::mysql::MySqlRow,

@@ -12,6 +12,8 @@ mod stmt_classify;
 mod users;
 
 #[cfg(test)]
+mod cancel_tests;
+#[cfg(test)]
 mod column_comment_tests;
 #[cfg(test)]
 mod stmt_classify_tests;
@@ -35,7 +37,7 @@ use helpers::{
 };
 use row_identity::get_float_columns;
 use sqlx::{Column, Row};
-use stmt_classify::{is_text_protocol_stmt, HASH_COMMENTS};
+use stmt_classify::{is_single_statement, is_text_protocol_stmt, HASH_COMMENTS};
 
 /// Whether this connection must avoid the prepared-statement protocol.
 ///
@@ -113,6 +115,14 @@ async fn server_no_backslash_escapes(pool: &sqlx::MySqlPool) -> Result<bool, Str
         .any(|m| m.trim().eq_ignore_ascii_case("NO_BACKSLASH_ESCAPES")))
 }
 
+/// Whether an introspection statement goes over the text protocol: always
+/// behind a bastion, and otherwise when it has nothing to bind and is
+/// provably one statement. Preparing such a statement costs a round trip of
+/// its own the first time a connection runs it, and gives nothing back.
+fn sends_as_text(text: TextProto, sql: &str, binds: &[&str]) -> bool {
+    text.enabled || (binds.is_empty() && is_single_statement(sql))
+}
+
 /// Runs a `SELECT` and returns all rows, choosing the wire protocol from
 /// `text`. In text mode the `?` placeholders are inlined as escaped string
 /// literals (see [`inline_str_placeholders`]); otherwise they are bound
@@ -125,7 +135,7 @@ async fn fetch_all_rows(
     binds: &[&str],
 ) -> Result<Vec<sqlx::mysql::MySqlRow>, String> {
     use sqlx::Executor;
-    if text.enabled {
+    if sends_as_text(text, sql, binds) {
         let rendered = inline_str_placeholders(sql, binds, text.no_backslash_escapes);
         pool.fetch_all(sqlx::raw_sql(&rendered))
             .await
@@ -147,7 +157,7 @@ async fn fetch_one_row(
     binds: &[&str],
 ) -> Result<sqlx::mysql::MySqlRow, String> {
     use sqlx::Executor;
-    if text.enabled {
+    if sends_as_text(text, sql, binds) {
         let rendered = inline_str_placeholders(sql, binds, text.no_backslash_escapes);
         pool.fetch_one(sqlx::raw_sql(&rendered))
             .await
@@ -169,7 +179,7 @@ async fn fetch_optional_row(
     binds: &[&str],
 ) -> Result<Option<sqlx::mysql::MySqlRow>, String> {
     use sqlx::Executor;
-    if text.enabled {
+    if sends_as_text(text, sql, binds) {
         let rendered = inline_str_placeholders(sql, binds, text.no_backslash_escapes);
         pool.fetch_optional(sqlx::raw_sql(&rendered))
             .await
@@ -1445,7 +1455,7 @@ async fn acquire_mysql_conn(
         get_mysql_pool(params).await?
     };
     let conn = pool.acquire().await.map_err(|e| e.to_string())?;
-    cancel::InFlight::new(conn, &pool).await
+    Ok(cancel::InFlight::new(conn, &pool))
 }
 
 /// Executes one statement on an already-acquired connection. Used by both
@@ -1480,12 +1490,18 @@ async fn exec_on_mysql_conn(
         });
     }
 
+    // The statement runs as written, with no values to bind, so preparing it
+    // buys nothing and costs a round trip of its own. It goes as text
+    // (COM_QUERY) when it is provably one statement, which is what the
+    // prepared protocol otherwise guarantees, and always behind a bastion,
+    // which rejects prepares.
+    let as_text = text.enabled || is_single_statement(query);
+
     // Non-result-set statements (INSERT / UPDATE / DELETE / DDL) go through
-    // `execute()` so we can return the actual `rows_affected`. In text mode
-    // they must use `raw_sql` (COM_QUERY) since the bastion rejects prepares.
+    // `execute()` so we can return the actual `rows_affected`.
     if !crate::drivers::common::returns_result_set_for(query, *HASH_COMMENTS) {
         use sqlx::Executor;
-        let exec_result = if text.enabled {
+        let exec_result = if as_text {
             conn.execute(sqlx::raw_sql(query)).await
         } else {
             conn.execute(sqlx::query(query)).await
@@ -1540,7 +1556,7 @@ async fn exec_on_mysql_conn(
     {
         use futures::stream::StreamExt;
         use sqlx::Executor;
-        let mut event_stream = if text.enabled {
+        let mut event_stream = if as_text {
             (&mut *conn).fetch_many(sqlx::raw_sql(&final_query))
         } else {
             (&mut *conn).fetch_many(sqlx::query(&final_query))
@@ -2177,10 +2193,11 @@ impl DatabaseDriver for MysqlDriver {
         crate::pool_manager::with_connect_timeout(params, async {
             let options = crate::pool_manager::build_mysql_options(params, None)?;
             match options.connect().await {
-                Ok(mut conn) => {
-                    let result = conn.ping().await.map_err(|e| e.to_string());
+                // The handshake and the session's `SET` have just been
+                // answered: a ping would ask the same thing again.
+                Ok(conn) => {
                     let _ = conn.close().await;
-                    result
+                    Ok(())
                 }
                 // Mirror the pool's auto-fallback: in auto mode (`pipes_as_concat`
                 // unset), retry without the forced sql_mode so a PlanetScale/Vitess
@@ -2193,10 +2210,9 @@ impl DatabaseDriver for MysqlDriver {
                         let mut fallback = params.clone();
                         fallback.pipes_as_concat = Some(false);
                         let options = crate::pool_manager::build_mysql_options(&fallback, None)?;
-                        let mut conn = options.connect().await.map_err(|e| e.to_string())?;
-                        let result = conn.ping().await.map_err(|e| e.to_string());
+                        let conn = options.connect().await.map_err(|e| e.to_string())?;
                         let _ = conn.close().await;
-                        result
+                        Ok(())
                     } else {
                         Err(e)
                     }
