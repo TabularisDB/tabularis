@@ -305,10 +305,23 @@ fn tokenize_sql_with_pos(sql: &str, rules: CommentRules) -> Vec<(String, usize)>
     tokens
 }
 
+/// The row count written after `LIMIT`: `Some(None)` for no limit, `None`
+/// when `word` is not a count. SQLite reads a negative count as no limit,
+/// and `LIMIT -1 OFFSET <n>` is how it skips rows without capping them.
+fn limit_count(word: &str) -> Option<Option<u64>> {
+    if let Ok(count) = word.parse::<u64>() {
+        return Some(Some(count));
+    }
+    match word.parse::<i64>() {
+        Ok(count) if count < 0 => Some(None),
+        _ => None,
+    }
+}
+
 /// A trailing `LIMIT <offset>, <count>`, the form MySQL and SQLite also accept,
 /// with any spacing around the comma. Returns the index of the `LIMIT` token,
-/// the offset and the row count.
-fn trailing_comma_limit(tokens: &[(String, usize)]) -> Option<(usize, u64, u64)> {
+/// the offset and the row count (`None` for SQLite's negative "no limit").
+fn trailing_comma_limit(tokens: &[(String, usize)]) -> Option<(usize, u64, Option<u64>)> {
     let limit_index = tokens
         .iter()
         .rposition(|(token, _)| token.eq_ignore_ascii_case("LIMIT"))?;
@@ -318,7 +331,7 @@ fn trailing_comma_limit(tokens: &[(String, usize)]) -> Option<(usize, u64, u64)>
     }
     let joined: String = tail.iter().map(|(token, _)| token.as_str()).collect();
     let (offset, count) = joined.split_once(',')?;
-    Some((limit_index, offset.parse().ok()?, count.parse().ok()?))
+    Some((limit_index, offset.parse().ok()?, limit_count(count)?))
 }
 
 /// The row-limiting clauses at the end of a query.
@@ -333,7 +346,8 @@ struct TrailingRowLimit {
 
 /// One row-limiting clause ending just before token `end`.
 enum RowLimitClause {
-    /// `LIMIT <n>`, `LIMIT ALL`, or `FETCH { FIRST | NEXT } [<n>] { ROW | ROWS } ONLY`.
+    /// `LIMIT <n>`, `LIMIT ALL`, SQLite's `LIMIT -1`, or
+    /// `FETCH { FIRST | NEXT } [<n>] { ROW | ROWS } ONLY`.
     Limit(Option<u64>),
     /// `OFFSET <n>` or `OFFSET <n> { ROW | ROWS }`.
     Offset(u64),
@@ -348,13 +362,13 @@ fn row_limit_clause_before(
     let is_row = |index: usize| is(index, "ROW") || is(index, "ROWS");
     let number = |index: usize| word(index).parse::<u64>().ok();
 
-    // LIMIT <n> | LIMIT ALL
+    // LIMIT <n> | LIMIT ALL | LIMIT -1
     if end >= 2 && is(end - 2, "LIMIT") {
         if is(end - 1, "ALL") {
             return Some((end - 2, RowLimitClause::Limit(None)));
         }
-        if let Some(count) = number(end - 1) {
-            return Some((end - 2, RowLimitClause::Limit(Some(count))));
+        if let Some(count) = limit_count(word(end - 1)) {
+            return Some((end - 2, RowLimitClause::Limit(count)));
         }
     }
     // OFFSET <n> [ROW | ROWS]
@@ -392,7 +406,7 @@ fn trailing_row_limit(tokens: &[(String, usize)]) -> Option<TrailingRowLimit> {
     if let Some((start, offset, count)) = trailing_comma_limit(tokens) {
         return Some(TrailingRowLimit {
             start,
-            limit: Some(count),
+            limit: count,
             offset: Some(offset),
         });
     }

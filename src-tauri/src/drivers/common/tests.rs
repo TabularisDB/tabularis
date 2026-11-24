@@ -341,6 +341,44 @@ fn test_extract_user_limit_table_name_contains_limit_with_real_limit() {
 }
 
 #[test]
+fn test_build_paginated_query_reads_sqlite_negative_limit_as_no_limit() {
+    // SQLite has no OFFSET without LIMIT; `LIMIT -1` means no upper bound.
+    // It used to be left in place, and a second LIMIT was appended.
+    for q in [
+        "SELECT * FROM t LIMIT -1 OFFSET 5",
+        "SELECT * FROM t LIMIT 5, -1",
+        "SELECT * FROM t ORDER BY id LIMIT -1 OFFSET 5;",
+    ] {
+        let base = if q.contains("ORDER BY") {
+            "SELECT * FROM t ORDER BY id"
+        } else {
+            "SELECT * FROM t"
+        };
+        assert_eq!(
+            build_paginated_query_for(q, 100, 2, false, false),
+            format!("{base} LIMIT 101 OFFSET 105"),
+            "{q}"
+        );
+    }
+    assert_eq!(
+        build_paginated_query_for("SELECT * FROM t LIMIT -1", 100, 1, false, false),
+        "SELECT * FROM t LIMIT 101 OFFSET 0"
+    );
+    assert_eq!(
+        strip_limit_offset("SELECT * FROM t LIMIT -1 OFFSET 5"),
+        "SELECT * FROM t"
+    );
+    assert_eq!(
+        super::extract_user_limit("SELECT * FROM t LIMIT -1 OFFSET 5"),
+        None
+    );
+    assert_eq!(
+        super::extract_user_offset("SELECT * FROM t LIMIT -1 OFFSET 5"),
+        Some(5)
+    );
+}
+
+#[test]
 fn test_build_paginated_query_no_user_limit() {
     let q = "SELECT o.id FROM orders o ORDER BY o.created_at DESC";
     let result = build_paginated_query(q, 100, 1);
