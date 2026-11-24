@@ -1,14 +1,15 @@
 import type {ComponentProps} from 'react';
-import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
 import {save} from '@tauri-apps/plugin-dialog';
 import {writeFile} from '@tauri-apps/plugin-fs';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {NotebookView} from '@/components/notebook/NotebookView';
-import type {ConfirmModal} from '@/components/modals/ConfirmModal';
 import type {NotebookCellWrapper} from '@/components/notebook/NotebookCellWrapper';
 import type {NotebookToolbar} from '@/components/notebook/NotebookToolbar';
 import type {RunAllSummary} from '@/components/notebook/RunAllSummary';
+import {useDangerousQueryGuard} from '@/hooks/useDangerousQueryGuard';
+import {useQueryGuards} from '@/hooks/useQueryGuards';
 import type {QueryResult, Tab} from '@/types/editor';
 import type {NotebookCell, NotebookState} from '@/types/notebook';
 import {resolveParams} from '@/utils/notebookParams';
@@ -52,11 +53,12 @@ vi.mock('@/hooks/useKeybindings', () => ({
     useKeybindings: () => ({matchesShortcut: fixtures.matchesShortcut}),
 }));
 vi.mock('@/hooks/useQueryGuards', () => ({
-    useQueryGuards: () => ({
+    useQueryGuards: vi.fn(() => ({
         pending: null,
+        isPending: false,
         guardQuery: fixtures.guardQuery,
         resolve: fixtures.resolveGuard,
-    }),
+    })),
 }));
 vi.mock('@/hooks/useSqlAutocompleteRegistration', () => ({
     useSqlAutocompleteRegistration: vi.fn(),
@@ -87,14 +89,8 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
     readFile: vi.fn(),
     writeFile: vi.fn(),
 }));
-vi.mock('@/components/modals/ConfirmModal', () => ({
-    ConfirmModal: ({isOpen, title, onConfirm, onClose}: ComponentProps<typeof ConfirmModal>) =>
-        isOpen ? (
-            <div role="dialog" aria-label={title}>
-                <button onClick={onConfirm}>Confirm {title}</button>
-                <button onClick={onClose}>Cancel {title}</button>
-            </div>
-        ) : null,
+vi.mock('@/components/ui/SqlPreview', () => ({
+    SqlPreview: ({sql}: {sql: string}) => <pre>{sql}</pre>,
 }));
 vi.mock('@/components/notebook/NotebookHistoryPanel', () => ({
     NotebookHistoryPanel: () => null,
@@ -240,6 +236,10 @@ const queryResult: QueryResult = {columns: ['id'], rows: [[7], [8]], affected_ro
 const standardSql = `WITH cell_1 AS (\n  SELECT 7 AS "id", '${String.raw`C:\team\O''Reilly`}' AS "label"\n)\nSELECT * FROM cell_1 WHERE id >= 7`;
 const mysqlSql = `WITH cell_1 AS (\n  SELECT 7 AS \`id\`, '${String.raw`C:\\team\\O''Reilly`}' AS \`label\`\n)\nSELECT * FROM cell_1 WHERE id >= 7`;
 const backtickStandardSql = `WITH cell_1 AS (\n  SELECT 7 AS \`id\`, '${String.raw`C:\team\O''Reilly`}' AS \`label\`\n)\nSELECT * FROM cell_1 WHERE id >= 7`;
+
+function useDangerousQueryGuardForTest() {
+    return useDangerousQueryGuard();
+}
 
 function sqlCell(id: string, content: string, partial: Partial<NotebookCell> = {}): NotebookCell {
     return {id, type: 'sql', content, ...partial};
@@ -757,7 +757,11 @@ describe('NotebookView', () => {
             expect(setNotebookState).not.toHaveBeenCalled();
             expect(savedCell('ok').result).toEqual(queryResult);
 
-            fireEvent.click(screen.getByRole('button', {name: `Confirm ${clearLabel}`}));
+            fireEvent.click(
+                within(screen.getByRole('dialog', {name: clearLabel})).getByRole('button', {
+                    name: clearLabel,
+                }),
+            );
 
             expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
             expect(setNotebookState).toHaveBeenCalledTimes(1);
@@ -794,7 +798,7 @@ describe('NotebookView', () => {
             await settle();
 
             fireEvent.click(clearButton());
-            fireEvent.click(screen.getByRole('button', {name: `Cancel ${clearLabel}`}));
+            fireEvent.click(screen.getByRole('button', {name: 'common.cancel'}));
 
             expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
             expect(setNotebookState).not.toHaveBeenCalled();
@@ -814,7 +818,11 @@ describe('NotebookView', () => {
             expect(savedCell('only').result).toEqual(queryResult);
 
             fireEvent.click(clearButton());
-            fireEvent.click(screen.getByRole('button', {name: `Confirm ${clearLabel}`}));
+            fireEvent.click(
+                within(screen.getByRole('dialog', {name: clearLabel})).getByRole('button', {
+                    name: clearLabel,
+                }),
+            );
 
             expect(screen.queryByTestId('run-all-summary')).not.toBeInTheDocument();
             expect(savedCell('only').result).toBeNull();
@@ -859,7 +867,11 @@ describe('NotebookView', () => {
                 fireEvent.click(screen.getByRole('button', {name: 'Run All'}));
             });
             await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
-            fireEvent.click(screen.getByRole('button', {name: `Confirm ${clearLabel}`}));
+            fireEvent.click(
+                within(screen.getByRole('dialog', {name: clearLabel})).getByRole('button', {
+                    name: clearLabel,
+                }),
+            );
 
             expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
             expect(savedCell('only')).toMatchObject({isLoading: true, executionTime: 5});
@@ -1666,6 +1678,182 @@ describe('NotebookView', () => {
             );
             expect(summary()).toMatchObject({total: 2, failed: 1, skipped: 1, succeeded: 0});
             expect(savedCell('use')).toMatchObject({isDisabled: true, isLoading: false});
+        });
+
+        it('runs different databases together and keeps one database in order', async () => {
+            const pending: Array<(value: QueryResult) => void> = [];
+            mockInvoke.mockImplementation(
+                () =>
+                    new Promise<QueryResult>((resolve) => {
+                        pending.push(resolve);
+                    }),
+            );
+            renderNotebook({
+                cells: [
+                    sqlCell('a', 'SELECT a', {schema: 'billing'}),
+                    sqlCell('a2', 'SELECT a2', {schema: 'billing'}),
+                    sqlCell('b', 'SELECT b', {schema: 'orders'}),
+                ],
+            });
+            await click('Run All');
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(2));
+            expect(mockInvoke.mock.calls.map((call) => call[1])).toEqual([
+                expect.objectContaining({query: 'SELECT a', schema: 'billing'}),
+                expect.objectContaining({query: 'SELECT b', schema: 'orders'}),
+            ]);
+
+            await act(async () => {
+                pending[0](queryResult);
+            });
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(3));
+            expect(mockInvoke.mock.calls[2][1]).toEqual(
+                expect.objectContaining({query: 'SELECT a2', schema: 'billing'}),
+            );
+        });
+
+        it('confirms each write when two databases are scheduled together', async () => {
+            const confirmations = new Map<string, (allowed: boolean) => void>();
+            fixtures.guardQuery.mockImplementation(
+                (sql: string) =>
+                    new Promise<boolean>((resolve) => {
+                        confirmations.set(sql, resolve);
+                    }),
+            );
+            renderNotebook({
+                cells: [
+                    sqlCell('a', 'DELETE FROM a', {schema: 'billing'}),
+                    sqlCell('b', 'DELETE FROM b', {schema: 'orders'}),
+                ],
+            });
+            await click('Run All');
+            await waitFor(() => expect(fixtures.guardQuery).toHaveBeenCalledTimes(2));
+            expect(mockInvoke).not.toHaveBeenCalled();
+
+            await act(async () => {
+                confirmations.get('DELETE FROM a')?.(true);
+            });
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
+            expect(mockInvoke.mock.calls[0][1]).toEqual(
+                expect.objectContaining({query: 'DELETE FROM a', schema: 'billing'}),
+            );
+
+            await act(async () => {
+                confirmations.get('DELETE FROM b')?.(true);
+            });
+            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
+            expect(mockInvoke.mock.calls.map((call) => call[1]?.query)).toEqual([
+                'DELETE FROM a',
+                'DELETE FROM b',
+            ]);
+            expect(summary()).toMatchObject({total: 2, succeeded: 2, failed: 0, skipped: 0});
+        });
+
+        it('starts a fresh safety countdown for each queued dangerous query', async () => {
+            const confirmLabel = 'editor.dangerousQueryConfirm';
+            vi.useFakeTimers();
+            fixtures.settings.safetyConfirmationDelayEnabled = true;
+
+            const mockUseQueryGuards = vi.mocked(useQueryGuards);
+            mockUseQueryGuards.mockImplementation(useDangerousQueryGuardForTest);
+            try {
+                renderNotebook({
+                    cells: [
+                        sqlCell('a', 'DELETE FROM a', {schema: 'billing'}),
+                        sqlCell('b', 'DROP TABLE b', {schema: 'orders'}),
+                    ],
+                });
+                await click('Run All');
+
+                expect(
+                    within(screen.getByRole('dialog')).getByText('DELETE FROM a'),
+                ).toBeInTheDocument();
+                expect(screen.getByRole('button', {name: `${confirmLabel} (5)`})).toBeDisabled();
+                expect(mockInvoke).not.toHaveBeenCalled();
+
+                act(() => vi.advanceTimersByTime(5000));
+                await click(confirmLabel);
+
+                expect(
+                    within(screen.getByRole('dialog')).getByText('DROP TABLE b'),
+                ).toBeInTheDocument();
+                const secondConfirm = screen.getByRole('button', {
+                    name: /^editor\.dangerousQueryConfirm/,
+                });
+                expect(secondConfirm).toBeDisabled();
+                expect(secondConfirm).toHaveTextContent(`${confirmLabel} (5)`);
+                fireEvent.click(secondConfirm);
+                expect(mockInvoke.mock.calls.map((call) => call[1]?.query)).toEqual([
+                    'DELETE FROM a',
+                ]);
+
+                act(() => vi.advanceTimersByTime(4999));
+                expect(secondConfirm).toBeDisabled();
+                act(() => vi.advanceTimersByTime(1));
+                expect(secondConfirm).toBeEnabled();
+                await click(confirmLabel);
+
+                expect(mockInvoke.mock.calls.map((call) => call[1]?.query)).toEqual([
+                    'DELETE FROM a',
+                    'DROP TABLE b',
+                ]);
+                expect(summary()).toMatchObject({total: 2, succeeded: 2});
+            } finally {
+                mockUseQueryGuards.mockReset();
+                fixtures.settings.safetyConfirmationDelayEnabled = false;
+                vi.useRealTimers();
+            }
+        });
+
+        it('stop on error skips the rest of the failed database and still runs the others', async () => {
+            mockInvoke.mockImplementation((_command, args: {query?: string}) => {
+                if (args?.query === 'SELECT a') return Promise.reject(new Error('boom'));
+                return Promise.resolve(queryResult);
+            });
+            renderNotebook({
+                stopOnError: true,
+                cells: [
+                    sqlCell('a', 'SELECT a', {schema: 'billing'}),
+                    sqlCell('a2', 'SELECT a2', {schema: 'billing'}),
+                    sqlCell('b', 'SELECT b', {schema: 'orders'}),
+                ],
+            });
+            await click('Run All');
+            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
+            expect(mockInvoke.mock.calls.map((call) => call[1]?.query)).toEqual([
+                'SELECT a',
+                'SELECT b',
+            ]);
+            expect(summary()).toMatchObject({
+                total: 3,
+                succeeded: 1,
+                failed: 1,
+                skipped: 1,
+            });
+        });
+
+        it('does not run a cell that would read a result skipped by stop-on-error', async () => {
+            mockInvoke.mockImplementation((_command, args: {query?: string}) => {
+                if (args?.query === 'SELECT a') return Promise.reject(new Error('boom'));
+                return Promise.resolve(queryResult);
+            });
+            renderNotebook({
+                stopOnError: true,
+                cells: [
+                    sqlCell('a', 'SELECT a', {schema: 'billing'}),
+                    sqlCell('a2', 'SELECT a2', {schema: 'billing', result: cached}),
+                    sqlCell('b', 'SELECT * FROM {{cell_2}}', {schema: 'orders'}),
+                ],
+            });
+            await click('Run All');
+            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
+            expect(mockInvoke.mock.calls.map((call) => call[1]?.query)).toEqual(['SELECT a']);
+            expect(summary()).toMatchObject({
+                total: 3,
+                succeeded: 0,
+                failed: 1,
+                skipped: 2,
+            });
+            expect(savedCell('b').result).toBeUndefined();
         });
 
         it('prepares no query plan for a disabled cell', () => {
