@@ -2204,6 +2204,12 @@
       border-color: color-mix(in oklab, var(--color-accent-error) 60%, transparent);
     }
   }
+  .border-accent-info\/25 {
+    border-color: var(--color-accent-info);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--color-accent-info) 25%, transparent);
+    }
+  }
   .border-accent-primary {
     border-color: var(--color-accent-primary);
   }
@@ -2572,6 +2578,12 @@
   }
   .bg-accent-info {
     background-color: var(--color-accent-info);
+  }
+  .bg-accent-info\/10 {
+    background-color: var(--color-accent-info);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--color-accent-info) 10%, transparent);
+    }
   }
   .bg-accent-info\/15 {
     background-color: var(--color-accent-info);
