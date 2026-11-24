@@ -487,6 +487,31 @@ fn test_build_paginated_query_honors_user_limit_after_quoted_parenthesis_in_pare
 }
 
 #[test]
+fn test_build_paginated_query_reads_backslash_escapes_in_parens_by_dialect() {
+    // MySQL: `\"` and `\'` escape the quote, so the string goes on to the real
+    // closing quote and the group ends at the real `)`.
+    for q in [
+        r#"SELECT CONCAT("a\"b", name) FROM t LIMIT 5"#,
+        r"SELECT CONCAT('it\'s', name) FROM t LIMIT 5",
+        r#"SELECT CONCAT("a)\"b", name) FROM t LIMIT 5"#,
+    ] {
+        let expected = q.replace("LIMIT 5", "LIMIT 5 OFFSET 0");
+        assert_eq!(
+            build_paginated_query_for(q, 100, 1, true, true),
+            expected,
+            "{q}"
+        );
+    }
+    // PostgreSQL and SQLite: a backslash is an ordinary character, so `'a\'`
+    // is a whole string and the `)` after it closes the group.
+    let q = r"SELECT * FROM t WHERE c IN ('a\') LIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(q, 100, 1, false, false),
+        r"SELECT * FROM t WHERE c IN ('a\') LIMIT 5 OFFSET 0"
+    );
+}
+
+#[test]
 fn test_build_paginated_query_keeps_mysql_minus_expression() {
     let q = "SELECT 1--2;";
     let result = build_paginated_query(q, 1, 1);

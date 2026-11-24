@@ -264,11 +264,18 @@ fn tokenize_sql_with_pos(sql: &str, rules: CommentRules) -> Vec<(String, usize)>
                     // A parenthesis inside a string or quoted identifier
                     // (`CONCAT(name, ")")`) must not change the depth.
                     let quote = ch;
+                    // MySQL and MariaDB, the drivers with `#` comments, read a
+                    // backslash in a string as an escape (`"a\"b"`); in
+                    // PostgreSQL and SQLite it is an ordinary character.
+                    let backslash_escapes = rules.hash_comments && quote != '`';
                     i += 1;
                     while i < len {
                         let inner = chars[i].1;
                         token.push(inner);
-                        if inner == quote {
+                        if backslash_escapes && inner == '\\' && i + 1 < len {
+                            i += 1;
+                            token.push(chars[i].1);
+                        } else if inner == quote {
                             if i + 1 < len && chars[i + 1].1 == quote {
                                 i += 1;
                                 token.push(chars[i].1);
