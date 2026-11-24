@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState, type ReactNode} from 'react';
+import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react';
 import {useTranslation} from 'react-i18next';
 import {TriangleAlert, X} from 'lucide-react';
 import {Modal} from '@/components/ui/Modal';
@@ -25,19 +25,31 @@ interface PendingPrompt {
 export function ProductionGuardProvider({children}: {children: ReactNode}) {
     const {t} = useTranslation();
     const {settings} = useSettings();
+    const queueRef = useRef<PendingPrompt[]>([]);
     const [pending, setPending] = useState<PendingPrompt | null>(null);
     const [snooze, setSnooze] = useState(false);
     const [remaining, setRemaining] = useState(0);
 
+    const show = useCallback(
+        (prompt: PendingPrompt | null) => {
+            setSnooze(false);
+            setRemaining(prompt && settings.safetyConfirmationDelayEnabled ? 5 : 0);
+            setPending(prompt);
+        },
+        [settings.safetyConfirmationDelayEnabled],
+    );
+
+    // One dialog. A second write asked for while it is open waits, instead of
+    // replacing the first resolver and leaving that caller pending forever.
     const request = useCallback<GuardRequest>(
         (connectionId, connectionName, sql) => {
             return new Promise<boolean>((resolve) => {
-                setSnooze(false);
-                setRemaining(settings.safetyConfirmationDelayEnabled ? 5 : 0);
-                setPending({connectionId, connectionName, sql, resolve});
+                const prompt = {connectionId, connectionName, sql, resolve};
+                queueRef.current.push(prompt);
+                if (queueRef.current.length === 1) show(prompt);
             });
         },
-        [settings.safetyConfirmationDelayEnabled],
+        [show],
     );
 
     useEffect(() => {
@@ -49,13 +61,21 @@ export function ProductionGuardProvider({children}: {children: ReactNode}) {
     }, [pending, remaining]);
 
     const finish = (ok: boolean) => {
-        if (!pending) return;
-        if (ok && snooze && pending.connectionId) {
-            snoozedConnectionIds.add(pending.connectionId);
+        const current = queueRef.current.shift();
+        if (!current) return;
+        if (ok && snooze && current.connectionId) {
+            snoozedConnectionIds.add(current.connectionId);
         }
-        pending.resolve(ok);
-        setRemaining(0);
-        setPending(null);
+        current.resolve(ok);
+        // "Don't ask again" covers prompts for this connection that are already waiting,
+        // including one queued behind a different connection.
+        const waiting = queueRef.current.filter((prompt) => {
+            if (!snoozedConnectionIds.has(prompt.connectionId)) return true;
+            prompt.resolve(true);
+            return false;
+        });
+        queueRef.current = waiting;
+        show(waiting[0] ?? null);
     };
 
     return (

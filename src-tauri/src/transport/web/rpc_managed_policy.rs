@@ -99,6 +99,12 @@ fn connection_access(command: ConnectionRpcCommand) -> ManagedAccess {
         | ConnectionRpcCommand::UpdateConnectionTag
         | ConnectionRpcCommand::DeleteConnectionTag
         | ConnectionRpcCommand::SetConnectionTags => Action(A::EditOrganization),
+        // Listing returns names and usernames, never passwords. Changing a
+        // profile changes the login of every connection that uses it.
+        ConnectionRpcCommand::ListCredentialProfiles => Unrestricted,
+        ConnectionRpcCommand::CreateCredentialProfile => Action(A::Create),
+        ConnectionRpcCommand::UpdateCredentialProfile => Action(A::Update),
+        ConnectionRpcCommand::DeleteCredentialProfile => Action(A::Delete),
     }
 }
 
