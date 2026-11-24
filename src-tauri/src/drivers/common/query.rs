@@ -499,7 +499,13 @@ fn trailing_locking_clause_start(query: &str, rules: CommentRules) -> Option<usi
         if is(i, "OF") {
             let tables = i + 1;
             i = tables;
-            while i < tokens.len() && !is(i, "NOWAIT") && !is(i, "SKIP") && !is(i, "FOR") {
+            // The table list ends at the next keyword. PostgreSQL also accepts
+            // LIMIT/OFFSET/FETCH after the locking clause, so those end it too.
+            while i < tokens.len()
+                && !["NOWAIT", "SKIP", "FOR", "LIMIT", "OFFSET", "FETCH"]
+                    .iter()
+                    .any(|keyword| is(i, keyword))
+            {
                 i += 1;
             }
             if i == tables {
