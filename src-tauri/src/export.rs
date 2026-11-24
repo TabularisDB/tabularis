@@ -160,6 +160,18 @@ where
             .await?
         } else {
             match session_id {
+                Some(id) if single_run => {
+                    crate::commands::write_in_open_transaction(
+                        driver.as_ref(),
+                        params,
+                        query,
+                        limit,
+                        page,
+                        None,
+                        id,
+                    )
+                    .await?
+                }
                 Some(id) => {
                     crate::commands::read_in_open_transaction(
                         driver.as_ref(),

@@ -321,3 +321,120 @@ async fn a_writable_plugin_export_still_pages_a_plain_select() {
     assert_eq!(pages, [1, 2, 3]);
     crate::drivers::registry::unregister_driver(&params.driver).await;
 }
+
+/// A writable plugin connection that answers `execute_query_batch` for an open
+/// session, recording every statement of every batch in order. `fail_on` makes
+/// the statement containing that text return an error.
+async fn session_batch_plugin_params(
+    fail_on: Option<&'static str>,
+) -> (ConnectionParams, Arc<Mutex<Vec<String>>>) {
+    let statements = Arc::new(Mutex::new(Vec::new()));
+    let recorded = statements.clone();
+    let mut params = plugin_params(false, move |rpc| {
+        assert_eq!(rpc.method, "execute_query_batch");
+        let queries: Vec<String> = rpc.params["queries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|q| q.as_str().unwrap().to_string())
+            .collect();
+        recorded.lock().unwrap().extend(queries.iter().cloned());
+        let ok = json!({"columns":["id"],"rows":[[1]],"affected_rows":0});
+        Ok(json!(queries
+            .iter()
+            .map(|q| match fail_on {
+                Some(text) if q.contains(text) => json!({"result":null,"error":"boom"}),
+                _ => json!({"result":ok,"error":null}),
+            })
+            .collect::<Vec<_>>()))
+    })
+    .await;
+    params.read_only = false;
+    (params, statements)
+}
+
+#[tokio::test]
+async fn a_session_export_of_a_write_keeps_it_in_the_open_transaction() {
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    let (params, statements) = session_batch_plugin_params(None).await;
+
+    run_export(
+        &params.driver,
+        &params,
+        "UPDATE counters SET value = value + 1 RETURNING id",
+        Vec::new(),
+        ExportFormat::Json,
+        b',',
+        Some("writable-session"),
+        |_| {},
+    )
+    .await
+    .unwrap();
+
+    let sent = statements.lock().unwrap().clone();
+    assert_eq!(
+        sent,
+        [
+            "SAVEPOINT tabularis_write",
+            "UPDATE counters SET value = value + 1 RETURNING id",
+            "RELEASE SAVEPOINT tabularis_write",
+        ],
+        "a successful write must be released, never rolled back"
+    );
+    crate::drivers::registry::unregister_driver(&params.driver).await;
+}
+
+#[tokio::test]
+async fn a_failed_session_export_write_rolls_back_to_its_savepoint_only() {
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    let (params, statements) = session_batch_plugin_params(Some("UPDATE")).await;
+
+    let error = run_export(
+        &params.driver,
+        &params,
+        "UPDATE counters SET value = value + 1 RETURNING id",
+        Vec::new(),
+        ExportFormat::Json,
+        b',',
+        Some("writable-session"),
+        |_| {},
+    )
+    .await
+    .unwrap_err();
+
+    assert!(error.contains("boom"), "{error}");
+    let sent = statements.lock().unwrap().clone();
+    assert!(sent
+        .iter()
+        .any(|s| s == "ROLLBACK TO SAVEPOINT tabularis_write"));
+    assert!(sent
+        .iter()
+        .any(|s| s == "RELEASE SAVEPOINT tabularis_write"));
+    crate::drivers::registry::unregister_driver(&params.driver).await;
+}
+
+#[tokio::test]
+async fn a_session_export_of_a_plain_select_still_rolls_back_its_read() {
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    let (params, statements) = session_batch_plugin_params(None).await;
+
+    run_export(
+        &params.driver,
+        &params,
+        "SELECT id FROM items",
+        Vec::new(),
+        ExportFormat::Json,
+        b',',
+        Some("writable-session"),
+        |_| {},
+    )
+    .await
+    .unwrap();
+
+    let sent = statements.lock().unwrap().clone();
+    assert_eq!(sent[0], "SAVEPOINT tabularis_read");
+    assert!(sent
+        .iter()
+        .any(|s| s == "ROLLBACK TO SAVEPOINT tabularis_read"));
+    crate::drivers::registry::unregister_driver(&params.driver).await;
+}

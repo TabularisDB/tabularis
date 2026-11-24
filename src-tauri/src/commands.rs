@@ -1572,6 +1572,48 @@ pub(crate) async fn read_in_open_transaction(
     }
 }
 
+/// Run a statement that may write on the connection pinned to `session_id`,
+/// inside its open transaction. Unlike [`read_in_open_transaction`] the
+/// savepoint is released on success, so the statement's effect stays in the
+/// user's transaction; only a failed statement is rolled back to it, which
+/// keeps the failure from aborting that transaction.
+pub(crate) async fn write_in_open_transaction(
+    drv: &dyn crate::drivers::driver_trait::DatabaseDriver,
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+    session_id: &str,
+) -> Result<QueryResult, String> {
+    let batch = [
+        "SAVEPOINT tabularis_write".to_string(),
+        query.to_string(),
+        "RELEASE SAVEPOINT tabularis_write".to_string(),
+    ];
+    let (results, _) = drv
+        .execute_batch_in_session(params, &batch, limit, page, schema, Some(session_id), None)
+        .await?;
+    match results.into_iter().nth(1) {
+        Some(BatchStatementResult {
+            result: Some(result),
+            ..
+        }) => Ok(result),
+        Some(BatchStatementResult { error: Some(e), .. }) => {
+            // The failed statement left the transaction aborted: undo to the savepoint.
+            let undo = [
+                "ROLLBACK TO SAVEPOINT tabularis_write".to_string(),
+                "RELEASE SAVEPOINT tabularis_write".to_string(),
+            ];
+            let _ = drv
+                .execute_batch_in_session(params, &undo, None, 1, schema, Some(session_id), None)
+                .await;
+            Err(e)
+        }
+        _ => Err("The statement produced no result".to_string()),
+    }
+}
+
 // --- Count Query ---
 
 // --- Window Title Management ---
