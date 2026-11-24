@@ -64,6 +64,8 @@ export interface SavedConnection {
         unix_socket_path?: string;
         username?: string;
         password?: string;
+        /** Shared credential profile supplying the username and password. */
+        credential_profile_id?: string;
         ssh_enabled?: boolean;
         ssh_connection_id?: string;
         k8s_enabled?: boolean;

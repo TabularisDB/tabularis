@@ -14,6 +14,7 @@ import {QueryHistoryProvider} from '@/contexts/QueryHistoryProvider';
 import {EditorProvider} from '@/contexts/EditorProvider';
 import {ThemeProvider} from '@/contexts/ThemeProvider';
 import {UpdateProvider} from '@/contexts/UpdateProvider';
+import {WebSessionProvider} from '@/contexts/WebSessionProvider';
 import {ProductionGuardProvider} from '@/contexts/ProductionGuardContext';
 import {bootstrapTabularisRuntime} from '@/api/bootstrap';
 import {TabularisClientProvider} from '@/contexts/TabularisClientProvider';
@@ -49,28 +50,30 @@ async function startApplication() {
                 <TabularisClientProvider client={tabularisClient}>
                     <UiStateProvider>
                         <PlatformCapabilitiesProvider capabilities={platformCapabilities}>
-                            <ConnectionCapabilitiesProvider session={session}>
-                                <UpdateProvider session={session}>
-                                    <ThemeProvider>
-                                        <SettingsProvider>
-                                            <ToastProvider>
-                                                <BrowserCapabilityFallbacks />
-                                                <DatabaseProvider>
-                                                    <SavedQueriesProvider>
-                                                        <QueryHistoryProvider>
-                                                            <EditorProvider>
-                                                                <ProductionGuardProvider>
-                                                                    <App />
-                                                                </ProductionGuardProvider>
-                                                            </EditorProvider>
-                                                        </QueryHistoryProvider>
-                                                    </SavedQueriesProvider>
-                                                </DatabaseProvider>
-                                            </ToastProvider>
-                                        </SettingsProvider>
-                                    </ThemeProvider>
-                                </UpdateProvider>
-                            </ConnectionCapabilitiesProvider>
+                            <WebSessionProvider session={session}>
+                                <ConnectionCapabilitiesProvider session={session}>
+                                    <UpdateProvider session={session}>
+                                        <ThemeProvider>
+                                            <SettingsProvider>
+                                                <ToastProvider>
+                                                    <BrowserCapabilityFallbacks />
+                                                    <DatabaseProvider>
+                                                        <SavedQueriesProvider>
+                                                            <QueryHistoryProvider>
+                                                                <EditorProvider>
+                                                                    <ProductionGuardProvider>
+                                                                        <App />
+                                                                    </ProductionGuardProvider>
+                                                                </EditorProvider>
+                                                            </QueryHistoryProvider>
+                                                        </SavedQueriesProvider>
+                                                    </DatabaseProvider>
+                                                </ToastProvider>
+                                            </SettingsProvider>
+                                        </ThemeProvider>
+                                    </UpdateProvider>
+                                </ConnectionCapabilitiesProvider>
+                            </WebSessionProvider>
                         </PlatformCapabilitiesProvider>
                     </UiStateProvider>
                 </TabularisClientProvider>

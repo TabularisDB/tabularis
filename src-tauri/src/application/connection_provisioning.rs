@@ -23,7 +23,7 @@ pub async fn execute(
     // All machine writes are serialized, including their runtime cleanup.
     // Deterministic IDs also make retries after process restarts idempotent.
     let _guard = state.provisioning_lock.lock().await;
-    let mut file = load_file(runtime)?;
+    let file = load_file(runtime)?;
     let reference = match &command {
         ProvisionCommand::List => {
             return json(
@@ -71,6 +71,10 @@ pub async fn execute(
             .map_err(|_| "unsupported_read_only")?;
             input.params.connection_id = None;
             let connection = if let Some(previous) = &existing {
+                // The update re-checks the profile under the connections-file lock.
+                // This call only classifies a profile that is already missing.
+                validate_credential_profile_reference(&file, &id, &input.params)
+                    .map_err(|_| "invalid_connection".to_string())?;
                 // Preserve proxy credentials too: shared DB/SSH/URI/plugin secret
                 // merging is performed by update_connection below.
                 if input.params.socks5_proxy_password.is_none() {
@@ -88,17 +92,20 @@ pub async fn execute(
                     previous.environment.clone(),
                 )?
             } else {
-                let mut writes = SecretWrites::default();
-                let result = (|| {
+                // Read, profile check, secret writes, and the file save share one
+                // lock, so a profile delete cannot land between them.
+                modify_connections_file(runtime, state, |file, writes| {
+                    validate_credential_profile_reference(file, &id, &input.params)
+                        .map_err(|_| "invalid_connection".to_string())?;
                     let keys = persist_plugin_secrets(
                         runtime,
                         &id,
                         None,
                         &mut input.params,
                         &input.plugin_secret_changes,
-                        &mut writes,
+                        writes,
                     )?;
-                    persist_secrets_for_create(runtime, &id, &mut input.params, &mut writes)?;
+                    persist_secrets_for_create(runtime, &id, &mut input.params, writes)?;
                     let connection = SavedConnection {
                         id: id.clone(),
                         name: input.name,
@@ -113,13 +120,8 @@ pub async fn execute(
                         environment: None,
                     };
                     file.connections.push(connection.clone());
-                    save_file(runtime, state, &file)?;
-                    Ok::<_, String>(connection)
-                })();
-                if result.is_err() {
-                    writes.rollback(runtime);
-                }
-                result?
+                    Ok(connection)
+                })?
             };
             if let Some(previous) = existing {
                 invalidate(runtime, state, &previous).await;
