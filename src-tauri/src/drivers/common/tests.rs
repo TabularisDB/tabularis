@@ -851,6 +851,13 @@ fn test_build_paginated_query_for_postgres_sqlite_string_ending_in_backslash() {
         "SELECT E'a'\n'b\\'' -- it's\nLIMIT 5 OFFSET 0"
     );
 
+    let continued_e_string_line_comment =
+        "SELECT id, E'a' -- note\n'b\\'' AS s FROM files ORDER BY id LIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(continued_e_string_line_comment, 100, 1, POSTGRES_SQLITE),
+        "SELECT id, E'a' -- note\n'b\\'' AS s FROM files ORDER BY id LIMIT 5 OFFSET 0"
+    );
+
     let same_line_is_not_continued = r"SELECT E'a', 'C:\' FROM t LIMIT 5";
     assert_eq!(
         build_paginated_query_for(same_line_is_not_continued, 100, 1, POSTGRES_SQLITE),

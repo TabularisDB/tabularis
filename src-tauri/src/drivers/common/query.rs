@@ -172,8 +172,8 @@ pub(super) fn is_e_string(chars: &[(usize, char)], i: usize) -> bool {
 /// Whether a backslash escapes inside the quoted string opening at
 /// `chars[i]`. `escape_string_end` is the index just past the last
 /// single-quoted string that used backslash escapes: PostgreSQL continues a
-/// string across whitespace that holds a newline, and only the first part of
-/// a continued `E'...'` string carries the `E`.
+/// string across whitespace (and `--` comments) that holds a newline, and
+/// only the first part of a continued `E'...'` string carries the `E`.
 fn string_escapes(
     chars: &[(usize, char)],
     i: usize,
@@ -181,10 +181,27 @@ fn string_escapes(
     escape_string_end: Option<usize>,
 ) -> bool {
     let continues = |end: usize| {
-        chars[i].1 == '\''
-            && end <= i
-            && chars[end..i].iter().all(|&(_, ch)| ch.is_whitespace())
-            && chars[end..i].iter().any(|&(_, ch)| ch == '\n')
+        if chars[i].1 != '\'' || end > i {
+            return false;
+        }
+        let mut newline = false;
+        let mut j = end;
+        while j < i {
+            match chars[j].1 {
+                '-' if chars[j + 1].1 == '-' => {
+                    while j < i && chars[j].1 != '\n' {
+                        j += 1;
+                    }
+                }
+                '\n' => {
+                    newline = true;
+                    j += 1;
+                }
+                ch if ch.is_whitespace() => j += 1,
+                _ => return false,
+            }
+        }
+        newline
     };
     rules.backslash_escapes || is_e_string(chars, i) || escape_string_end.is_some_and(continues)
 }
