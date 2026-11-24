@@ -466,6 +466,62 @@ fn trailing_row_limit_of(query: &str, rules: CommentRules) -> Option<TrailingRow
     trailing_row_limit(&tokenize_sql_with_pos(query.trim(), rules))
 }
 
+/// The byte offset where the row-locking clauses that end a query start:
+/// `FOR { UPDATE | NO KEY UPDATE | SHARE | KEY SHARE } [OF <table>, ...]
+/// [NOWAIT | SKIP LOCKED]`, possibly repeated, or MySQL's
+/// `LOCK IN SHARE MODE`. MySQL accepts LIMIT only before them, and
+/// PostgreSQL rejects a second LIMIT after them.
+fn trailing_locking_clause_start(query: &str, rules: CommentRules) -> Option<usize> {
+    let tokens = tokenize_sql_with_pos(query, rules);
+    let is = |index: usize, keyword: &str| {
+        tokens
+            .get(index)
+            .is_some_and(|(token, _)| token.eq_ignore_ascii_case(keyword))
+    };
+    // The index just past the locking clause starting at token `i`.
+    let clause_end = |mut i: usize| -> Option<usize> {
+        if is(i, "LOCK") && is(i + 1, "IN") && is(i + 2, "SHARE") && is(i + 3, "MODE") {
+            return Some(i + 4);
+        }
+        if !is(i, "FOR") {
+            return None;
+        }
+        i += 1;
+        if is(i, "UPDATE") || is(i, "SHARE") {
+            i += 1;
+        } else if is(i, "NO") && is(i + 1, "KEY") && is(i + 2, "UPDATE") {
+            i += 3;
+        } else if is(i, "KEY") && is(i + 1, "SHARE") {
+            i += 2;
+        } else {
+            return None;
+        }
+        if is(i, "OF") {
+            let tables = i + 1;
+            i = tables;
+            while i < tokens.len() && !is(i, "NOWAIT") && !is(i, "SKIP") && !is(i, "FOR") {
+                i += 1;
+            }
+            if i == tables {
+                return None;
+            }
+        }
+        if is(i, "NOWAIT") {
+            i += 1;
+        } else if is(i, "SKIP") && is(i + 1, "LOCKED") {
+            i += 2;
+        }
+        Some(i)
+    };
+    (0..tokens.len()).find_map(|start| {
+        let mut i = clause_end(start)?;
+        while i < tokens.len() {
+            i = clause_end(i)?;
+        }
+        Some(tokens[start].1)
+    })
+}
+
 /// Build a paginated query by stripping any user-supplied LIMIT/OFFSET and
 /// appending pagination clauses directly. ORDER BY is left in place so that
 /// table-qualified column references (e.g. `o.created_at`) remain valid —
@@ -505,6 +561,15 @@ pub fn build_paginated_query_for(
         hash_comments,
         line_comment_requires_space,
     };
+    // Row-locking clauses stay at the end, after the pagination clause.
+    let locking_start = trailing_locking_clause_start(clause_source, rules);
+    let (clause_source, locking) = match locking_start {
+        Some(start) => (
+            clause_source[..start].trim_end(),
+            Some(&clause_source[start..]),
+        ),
+        None => (clause_source, None),
+    };
     let row_limit = trailing_row_limit_of(clause_source, rules);
     let user_limit: Option<u32> = row_limit
         .as_ref()
@@ -517,7 +582,7 @@ pub fn build_paginated_query_for(
         .unwrap_or(0);
     // Cut at the clauses even when they set nothing (`LIMIT ALL`, `OFFSET 0`).
     let has_row_limit = row_limit.is_some();
-    let base_source = if has_row_limit {
+    let base_source = if has_row_limit || locking.is_some() {
         clause_source
     } else {
         normalized
@@ -542,10 +607,14 @@ pub fn build_paginated_query_for(
             " "
         };
 
-    format!(
+    let paginated = format!(
         "{}{}LIMIT {} OFFSET {}",
         base, separator, fetch_count, offset
-    )
+    );
+    match locking {
+        Some(locking) => format!("{paginated} {locking}"),
+        None => paginated,
+    }
 }
 
 fn trim_trailing_statement_terminator(
