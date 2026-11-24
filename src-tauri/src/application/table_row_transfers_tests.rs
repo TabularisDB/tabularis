@@ -409,3 +409,66 @@ async fn text_stored_in_a_blob_column_stays_text() {
     assert_eq!(source[0].1, "text");
     assert_eq!(target, source);
 }
+#[tokio::test]
+async fn a_numeric_column_copies_integer_and_real_values_unchanged() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let (result, source, target) =
+        copy_typed_column(dir.path(), "NUMERIC", &["42", "1.5", "NULL", "-7", "2.25"]).await;
+
+    assert_eq!(result.error, None);
+    assert_eq!(result.status, TransferStatus::Completed);
+    assert_eq!(target, source);
+}
+
+#[tokio::test]
+async fn numeric_values_copy_into_other_column_types_or_fail_loudly() {
+    // A NUMERIC source column holds integers, reals and text natively. Each
+    // target type either stores the value exactly or the copy reports an error;
+    // nothing is rounded or reclassified silently.
+    for (target_type, values, expect_ok) in [
+        ("TEXT", &["42", "1.5"][..], true),
+        ("INTEGER", &["42", "-7"][..], true),
+        ("INTEGER", &["1.5"][..], false),
+        ("REAL", &["42", "1.5", "0.1"][..], true),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let source = sqlite_endpoint(&dir.path().join("s.db")).await;
+        let target = sqlite_endpoint(&dir.path().join("t.db")).await;
+        for (endpoint, declared) in [(&source, "NUMERIC"), (&target, target_type)] {
+            let pool = get_sqlite_pool(&endpoint.params).await.unwrap();
+            sqlx::query(&format!(
+                "CREATE TABLE big (id INTEGER PRIMARY KEY, v {declared})"
+            ))
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        let pool = get_sqlite_pool(&source.params).await.unwrap();
+        for (id, value) in values.iter().enumerate() {
+            sqlx::query(&format!("INSERT INTO big VALUES ({}, {value})", id + 1))
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+
+        let result = copy_big(dir.path(), source, target.clone(), 500).await;
+
+        if expect_ok {
+            assert_eq!(result.error, None, "NUMERIC -> {target_type}");
+            assert_eq!(result.rows_written, values.len() as u64);
+        } else {
+            assert_eq!(
+                result.status,
+                TransferStatus::Failed,
+                "NUMERIC -> {target_type}"
+            );
+            let pool = get_sqlite_pool(&target.params).await.unwrap();
+            let count: i64 = sqlx::query_scalar("SELECT count(*) FROM big")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+            assert_eq!(count, 0, "a rejected batch must write nothing");
+        }
+    }
+}

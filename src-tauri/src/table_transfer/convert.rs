@@ -142,6 +142,18 @@ fn text_of(value: TransferValue) -> Result<String, ConvertError> {
     }
 }
 
+/// The exact decimal text of a numeric cell. A SQLite NUMERIC column stores
+/// integers and reals natively, so a decimal source can arrive as any of them.
+fn decimal_text(value: TransferValue) -> Result<String, ConvertError> {
+    match value {
+        TransferValue::Text(text) => Ok(text),
+        TransferValue::Int(v) => Ok(v.to_string()),
+        TransferValue::Float(v) if v.is_finite() => Ok(v.to_string()),
+        TransferValue::Float(_) => Err(ConvertError::NonFinite),
+        _ => Err(ConvertError::Malformed),
+    }
+}
+
 fn int_of(value: &TransferValue) -> Result<i64, ConvertError> {
     match value {
         TransferValue::Int(v) => Ok(*v),
@@ -204,19 +216,21 @@ pub fn apply(conversion: &Conversion, value: TransferValue) -> Result<TransferVa
             }
         }
         Op::DecimalFit { precision, scale } => {
-            let text = text_of(value)?;
+            let text = decimal_text(value)?;
             decimal_fits(&text, precision, scale)?;
             Ok(TransferValue::Text(text))
         }
         Op::DecimalToInt { min, max } => {
-            decimal_to_i64(&text_of(value)?, min, max).map(TransferValue::Int)
+            decimal_to_i64(&decimal_text(value)?, min, max).map(TransferValue::Int)
         }
         Op::DecimalToFloat {
             bits,
             allow_non_finite,
-        } => decimal_to_f64(&text_of(value)?, bits, allow_non_finite).map(TransferValue::Float),
+        } => {
+            decimal_to_f64(&decimal_text(value)?, bits, allow_non_finite).map(TransferValue::Float)
+        }
         Op::DecimalToNumeric => {
-            let text = text_of(value)?;
+            let text = decimal_text(value)?;
             match decimal_to_i64(&text, i64::MIN, i64::MAX) {
                 Ok(v) => Ok(TransferValue::Int(v)),
                 Err(ConvertError::Malformed) => Err(ConvertError::Malformed),

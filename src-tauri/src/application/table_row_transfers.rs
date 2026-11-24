@@ -614,9 +614,11 @@ fn sqlite_read_cell(
             let v: Option<String> = row.try_get(index).map_err(|_| wrong())?;
             Ok(v.map_or(TransferValue::Null, TransferValue::Text))
         }
-        // A BLOB column has no affinity and can hold any storage class. sqlx
-        // decodes TEXT as bytes, which would silently turn text into a blob.
-        SourceKind::Bytes => sqlite_read_stored(row, index),
+        // A BLOB column has no affinity and can hold any storage class, and a
+        // NUMERIC column holds integers and reals as well as text. sqlx would
+        // decode TEXT as bytes and reject non-text as a string, so read these
+        // by the value's own storage class.
+        SourceKind::Bytes | SourceKind::Decimal => sqlite_read_stored(row, index),
         _ => {
             let v: Option<String> = row.try_get(index).map_err(|_| wrong())?;
             Ok(v.map_or(TransferValue::Null, TransferValue::Text))
