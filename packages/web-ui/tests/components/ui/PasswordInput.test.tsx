@@ -9,10 +9,10 @@ describe('PasswordInput', () => {
         const input = screen.getByLabelText('pw') as HTMLInputElement;
         expect(input.type).toBe('password');
 
-        fireEvent.click(screen.getByLabelText('Show password'));
+        fireEvent.click(screen.getByLabelText('common.showPassword'));
         expect(input.type).toBe('text');
 
-        fireEvent.click(screen.getByLabelText('Hide password'));
+        fireEvent.click(screen.getByLabelText('common.hidePassword'));
         expect(input.type).toBe('password');
     });
 
@@ -26,6 +26,6 @@ describe('PasswordInput', () => {
 
     it('keeps the reveal toggle out of the tab order', () => {
         render(<PasswordInput value="" onChange={vi.fn()} aria-label="pw" />);
-        expect(screen.getByLabelText('Show password')).toHaveAttribute('tabindex', '-1');
+        expect(screen.getByLabelText('common.showPassword')).toHaveAttribute('tabindex', '-1');
     });
 });

@@ -5,13 +5,65 @@ function isNonEmptySql(cell: NotebookCell): boolean {
     return cell.type === 'sql' && cell.content.trim() !== '';
 }
 
+export interface ScheduledCell {
+    cell: NotebookCell;
+    index: number;
+}
+
 /** Non-empty SQL cells that Run All executes: disabled cells are left out. */
-export function getExecutableCells(
-    cells: NotebookCell[],
-): Array<{cell: NotebookCell; index: number}> {
+export function getExecutableCells(cells: NotebookCell[]): ScheduledCell[] {
     return cells
         .map((cell, index) => ({cell, index}))
         .filter(({cell}) => isNonEmptySql(cell) && !cell.isDisabled);
+}
+
+/**
+ * How Run All orders work. Cells marked parallel still start together.
+ * Every other cell stays in document order inside its database, and those
+ * databases run at the same time. A cell with no database of its own uses
+ * `fallbackDatabase` (the notebook tab's database), so cells that share a
+ * database cannot pass each other.
+ */
+export function partitionRunAllCells(
+    executable: ScheduledCell[],
+    fallbackDatabase: string | null | undefined,
+): {parallel: ScheduledCell[]; lanes: ScheduledCell[][]} {
+    const parallel = executable.filter(({cell}) => cell.isParallel);
+    const fallback = fallbackDatabase?.trim() ?? '';
+    const lanes: ScheduledCell[][] = [];
+    const laneIndex = new Map<string, number>();
+    for (const item of executable) {
+        if (item.cell.isParallel) continue;
+        const key = item.cell.schema?.trim() || fallback;
+        const existing = laneIndex.get(key);
+        if (existing === undefined) {
+            laneIndex.set(key, lanes.length);
+            lanes.push([item]);
+        } else {
+            lanes[existing].push(item);
+        }
+    }
+    return {parallel, lanes};
+}
+
+/**
+ * Cells this SQL names that appear earlier in the notebook. A later cell on
+ * another database waits for these before it starts, so it reads the result
+ * this run just produced. Later references are left to the cell itself: waiting
+ * for them would deadlock with the per-database order.
+ */
+export function earlierReferencedCellIds(
+    cellIndex: number,
+    sql: string,
+    cells: NotebookCell[],
+): string[] {
+    const ids: string[] = [];
+    for (const {cellIndex: referenced} of extractCellReferences(sql)) {
+        if (referenced >= cellIndex) continue;
+        const target = cells[referenced];
+        if (target) ids.push(target.id);
+    }
+    return ids;
 }
 
 /** Non-empty SQL cells that are disabled: Run All counts them as skipped. */
