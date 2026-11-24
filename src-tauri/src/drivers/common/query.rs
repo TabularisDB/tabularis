@@ -193,7 +193,7 @@ fn string_escapes(
                         j += 1;
                     }
                 }
-                '\n' => {
+                '\n' | '\r' => {
                     newline = true;
                     j += 1;
                 }
