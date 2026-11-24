@@ -837,6 +837,11 @@
       "horizontal": "水平",
       "vertical": "垂直"
     },
+    "connectionColor": {
+      "title": "连接颜色",
+      "bottomBar": "底部颜色栏",
+      "bottomBarDesc": "在窗口底部显示一条使用连接颜色的粗颜色栏，使连接更容易区分。"
+    },
     "dataGrid": {
       "zebraStripes": "交替行背景",
       "zebraStripesDesc": "为每隔一行添加底色，便于在宽表中横向追踪某一行。",

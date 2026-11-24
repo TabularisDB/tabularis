@@ -185,6 +185,29 @@ describe('AppearanceTab theme mode', () => {
     });
 
     it.each([undefined, true, false])(
+        'exposes a keyboard-accessible connection color bar toggle for value %s',
+        async (connectionColorBar) => {
+            appearanceSettings = {connectionColorBar};
+            const user = userEvent.setup();
+            render(
+                <MemoryRouter>
+                    <AppearanceTab />
+                </MemoryRouter>,
+            );
+            const toggle = screen.getByRole('checkbox', {
+                name: 'settings.connectionColor.bottomBar',
+            });
+            expect(toggle).toHaveProperty('checked', connectionColorBar ?? false);
+            toggle.focus();
+            await user.keyboard(' ');
+            expect(updateSetting).toHaveBeenCalledWith(
+                'connectionColorBar',
+                !(connectionColorBar ?? false),
+            );
+        },
+    );
+
+    it.each([undefined, true, false])(
         'exposes a keyboard-accessible minimap toggle for value %s',
         async (editorMinimap) => {
             appearanceSettings = {editorMinimap};

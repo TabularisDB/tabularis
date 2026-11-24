@@ -835,6 +835,11 @@
       "horizontal": "Horizontal",
       "vertical": "Vertikal"
     },
+    "connectionColor": {
+      "title": "Verbindungsfarbe",
+      "bottomBar": "Farbleiste am unteren Rand",
+      "bottomBarDesc": "Zeigt am unteren Fensterrand eine dicke Leiste in der Farbe der Verbindung an, damit sich Verbindungen leichter unterscheiden lassen."
+    },
     "dataGrid": {
       "zebraStripes": "Abwechselnder Zeilenhintergrund",
       "zebraStripesDesc": "Hebt jede zweite Zeile hervor, damit Sie eine Zeile auch in breiten Tabellen leichter verfolgen können.",
