@@ -125,7 +125,7 @@ describe('returnsResultSet', () => {
         expect(returnsResultSet('REPAIR TABLE orders')).toBe(true);
         expect(returnsResultSet('CHECKSUM TABLE orders')).toBe(true);
         expect(returnsResultSet("HELP 'contents'")).toBe(true);
-        expect(returnsResultSet('FETCH 10 FROM orders_cursor')).toBe(true);
+        expect(returnsResultSet('FETCH 10 FROM orders_cursor')).toBe(false);
         expect(returnsResultSet('MOVE 10 IN orders_cursor')).toBe(false);
     });
 

@@ -22,14 +22,14 @@ export const RESULT_SET_KEYWORDS: ReadonlySet<string> = new Set([
     'TABLE',
     'PRAGMA',
     'CALL',
-    // MySQL table maintenance, HELP, and PostgreSQL's cursor FETCH.
+    // MySQL table maintenance and HELP. PostgreSQL's cursor FETCH is left out:
+    // the editor's row limit would cut it after the cursor moved past every row.
     'ANALYZE',
     'CHECK',
     'CHECKSUM',
     'OPTIMIZE',
     'REPAIR',
     'HELP',
-    'FETCH',
 ]);
 
 export const EXPLAINABLE_KEYWORDS: ReadonlySet<string> = new Set([

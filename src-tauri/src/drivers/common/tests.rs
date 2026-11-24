@@ -122,12 +122,16 @@ fn test_returns_result_set_for_statements_that_return_rows() {
         "REPAIR TABLE orders",
         "CHECKSUM TABLE orders",
         "HELP 'contents'",
-        "FETCH 10 FROM orders_cursor",
-        "fetch all in orders_cursor",
     ] {
         assert!(returns_result_set(query), "{query}");
     }
-    for query in ["MOVE 10 IN orders_cursor", "CLOSE orders_cursor"] {
+    // A cursor FETCH would be cut at the editor's row limit after the cursor
+    // moved past every row, so it is left out on purpose.
+    for query in [
+        "FETCH 10 FROM orders_cursor",
+        "MOVE 10 IN orders_cursor",
+        "CLOSE orders_cursor",
+    ] {
         assert!(!returns_result_set(query), "{query}");
     }
 }
