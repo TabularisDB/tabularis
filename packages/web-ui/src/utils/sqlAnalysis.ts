@@ -206,11 +206,38 @@ function isUnfilteredWrite(statement: string): boolean {
 //   - 'truncate':  TRUNCATE empties a table irreversibly
 export type DangerousQueryKind = 'no-where' | 'drop' | 'truncate';
 
+// True when the option list of `EXPLAIN (...)` turns ANALYZE on. A bare
+// `ANALYZE` or one with any value but false, off, 0 or no counts as on.
+function explainOptionsAnalyze(options: string): boolean {
+    return options.split(',').some((option) => {
+        const [name, value] = option.trim().split(/\s+/);
+        return /^analy[sz]e$/i.test(name ?? '') && !/^(?:false|off|0|no)$/i.test(value ?? '');
+    });
+}
+
+// The statement a prefix runs: PostgreSQL's and MySQL's `EXPLAIN ANALYZE`
+// and MariaDB's `ANALYZE` execute the statement behind them, so it is
+// returned without the prefix. Plain EXPLAIN only plans and is kept whole.
+function executedStatement(cleaned: string): string {
+    const trimmed = cleaned.trim();
+    const parenthesized = /^explain\s*\(([^)]*)\)\s*/i.exec(trimmed);
+    if (parenthesized) {
+        return explainOptionsAnalyze(parenthesized[1])
+            ? trimmed.slice(parenthesized[0].length)
+            : trimmed;
+    }
+    const analyze = /^(?:explain\s+)?analy[sz]e\s+(?:verbose\s+|format\s*=\s*\w+\s+)*/i.exec(
+        trimmed,
+    );
+    return analyze ? trimmed.slice(analyze[0].length) : trimmed;
+}
+
 // Classifies a single statement's danger, or null when it is safe to run
 // without confirmation. Handles the same edge cases as the WHERE detection:
-// comments, string literals, and data-modifying CTEs.
+// comments, string literals, data-modifying CTEs, and statements run by
+// EXPLAIN ANALYZE.
 export const classifyDangerousQuery = (sql: string): DangerousQueryKind | null => {
-    const cleaned = stripCommentsAndLiterals(sql);
+    const cleaned = executedStatement(stripCommentsAndLiterals(sql));
     // The dialect is unknown here. No dialect can start a statement with `#`,
     // so when nothing else precedes the keyword, read a leading `#` line as the
     // MySQL comment it would be rather than letting it hide a DROP.
