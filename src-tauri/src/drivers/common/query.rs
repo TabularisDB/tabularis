@@ -63,6 +63,11 @@ pub fn strip_leading_sql_comments_for(query: &str, hash_comments: bool) -> &str 
 /// erroring — losing accurate affected_rows for procs that mutate is the
 /// lesser evil compared to misclassifying procedures that do return
 /// rows.
+///
+/// MySQL's table maintenance statements (`ANALYZE`, `CHECK`, `CHECKSUM`,
+/// `OPTIMIZE`, `REPAIR TABLE`), its `HELP` and PostgreSQL's cursor `FETCH`
+/// return rows too. Where one returns none (PostgreSQL's `ANALYZE`), the
+/// fetch path gives an empty result, as for `CALL`.
 pub fn returns_result_set(query: &str) -> bool {
     returns_result_set_for(query, false)
 }
@@ -87,6 +92,13 @@ pub fn returns_result_set_for(query: &str, hash_comments: bool) -> bool {
             | "TABLE"
             | "PRAGMA"
             | "CALL"
+            | "ANALYZE"
+            | "CHECK"
+            | "CHECKSUM"
+            | "OPTIMIZE"
+            | "REPAIR"
+            | "HELP"
+            | "FETCH"
     )
 }
 

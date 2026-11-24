@@ -118,6 +118,17 @@ describe('returnsResultSet', () => {
         expect(returnsResultSet('CALL proc()')).toBe(true);
     });
 
+    it('returns true for statements that return rows outside SELECT', () => {
+        expect(returnsResultSet('CHECK TABLE orders')).toBe(true);
+        expect(returnsResultSet('ANALYZE TABLE orders')).toBe(true);
+        expect(returnsResultSet('OPTIMIZE TABLE orders')).toBe(true);
+        expect(returnsResultSet('REPAIR TABLE orders')).toBe(true);
+        expect(returnsResultSet('CHECKSUM TABLE orders')).toBe(true);
+        expect(returnsResultSet("HELP 'contents'")).toBe(true);
+        expect(returnsResultSet('FETCH 10 FROM orders_cursor')).toBe(true);
+        expect(returnsResultSet('MOVE 10 IN orders_cursor')).toBe(false);
+    });
+
     it('returns false for DML that does not produce a result set', () => {
         expect(returnsResultSet('INSERT INTO t VALUES (1)')).toBe(false);
         expect(returnsResultSet('UPDATE t SET x = 1')).toBe(false);
