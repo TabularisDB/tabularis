@@ -116,6 +116,14 @@ describe('CSV parsing', () => {
         ]);
     });
 
+    it('reads a quoted first field after a UTF-8 BOM', () => {
+        const text = '﻿"Last, first, middle";id\n"Brown, Alice, M";4';
+        const result = parseClipboardText(text, 'csv');
+        expect(result.headers).toHaveLength(2);
+        expect(result.rows).toEqual([['Brown, Alice, M', '4']]);
+        expect(parseClipboardText(text).rows).toEqual([['Brown, Alice, M', '4']]);
+    });
+
     it('still opens a quoted field after blanks', () => {
         expect(parseClipboardText('id,place\n1, "Rome, Italy"', 'csv').rows).toEqual([
             ['1', 'Rome, Italy'],

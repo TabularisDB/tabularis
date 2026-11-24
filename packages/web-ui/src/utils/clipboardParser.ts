@@ -102,14 +102,17 @@ function parseTsv(text: string): string[][] {
 // and treating it as an opening quote would swallow the separators and line
 // breaks that follow.
 function parseCsv(text: string): string[][] {
+    // A UTF-8 BOM (common in spreadsheet exports) would sit before the first
+    // field's opening quote and make it read as plain text.
+    const input = text.replace(/^﻿/, '').trim();
     let commas = 0;
     let semicolons = 0;
     let quoted = false;
     let atFieldStart = true;
-    for (let i = 0; i < text.length; i++) {
-        const ch = text[i];
+    for (let i = 0; i < input.length; i++) {
+        const ch = input[i];
         if (ch === '"' && (quoted || atFieldStart)) {
-            if (quoted && text[i + 1] === '"') i++;
+            if (quoted && input[i + 1] === '"') i++;
             else quoted = !quoted;
             atFieldStart = false;
         } else if (!quoted) {
@@ -127,7 +130,6 @@ function parseCsv(text: string): string[][] {
     let current = '';
     let inQuotes = false;
     // Keep quote state across physical lines: a quoted newline is cell data.
-    const input = text.trim();
     for (let i = 0; i < input.length; i++) {
         const ch = input[i];
         if (ch === '"' && (inQuotes || current.trim() === '')) {
