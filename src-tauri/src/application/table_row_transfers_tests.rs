@@ -472,3 +472,92 @@ async fn numeric_values_copy_into_other_column_types_or_fail_loudly() {
         }
     }
 }
+
+#[tokio::test]
+async fn a_real_in_a_numeric_column_round_trips_exactly_into_a_text_column() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = sqlite_endpoint(&dir.path().join("s.db")).await;
+    let target = sqlite_endpoint(&dir.path().join("t.db")).await;
+    for (endpoint, declared) in [(&source, "NUMERIC"), (&target, "TEXT")] {
+        let pool = get_sqlite_pool(&endpoint.params).await.unwrap();
+        sqlx::query(&format!(
+            "CREATE TABLE big (id INTEGER PRIMARY KEY, v {declared})"
+        ))
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let pool = get_sqlite_pool(&source.params).await.unwrap();
+    // Values whose shortest text needs 16-17 significant digits: a copy that
+    // rendered a real with 15 would store a different number.
+    sqlx::query(
+        "INSERT INTO big VALUES (1, 1.2345678901234567), (2, 42), (3, 0.1), \
+         (4, 0.30000000000000004), (5, 3.141592653589793), (6, NULL)",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let result = copy_big(dir.path(), source.clone(), target.clone(), 500).await;
+
+    assert_eq!(result.error, None);
+    let read = |endpoint: Endpoint| async move {
+        let pool = get_sqlite_pool(&endpoint.params).await.unwrap();
+        sqlx::query_as::<_, (i64, Option<f64>)>("SELECT id, CAST(v AS REAL) FROM big ORDER BY id")
+            .fetch_all(&pool)
+            .await
+            .unwrap()
+    };
+    let target_pool = get_sqlite_pool(&target.params).await.unwrap();
+    let texts: Vec<(i64, Option<String>, String)> =
+        sqlx::query_as("SELECT id, v, typeof(v) FROM big ORDER BY id")
+            .fetch_all(&target_pool)
+            .await
+            .unwrap();
+    assert!(texts
+        .iter()
+        .all(|(_, v, kind)| v.is_none() == (kind == "null")));
+    assert!(texts
+        .iter()
+        .filter(|(_, v, _)| v.is_some())
+        .all(|(_, _, kind)| kind == "text"));
+    // The stored text must parse back to the exact source number.
+    let source_values = read(source).await;
+    for ((id, original), (_, stored, _)) in source_values.iter().zip(&texts) {
+        let parsed = stored.as_deref().map(|text| text.parse::<f64>().unwrap());
+        assert_eq!(parsed, *original, "row {id}: stored {stored:?}");
+    }
+}
+
+#[tokio::test]
+async fn a_numeric_column_copied_into_an_untyped_column_keeps_its_storage_class() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = sqlite_endpoint(&dir.path().join("s.db")).await;
+    let target = sqlite_endpoint(&dir.path().join("t.db")).await;
+    for (endpoint, declared) in [(&source, "NUMERIC"), (&target, "")] {
+        let pool = get_sqlite_pool(&endpoint.params).await.unwrap();
+        sqlx::query(&format!(
+            "CREATE TABLE big (id INTEGER PRIMARY KEY, v {declared})"
+        ))
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let pool = get_sqlite_pool(&source.params).await.unwrap();
+    sqlx::query("INSERT INTO big VALUES (1, 1.2345678901234567), (2, 42)")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let result = copy_big(dir.path(), source, target.clone(), 500).await;
+
+    assert_eq!(result.error, None);
+    let pool = get_sqlite_pool(&target.params).await.unwrap();
+    let stored: Vec<(String, f64)> =
+        sqlx::query_as("SELECT typeof(v), CAST(v AS REAL) FROM big ORDER BY id")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(stored[0], ("real".into(), 1.2345678901234567));
+    assert_eq!(stored[1].0, "integer");
+}
