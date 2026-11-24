@@ -15,6 +15,8 @@ mod target;
 #[cfg(test)]
 mod plan_tests;
 #[cfg(test)]
+mod snapshot_tests;
+#[cfg(test)]
 mod store_tests;
 #[cfg(test)]
 mod target_tests;
@@ -29,6 +31,7 @@ pub use plan::{
 pub use store::remove_for_connection;
 pub use target::target_fingerprint;
 
+use crate::application::connections::{snapshot_saved_connection, SavedConnectionSnapshot};
 use crate::application::records;
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::drivers::recorded_save::{RecordedCapture, RestoreOutcome};
@@ -137,15 +140,45 @@ pub async fn execute(
     value.map_err(|error| error.to_string())
 }
 
-/// Fingerprint of the server the saved connection points at right now.
-fn current_target(runtime: &RuntimeContext, connection_id: &str) -> Result<String, String> {
-    let saved =
-        crate::application::connections::load_connections(&runtime.paths.connections_file())?
-            .into_iter()
-            .find(|connection| connection.id == connection_id)
-            .ok_or_else(|| "Connection not found".to_string())?;
-    let expanded = target::expand_target(runtime, &saved.params)?;
-    Ok(target_fingerprint(&expanded))
+/// A saved connection read once: its target fingerprint and the connection
+/// that is opened all come from the same snapshot.
+struct Target {
+    snapshot: SavedConnectionSnapshot,
+    fingerprint: String,
+}
+
+fn snapshot_target(runtime: &RuntimeContext, connection_id: &str) -> Result<Target, String> {
+    let snapshot = snapshot_saved_connection(runtime, connection_id)?;
+    let fingerprint = target_fingerprint(snapshot.params());
+    Ok(Target {
+        snapshot,
+        fingerprint,
+    })
+}
+
+/// The parameters the snapshot connects with, optionally pinned to a database.
+fn snapshot_params(
+    runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
+    snapshot: &SavedConnectionSnapshot,
+    database: Option<&str>,
+) -> Result<ConnectionParams, String> {
+    let (_driver_id, mut params) = snapshot.resolve(runtime, session_id)?;
+    if let Some(database) = database {
+        params.database = DatabaseSelection::Single(database.to_string());
+    }
+    Ok(params)
+}
+
+async fn open(
+    runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
+    snapshot: &SavedConnectionSnapshot,
+    database: Option<&str>,
+) -> Result<(Arc<dyn DatabaseDriver>, ConnectionParams), String> {
+    let params = snapshot_params(runtime, session_id, snapshot, database)?;
+    let driver = crate::drivers::registry::get_connection_driver(&params).await?;
+    Ok((driver, params))
 }
 
 async fn connect(
@@ -154,17 +187,8 @@ async fn connect(
     connection_id: &str,
     database: Option<&str>,
 ) -> Result<(Arc<dyn DatabaseDriver>, ConnectionParams), String> {
-    let (_driver_id, mut params) =
-        crate::application::connections::resolve_saved_connection_params(
-            runtime,
-            session_id,
-            connection_id,
-        )?;
-    if let Some(database) = database {
-        params.database = DatabaseSelection::Single(database.to_string());
-    }
-    let driver = crate::drivers::registry::get_connection_driver(&params).await?;
-    Ok((driver, params))
+    let snapshot = snapshot_saved_connection(runtime, connection_id)?;
+    open(runtime, session_id, &snapshot, database).await
 }
 
 pub async fn status(
@@ -213,10 +237,8 @@ pub async fn save_row(
 ) -> Result<RecordedSaveResponse, String> {
     let data_dir = runtime.paths.data_dir();
     let enabled = store::is_enabled(data_dir, connection_id).unwrap_or(false);
-    // Fingerprinted before the write, so the record names the target the
-    // write was started against.
-    let target = current_target(runtime, connection_id);
-    let (driver, params) = connect(runtime, session_id, connection_id, database.as_deref()).await?;
+    let target = snapshot_target(runtime, connection_id)?;
+    let (driver, params) = open(runtime, session_id, &target.snapshot, database.as_deref()).await?;
     if !enabled || !driver.supports_recorded_saves() {
         let mut affected = 0;
         let mut ordered: Vec<(String, Value)> = changes.into_iter().collect();
@@ -273,26 +295,16 @@ pub async fn save_row(
         "" => database,
         name => Some(name.to_string()),
     };
-    let record = match target {
-        Ok(target) => build_record(
-            Uuid::new_v4().to_string(),
-            Utc::now().to_rfc3339(),
-            database,
-            schema,
-            table,
-            target,
-            key,
-            capture,
-        ),
-        Err(error) => {
-            log::warn!("The save on connection {connection_id} was not recorded: {error}");
-            return Ok(RecordedSaveResponse {
-                affected: recorded.affected,
-                record_id: None,
-                skipped_reason: Some(SKIPPED_STORAGE_ERROR.to_string()),
-            });
-        }
-    };
+    let record = build_record(
+        Uuid::new_v4().to_string(),
+        Utc::now().to_rfc3339(),
+        database,
+        schema,
+        table,
+        target.fingerprint,
+        key,
+        capture,
+    );
     let Some(record) = record else {
         return Ok(RecordedSaveResponse {
             affected: recorded.affected,
@@ -379,13 +391,14 @@ pub async fn plan_restore(
     if !record.restorable || record.restored_at.is_some() {
         return Ok(evaluate_plan(&record, None));
     }
-    if !target_matches(&record, &current_target(runtime, connection_id)?) {
+    let target = snapshot_target(runtime, connection_id)?;
+    if !target_matches(&record, &target.fingerprint) {
         return Ok(evaluate_target_mismatch(&record));
     }
-    let (driver, params) = connect(
+    let (driver, params) = open(
         runtime,
         session_id,
-        connection_id,
+        &target.snapshot,
         record.database.as_deref(),
     )
     .await?;
@@ -416,7 +429,8 @@ pub async fn apply_restore(
     if !record.restorable || record.restored_at.is_some() {
         return Ok(evaluate_plan(&record, None));
     }
-    if !target_matches(&record, &current_target(runtime, connection_id)?) {
+    let target = snapshot_target(runtime, connection_id)?;
+    if !target_matches(&record, &target.fingerprint) {
         return Ok(evaluate_target_mismatch(&record));
     }
     log::info!(
@@ -424,10 +438,10 @@ pub async fn apply_restore(
         connection_id,
         record.table
     );
-    let (driver, params) = connect(
+    let (driver, params) = open(
         runtime,
         session_id,
-        connection_id,
+        &target.snapshot,
         record.database.as_deref(),
     )
     .await?;

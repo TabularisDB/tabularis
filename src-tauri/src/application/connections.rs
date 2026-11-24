@@ -394,11 +394,39 @@ pub(crate) fn saved_connection_driver(
         .driver)
 }
 
-pub(crate) fn resolve_saved_connection_params(
+/// One read of a saved connection and of the SSH/Kubernetes profiles it
+/// references. Whatever is checked against [`params`](Self::params) and
+/// whatever is connected through [`resolve`](Self::resolve) comes from this
+/// single read, so an edit made in between cannot split the two.
+pub(crate) struct SavedConnectionSnapshot {
+    driver_id: String,
+    params: ConnectionParams,
+}
+
+impl SavedConnectionSnapshot {
+    /// The connection with its profiles expanded, before any tunnel is opened.
+    pub(crate) fn params(&self) -> &ConnectionParams {
+        &self.params
+    }
+
+    pub(crate) fn resolve(
+        &self,
+        runtime: &RuntimeContext,
+        session_id: Option<Uuid>,
+    ) -> Result<(String, ConnectionParams), String> {
+        let params = crate::application::tunnels::resolve_expanded_params(
+            runtime,
+            &self.params,
+            session_id,
+        )?;
+        Ok((self.driver_id.clone(), params))
+    }
+}
+
+pub(crate) fn snapshot_saved_connection(
     runtime: &RuntimeContext,
-    session_id: Option<Uuid>,
     connection_id: &str,
-) -> Result<(String, ConnectionParams), String> {
+) -> Result<SavedConnectionSnapshot, String> {
     let saved = find_connection(&load_file(runtime)?, connection_id)?;
     let driver_id = saved.params.driver.clone();
     let plugin_secrets = load_plugin_secrets(runtime, &saved);
@@ -407,9 +435,16 @@ pub(crate) fn resolve_saved_connection_params(
     restore_secrets_for_connect(runtime, connection_id, &mut params)?;
     params.extra.extend(plugin_secrets);
     params.connection_id = Some(connection_id.to_string());
-    let params =
-        crate::application::tunnels::resolve_connection_params(runtime, &params, session_id)?;
-    Ok((driver_id, params))
+    let params = crate::application::tunnels::expand_connection_params(runtime, &params)?;
+    Ok(SavedConnectionSnapshot { driver_id, params })
+}
+
+pub(crate) fn resolve_saved_connection_params(
+    runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
+    connection_id: &str,
+) -> Result<(String, ConnectionParams), String> {
+    snapshot_saved_connection(runtime, connection_id)?.resolve(runtime, session_id)
 }
 
 /// Every credential value the instance holds for its saved connections and SSH

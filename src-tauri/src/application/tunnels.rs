@@ -201,18 +201,6 @@ async fn run_blocking<T: Send + 'static>(
         .map_err(|error| error.to_string())?
 }
 
-/// SSH profiles as stored on disk, without touching the keychain. Secrets are
-/// always `None`.
-pub fn get_ssh_connection_targets(runtime: &RuntimeContext) -> Result<Vec<SshConnection>, String> {
-    let mut connections: Vec<SshConnection> = load_json(&ssh_path(runtime))?;
-    for connection in &mut connections {
-        normalize_ssh_auth_type(connection);
-        connection.password = None;
-        connection.key_passphrase = None;
-    }
-    Ok(connections)
-}
-
 pub fn get_ssh_connections(
     runtime: &RuntimeContext,
     reveal_secrets: bool,
@@ -508,8 +496,18 @@ pub fn resolve_connection_params(
     session_id: Option<Uuid>,
 ) -> Result<ConnectionParams, String> {
     let params = expand_connection_params(runtime, params)?;
-    let askpass = scoped_askpass(runtime, &params, session_id)?;
-    resolve_expanded_connection_params(&params, askpass)
+    resolve_expanded_params(runtime, &params, session_id)
+}
+
+/// Resolves the transport of params that already went through
+/// [`expand_connection_params`], without reading any profile again.
+pub fn resolve_expanded_params(
+    runtime: &RuntimeContext,
+    expanded: &ConnectionParams,
+    session_id: Option<Uuid>,
+) -> Result<ConnectionParams, String> {
+    let askpass = scoped_askpass(runtime, expanded, session_id)?;
+    resolve_expanded_connection_params(expanded, askpass)
 }
 
 pub fn resolve_expanded_connection_params(

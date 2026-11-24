@@ -1435,3 +1435,109 @@ async fn opening_an_unknown_saved_connection_fails() {
     .unwrap_err();
     assert_eq!(error, "Connection not found");
 }
+
+fn save_plain(
+    runtime: &RuntimeContext,
+    state: &Arc<ApplicationState>,
+    params: ConnectionParams,
+) -> SavedConnection {
+    save_connection(
+        runtime,
+        state,
+        "Snapshot".into(),
+        params,
+        Default::default(),
+        None,
+        None,
+    )
+    .unwrap()
+}
+
+fn edit_target(
+    runtime: &RuntimeContext,
+    state: &Arc<ApplicationState>,
+    id: &str,
+    params: ConnectionParams,
+) {
+    update_connection(
+        runtime,
+        state,
+        id.to_string(),
+        "Snapshot".into(),
+        params,
+        Default::default(),
+        None,
+        None,
+    )
+    .unwrap();
+}
+
+#[test]
+fn a_snapshot_keeps_the_target_it_was_taken_from_when_the_connection_is_edited() {
+    use crate::application::save_history::target_fingerprint;
+    let (_temp, runtime, state) = fixture();
+    let saved = save_plain(&runtime, &state, connection_params("secret"));
+    let snapshot = snapshot_saved_connection(&runtime, &saved.id).unwrap();
+    let checked = target_fingerprint(snapshot.params());
+
+    let mut moved = connection_params("secret");
+    moved.host = Some("staging.internal".into());
+    moved.username = Some("postgres.staging".into());
+    edit_target(&runtime, &state, &saved.id, moved);
+
+    let (_driver, resolved) = snapshot.resolve(&runtime, None).unwrap();
+    assert_eq!(resolved.host.as_deref(), Some("127.0.0.1"));
+    assert_eq!(resolved.username.as_deref(), Some("browser-user"));
+    assert_eq!(target_fingerprint(snapshot.params()), checked);
+
+    let fresh = snapshot_saved_connection(&runtime, &saved.id).unwrap();
+    assert_ne!(target_fingerprint(fresh.params()), checked);
+    let (_driver, fresh_resolved) = fresh.resolve(&runtime, None).unwrap();
+    assert_eq!(fresh_resolved.host.as_deref(), Some("staging.internal"));
+}
+
+#[test]
+fn a_snapshot_keeps_the_profile_it_expanded_when_the_profile_is_edited() {
+    use crate::application::save_history::target_fingerprint;
+    use crate::application::tunnels::{save_k8s_connection, update_k8s_connection};
+    use crate::models::K8sConnectionInput;
+    let (temp, runtime, state) = fixture();
+    let prod = temp.path().join("prod.yaml");
+    let staging = temp.path().join("staging.yaml");
+    std::fs::write(&prod, "apiVersion: v1\n").unwrap();
+    std::fs::write(&staging, "apiVersion: v1\n").unwrap();
+    let prod = prod.to_string_lossy().to_string();
+    let staging = staging.to_string_lossy().to_string();
+    let input = |kubeconfig: &str| K8sConnectionInput {
+        name: "cluster".into(),
+        context: "kubernetes-admin@kubernetes".into(),
+        namespace: "default".into(),
+        resource_type: "service".into(),
+        resource_name: "postgres".into(),
+        port: 5432,
+        kubectl_path: None,
+        kubeconfig_path: Some(kubeconfig.into()),
+    };
+    let profile = save_k8s_connection(&runtime, input(&prod)).unwrap();
+    let mut params = connection_params("secret");
+    params.k8s_enabled = Some(true);
+    params.k8s_connection_id = Some(profile.id.clone());
+    let saved = save_plain(&runtime, &state, params);
+
+    let snapshot = snapshot_saved_connection(&runtime, &saved.id).unwrap();
+    let checked = target_fingerprint(snapshot.params());
+    assert_eq!(
+        snapshot.params().k8s_kubeconfig_path.as_deref(),
+        Some(prod.as_str())
+    );
+
+    update_k8s_connection(&runtime, profile.id, input(&staging)).unwrap();
+
+    assert_eq!(target_fingerprint(snapshot.params()), checked);
+    assert_eq!(
+        snapshot.params().k8s_kubeconfig_path.as_deref(),
+        Some(prod.as_str())
+    );
+    let fresh = snapshot_saved_connection(&runtime, &saved.id).unwrap();
+    assert_ne!(target_fingerprint(fresh.params()), checked);
+}
