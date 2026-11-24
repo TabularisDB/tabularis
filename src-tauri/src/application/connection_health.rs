@@ -22,6 +22,8 @@ use uuid::Uuid;
 
 pub const CONNECTION_HEALTH_FAILED_EVENT: &str = "connection-health-failed";
 
+const NO_HOLDER: &str = "No session holds the connection";
+
 /// How often a disabled web loop (interval 0) looks at the setting again.
 const DISABLED_RECHECK: Duration = Duration::from_secs(30);
 
@@ -234,10 +236,13 @@ async fn resolve_off_thread(
     state: &ApplicationState,
     connection_id: &str,
 ) -> Result<(Option<TunnelLease>, ConnectionParams), String> {
+    // Resolving without a holder would broadcast an SSH prompt to every session.
+    let Some(owner) = owners(state, connection_id).into_iter().next() else {
+        return Err(NO_HOLDER.to_string());
+    };
     let runtime = runtime.clone();
-    let owner = owners(state, connection_id).into_iter().next();
     let connection_id = connection_id.to_string();
-    tokio::task::spawn_blocking(move || resolve_saved(&runtime, owner, &connection_id))
+    tokio::task::spawn_blocking(move || resolve_saved(&runtime, Some(owner), &connection_id))
         .await
         .map_err(|e| format!("Resolving connection params failed: {e}"))?
 }

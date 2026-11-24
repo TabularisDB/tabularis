@@ -397,6 +397,23 @@ async fn a_healthy_connection_no_session_holds_leaves_the_registry() {
     fixture.finish().await;
 }
 
+/// The last holder can log out between the tick's holder check and the
+/// resolve. Resolving then would send an SSH prompt to every session.
+#[tokio::test]
+async fn a_connection_whose_last_holder_left_is_not_resolved() {
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    let fixture = Fixture::new().await;
+    let session = Uuid::new_v4();
+    fixture.open_in(session).await;
+    take_owners(&fixture.state, &fixture.connection_id);
+
+    let resolved =
+        resolve_off_thread(&fixture.runtime, &fixture.state, &fixture.connection_id).await;
+
+    assert_eq!(resolved.err().as_deref(), Some(NO_HOLDER));
+    fixture.finish().await;
+}
+
 #[test]
 fn a_disabled_or_unset_interval_reads_from_the_config() {
     let temp = tempfile::tempdir().unwrap();
