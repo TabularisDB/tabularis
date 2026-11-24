@@ -117,7 +117,7 @@ describe('CSV parsing', () => {
     });
 
     it('reads a quoted first field after a UTF-8 BOM', () => {
-        const text = '﻿"Last, first, middle";id\n"Brown, Alice, M";4';
+        const text = '\uFEFF"Last, first, middle";id\n"Brown, Alice, M";4';
         const result = parseClipboardText(text, 'csv');
         expect(result.headers).toHaveLength(2);
         expect(result.rows).toEqual([['Brown, Alice, M', '4']]);

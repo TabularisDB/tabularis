@@ -104,7 +104,7 @@ function parseTsv(text: string): string[][] {
 function parseCsv(text: string): string[][] {
     // A UTF-8 BOM (common in spreadsheet exports) would sit before the first
     // field's opening quote and make it read as plain text.
-    const input = text.replace(/^﻿/, '').trim();
+    const input = text.replace(/^\uFEFF/, '').trim();
     let commas = 0;
     let semicolons = 0;
     let quoted = false;
