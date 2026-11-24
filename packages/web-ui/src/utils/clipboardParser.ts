@@ -97,19 +97,27 @@ function parseTsv(text: string): string[][] {
     return rows;
 }
 
+// A quote opens a quoted CSV field only at the start of the field, after any
+// blanks, as spreadsheets read it. Elsewhere it is plain text (`55" screen`),
+// and treating it as an opening quote would swallow the separators and line
+// breaks that follow.
 function parseCsv(text: string): string[][] {
     let commas = 0;
     let semicolons = 0;
     let quoted = false;
+    let atFieldStart = true;
     for (let i = 0; i < text.length; i++) {
         const ch = text[i];
-        if (ch === '"') {
+        if (ch === '"' && (quoted || atFieldStart)) {
             if (quoted && text[i + 1] === '"') i++;
             else quoted = !quoted;
+            atFieldStart = false;
         } else if (!quoted) {
             if (ch === '\r' || ch === '\n') break;
             if (ch === ',') commas++;
             if (ch === ';') semicolons++;
+            if (ch === ',' || ch === ';') atFieldStart = true;
+            else if (ch !== ' ' && ch !== '\t') atFieldStart = false;
         }
     }
     const separator = semicolons > commas ? ';' : ',';
@@ -122,7 +130,7 @@ function parseCsv(text: string): string[][] {
     const input = text.trim();
     for (let i = 0; i < input.length; i++) {
         const ch = input[i];
-        if (ch === '"') {
+        if (ch === '"' && (inQuotes || current.trim() === '')) {
             if (inQuotes && input[i + 1] === '"') {
                 current += '"';
                 i++;
