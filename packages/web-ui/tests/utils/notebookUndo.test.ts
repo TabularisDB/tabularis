@@ -153,6 +153,42 @@ describe('notebookUndo', () => {
             expect(redone.history.future).toHaveLength(0);
         });
 
+        it('undoes and redoes applied parameters as one step', () => {
+            const before = state('a', {
+                params: [
+                    {name: 'start', value: '2026-01-01', type: 'date'},
+                    {
+                        name: 'country',
+                        value: 'Brazil',
+                        type: 'select',
+                        options: ['Brazil', 'Chile'],
+                    },
+                ],
+            });
+            // One Apply commits every drafted row in a single change.
+            const after = state('a', {
+                params: [
+                    {name: 'start', value: '2026-02-01', type: 'date'},
+                    {name: 'country', value: 'Chile', type: 'select', options: ['Brazil', 'Chile']},
+                ],
+            });
+            const h = recordEdit(createHistory(), before, after, 1000);
+            expect(h.past).toHaveLength(1);
+            expect(describeChange(before, after)).toMatchObject({kind: 'params'});
+
+            const undone = undo(h, after)!;
+            expect(undone.state.params).toEqual(before.params);
+            const redone = redo(undone.history, undone.state)!;
+            expect(redone.state.params).toEqual(after.params);
+        });
+
+        it('records a change of parameter type alone', () => {
+            const raw = state('a', {params: [{name: 'p', value: '1'}]});
+            const typed = state('a', {params: [{name: 'p', value: '1', type: 'number'}]});
+            expect(documentSignature(raw)).not.toBe(documentSignature(typed));
+            expect(recordEdit(createHistory(), raw, typed, 1000).past).toEqual([raw]);
+        });
+
         it('walks back through multiple steps', () => {
             let h = createHistory();
             h = recordEdit(h, state('a'), state('b'), 1000);

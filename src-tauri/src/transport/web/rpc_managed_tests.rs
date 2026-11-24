@@ -81,6 +81,9 @@ async fn managed_only_denies_every_connection_management_command_with_the_stable
         "save_ssh_connection",
         "update_k8s_connection",
         "test_ssh_connection",
+        "create_credential_profile",
+        "update_credential_profile",
+        "delete_credential_profile",
     ] {
         // An empty payload proves the denial happens before any decoding.
         let (status, body) = call(&dispatcher, command, json!({})).await;
@@ -95,6 +98,7 @@ async fn managed_connections_stay_usable_for_normal_database_operations() {
     let dispatcher = managed(ManagedConnectionPolicy::managed_only());
     for (command, payload) in [
         ("get_connections", json!(null)),
+        ("list_credential_profiles", json!(null)),
         ("get_connections_with_groups", json!(null)),
         ("get_connection_by_id", json!({"id": "managed-1"})),
         (

@@ -1,12 +1,12 @@
 import {useCallback} from 'react';
 import {useDatabase} from './useDatabase';
-import {useDangerousQueryGuard, type DangerousQueryInfo} from './useDangerousQueryGuard';
+import {useDangerousQueryGuard, type PendingDangerousQuery} from './useDangerousQueryGuard';
 import {useProductionGuard} from './useProductionGuard';
 import {isProductionConnection} from '@/utils/environment';
 import {passQueryGuards} from '@/utils/queryGuard';
 
 interface QueryGuards {
-    pending: DangerousQueryInfo | null;
+    pending: PendingDangerousQuery | null;
     isPending: boolean;
     guardQuery: (sqlOrQueries: string | string[]) => Promise<boolean>;
     resolve: (confirmed: boolean) => void;
