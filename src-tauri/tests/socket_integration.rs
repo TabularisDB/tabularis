@@ -46,6 +46,7 @@ async fn mysql_socket_auth_and_tcp_regression() {
     let mut socket = tcp.clone();
     socket.unix_socket_path = Some(std::env::var("MYSQL_UNIX_SOCKET").expect("MYSQL_UNIX_SOCKET"));
     socket.host = Some("ignored.invalid".to_string());
+    socket.port = Some(1);
     socket.ssl_mode = Some("verify-full".to_string());
     let missing = tempfile::tempdir().unwrap();
     socket.ssl_ca = Some(missing.path().join("ca.pem").display().to_string());
@@ -150,7 +151,6 @@ async fn postgresql_plugin_honors_unix_socket_path() {
     let mut socket = tcp.clone();
     socket.unix_socket_path = Some(socket_path);
     socket.host = Some("ignored.invalid".to_string());
-    socket.port = Some(1);
     socket.ssl_mode = Some("disable".to_string());
 
     drv.test_connection(&socket).await.expect(
