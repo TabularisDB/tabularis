@@ -502,15 +502,15 @@ async fn copy_table(
     planned: &PlannedTable,
     result: &mut TableTransferTableResult,
 ) -> Result<TransferStatus, String> {
-    use sqlx::Row;
+    use futures::TryStreamExt;
 
     let bindings = &planned.bindings;
     let pool = get_sqlite_pool(&job.source.params).await?;
     let mut sink = open_sink(&job.target).await?;
 
-    // Hold a read transaction for the duration of the copy so concurrent
-    // source writes don't shift LIMIT/OFFSET pagination (the old postgres
-    // path used a RepeatableRead cursor for the same snapshot guarantee).
+    // One read transaction pins a snapshot for the whole copy, and one
+    // advancing SELECT walks the table once. LIMIT/OFFSET paging would
+    // re-scan and discard every earlier row on each batch (quadratic).
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
 
     let columns: Vec<String> = bindings
@@ -522,18 +522,20 @@ async fn copy_table(
         columns.join(", "),
         planned.plan.source_table.replace('"', "\"\"")
     );
-    let limit = job.batch_rows as i32;
+    let mut stream = sqlx::query(&select).fetch(&mut *tx);
 
     let mut ordinal = 0u64;
-    let mut offset = 0i32;
     loop {
         if job.cancel.load(Ordering::SeqCst) {
             return Ok(TransferStatus::Cancelled);
         }
-        let rows = sqlx::query(&format!("{select} LIMIT {limit} OFFSET {offset}"))
-            .fetch_all(&mut *tx)
-            .await
-            .map_err(|e| e.to_string())?;
+        let mut rows = Vec::with_capacity(job.batch_rows);
+        while rows.len() < job.batch_rows {
+            match stream.try_next().await.map_err(|e| e.to_string())? {
+                Some(row) => rows.push(row),
+                None => break,
+            }
+        }
         if rows.is_empty() {
             return Ok(TransferStatus::Completed);
         }
@@ -579,7 +581,6 @@ async fn copy_table(
                 return Err(error);
             }
         }
-        offset += limit;
     }
 }
 

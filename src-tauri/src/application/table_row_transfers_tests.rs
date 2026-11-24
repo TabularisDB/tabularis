@@ -153,3 +153,182 @@ async fn copying_a_table_onto_its_own_case_variant_is_a_self_copy() {
         SameTable::No
     );
 }
+
+struct NoSecrets;
+
+impl crate::runtime::secrets::RuntimeSecrets for NoSecrets {
+    fn get(&self, _account: &str) -> Result<Option<String>, String> {
+        Ok(None)
+    }
+
+    fn set(&self, _account: &str, _secret: &str) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn delete(&self, _account: &str) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+fn runtime(dir: &std::path::Path) -> RuntimeContext {
+    RuntimeContext::new(
+        Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            dir.to_path_buf(),
+            dir.to_path_buf(),
+        )),
+        Arc::new(crate::runtime::events::NoopRuntimeEvents),
+        Arc::new(NoSecrets),
+    )
+}
+
+/// Source and target SQLite files, each with an empty `big(id, name)` table;
+/// the source gets `rows` rows (`name` is NULL on every 7th).
+async fn copy_fixture(dir: &std::path::Path, rows: i64) -> (Endpoint, Endpoint) {
+    let source = sqlite_endpoint(&dir.join("src.db")).await;
+    let target = sqlite_endpoint(&dir.join("dst.db")).await;
+    for endpoint in [&source, &target] {
+        let pool = get_sqlite_pool(&endpoint.params).await.unwrap();
+        sqlx::query("CREATE TABLE big (id INTEGER PRIMARY KEY, name TEXT)")
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    let pool = get_sqlite_pool(&source.params).await.unwrap();
+    sqlx::query(
+        "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?) \
+         INSERT INTO big SELECT i, CASE WHEN i % 7 = 0 THEN NULL ELSE 'row-' || i END \
+         FROM n WHERE i <= ?",
+    )
+    .bind(rows)
+    .bind(rows)
+    .execute(&pool)
+    .await
+    .unwrap();
+    (source, target)
+}
+
+async fn big_job(
+    dir: &std::path::Path,
+    source: Endpoint,
+    target: Endpoint,
+    batch_rows: usize,
+    cancel: bool,
+) -> (Job, Vec<PlannedTable>) {
+    let (tables, issues) = plan_tables(&source, &target, &[pick("big", "big")])
+        .await
+        .unwrap();
+    assert!(issues.is_empty());
+    assert!(!tables[0].plan.blocking);
+    let job = Job {
+        runtime: runtime(dir),
+        session_id: None,
+        transfer_id: "copy-test".into(),
+        cancel: Arc::new(AtomicBool::new(cancel)),
+        source,
+        target,
+        conflict: ConflictMode::default(),
+        batch_rows,
+        total_tables: 1,
+    };
+    (job, tables)
+}
+
+async fn copy_big(
+    dir: &std::path::Path,
+    source: Endpoint,
+    target: Endpoint,
+    batch_rows: usize,
+) -> TableTransferTableResult {
+    let (job, tables) = big_job(dir, source, target, batch_rows, false).await;
+    run_job(job, tables).await.tables.remove(0)
+}
+
+async fn assert_copied_exactly(source: &Endpoint, target: &Endpoint, rows: i64) {
+    let source_pool = get_sqlite_pool(&source.params).await.unwrap();
+    let target_pool = get_sqlite_pool(&target.params).await.unwrap();
+    let read = |pool: sqlx::Pool<sqlx::Sqlite>| async move {
+        sqlx::query_as::<_, (i64, Option<String>)>("SELECT id, name FROM big ORDER BY id")
+            .fetch_all(&pool)
+            .await
+            .unwrap()
+    };
+    let copied = read(target_pool).await;
+    assert_eq!(copied.len() as i64, rows);
+    assert_eq!(copied, read(source_pool).await);
+}
+
+#[tokio::test]
+async fn a_multi_batch_copy_moves_every_row_once_in_order() {
+    let dir = tempfile::tempdir().unwrap();
+    // 2,300 rows at 500 per batch: four full batches and a partial one.
+    let (source, target) = copy_fixture(dir.path(), 2_300).await;
+
+    let result = copy_big(dir.path(), source.clone(), target.clone(), 500).await;
+
+    assert_eq!(result.status, TransferStatus::Completed);
+    assert_eq!(result.rows_read, 2_300);
+    assert_eq!(result.rows_written, 2_300);
+    assert_copied_exactly(&source, &target, 2_300).await;
+}
+
+#[tokio::test]
+async fn a_row_count_that_is_an_exact_multiple_of_the_batch_copies_cleanly() {
+    let dir = tempfile::tempdir().unwrap();
+    let (source, target) = copy_fixture(dir.path(), 1_000).await;
+
+    let result = copy_big(dir.path(), source.clone(), target.clone(), 500).await;
+
+    assert_eq!(result.status, TransferStatus::Completed);
+    assert_eq!(result.rows_written, 1_000);
+    assert_copied_exactly(&source, &target, 1_000).await;
+}
+
+#[tokio::test]
+async fn an_empty_source_table_completes_with_nothing_written() {
+    let dir = tempfile::tempdir().unwrap();
+    let (source, target) = copy_fixture(dir.path(), 0).await;
+
+    let result = copy_big(dir.path(), source.clone(), target.clone(), 500).await;
+
+    assert_eq!(result.status, TransferStatus::Completed);
+    assert_eq!((result.rows_read, result.rows_written), (0, 0));
+}
+
+#[tokio::test]
+async fn a_batch_of_one_row_still_streams_every_row() {
+    let dir = tempfile::tempdir().unwrap();
+    let (source, target) = copy_fixture(dir.path(), 25).await;
+
+    let result = copy_big(dir.path(), source.clone(), target.clone(), 1).await;
+
+    assert_eq!(result.status, TransferStatus::Completed);
+    assert_copied_exactly(&source, &target, 25).await;
+}
+
+#[tokio::test]
+async fn a_cancel_raised_before_the_first_batch_stops_the_stream_without_writing() {
+    let dir = tempfile::tempdir().unwrap();
+    let (source, target) = copy_fixture(dir.path(), 2_300).await;
+    let (job, tables) = big_job(dir.path(), source, target.clone(), 500, true).await;
+    let mut result = TableTransferTableResult {
+        source_table: "big".into(),
+        target_table: "big".into(),
+        status: TransferStatus::Running,
+        rows_read: 0,
+        rows_written: 0,
+        rows_skipped: 0,
+        rows_failed: 0,
+        error: None,
+    };
+
+    let status = copy_table(&job, 0, &tables[0], &mut result).await.unwrap();
+
+    assert_eq!(status, TransferStatus::Cancelled);
+    assert_eq!((result.rows_read, result.rows_written), (0, 0));
+    let pool = get_sqlite_pool(&target.params).await.unwrap();
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM big")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 0);
+}
