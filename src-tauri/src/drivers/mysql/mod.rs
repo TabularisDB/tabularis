@@ -1175,6 +1175,23 @@ pub async fn get_views(
     Ok(views)
 }
 
+/// Pool whose session database is `schema` when one is given, so unqualified
+/// names in a statement resolve there and not in the connection's default
+/// database (same routing as `acquire_mysql_conn`).
+async fn get_mysql_pool_in(
+    params: &ConnectionParams,
+    schema: Option<&str>,
+) -> Result<sqlx::MySqlPool, String> {
+    match schema.filter(|s| !s.is_empty()) {
+        Some(db) => {
+            let mut p = params.clone();
+            p.database = crate::models::DatabaseSelection::Single(db.to_string());
+            get_mysql_pool(&p).await
+        }
+        None => get_mysql_pool(params).await,
+    }
+}
+
 pub async fn get_view_definition(
     params: &ConnectionParams,
     view_name: &str,
@@ -1197,7 +1214,7 @@ pub async fn create_view(
     definition: &str,
     schema: Option<&str>,
 ) -> Result<(), String> {
-    let pool = get_mysql_pool(params).await?;
+    let pool = get_mysql_pool_in(params, schema).await?;
     let query = format!(
         "CREATE VIEW {} AS {}",
         qualified_name(schema, view_name),
@@ -1216,7 +1233,7 @@ pub async fn alter_view(
     definition: &str,
     schema: Option<&str>,
 ) -> Result<(), String> {
-    let pool = get_mysql_pool(params).await?;
+    let pool = get_mysql_pool_in(params, schema).await?;
     let query = format!(
         "ALTER VIEW {} AS {}",
         qualified_name(schema, view_name),

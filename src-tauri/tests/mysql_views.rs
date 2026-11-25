@@ -45,6 +45,15 @@ async fn view_count(connection: &mut MySqlConnection, schema: &str, view: &str) 
     .get(0)
 }
 
+async fn view_value(connection: &mut MySqlConnection, schema: &str, view: &str) -> i64 {
+    let sql = format!("SELECT x FROM {}.{}", quoted(schema), quoted(view));
+    sqlx::query(&sql)
+        .fetch_one(connection)
+        .await
+        .unwrap_or_else(|error| panic!("read {sql}: {error}"))
+        .get::<i64, _>(0)
+}
+
 fn params_for_protocol(params: &ConnectionParams, text_protocol: bool) -> ConnectionParams {
     let mut selected = params.clone();
     selected.enable_cleartext_plugin = Some(text_protocol);
@@ -123,6 +132,29 @@ async fn exercise_views(
     assert_eq!(view_count(connection, second, "new_b").await, 1);
     assert_eq!(view_count(connection, first, "new_b").await, 0);
 
+    // A definition with an unqualified table must read it from the view's
+    // own database, as the editor's preview does, not from the default one.
+    execute(connection, &format!("CREATE TABLE {a}.t (x INT)")).await;
+    execute(connection, &format!("INSERT INTO {a}.t VALUES (100)")).await;
+    execute(connection, &format!("CREATE TABLE {b}.t (x INT)")).await;
+    execute(connection, &format!("INSERT INTO {b}.t VALUES (200)")).await;
+    mysql::create_view(params, "from_t", "SELECT x FROM t", Some(second))
+        .await
+        .expect("create a view over an unqualified table");
+    assert_eq!(
+        view_value(connection, second, "from_t").await,
+        200,
+        "created view reads t from the second database"
+    );
+    mysql::alter_view(params, "from_t", "SELECT x + 1 AS x FROM t", Some(second))
+        .await
+        .expect("alter a view over an unqualified table");
+    assert_eq!(
+        view_value(connection, second, "from_t").await,
+        201,
+        "altered view reads t from the second database"
+    );
+
     mysql::drop_view(params, "v_test", Some(second))
         .await
         .expect("drop view in the second database");
@@ -193,6 +225,10 @@ async fn view_operations_use_the_database_they_are_listed_under() {
     for text_protocol in [false, true] {
         close_pool(&params_for_protocol(&params, text_protocol)).await;
     }
+    // create_view and alter_view run on a pool opened in the second database.
+    let mut second_params = params.clone();
+    second_params.database = DatabaseSelection::Single(second.clone());
+    close_pool(&second_params).await;
     let mut cleanup_error = None;
     for schema in &created {
         let sql = format!("DROP DATABASE {}", quoted(schema));
