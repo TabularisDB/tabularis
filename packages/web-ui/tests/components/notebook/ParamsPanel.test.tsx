@@ -368,6 +368,20 @@ describe('ParamsPanel', () => {
                 {name: 'flag', value: 'true', type: 'boolean'},
             ]);
         });
+
+        it('marks an unreadable boolean on its checkbox and names the message there', () => {
+            renderPanel([{name: 'active', value: 'abc', type: 'boolean'}]);
+            const box = () => row('active').getByRole('checkbox', {name: `${K}.value`});
+
+            expect(messageOf('active')).toHaveTextContent(`${K}.issues.invalidBoolean`);
+            expect(box()).toHaveAttribute('aria-invalid', 'true');
+            expect(box()).toHaveAttribute('aria-describedby', messageId('active'));
+
+            fireEvent.click(box());
+            expect(messageId('active')).toBeNull();
+            expect(box()).not.toHaveAttribute('aria-invalid');
+            expect(box()).not.toHaveAttribute('aria-describedby');
+        });
     });
 
     describe('messages', () => {
