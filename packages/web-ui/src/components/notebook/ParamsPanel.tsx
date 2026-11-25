@@ -98,6 +98,8 @@ function ParamValueControl({
                     // A value that is neither is shown as it is, undetermined.
                     value={row.value === 'true' ? true : row.value === 'false' ? false : null}
                     nullLabel={row.value}
+                    ariaInvalid={invalid}
+                    ariaDescribedBy={describedBy}
                     onChange={(value) => onValueChange(value ? 'true' : 'false')}
                 />
             </span>
