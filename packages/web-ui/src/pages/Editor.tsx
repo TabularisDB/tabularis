@@ -1753,7 +1753,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 tableName,
                                 generation,
                                 targetTabId,
-                                targetTab?.schema ?? undefined,
+                                schema ?? undefined,
                                 targetTab?.database,
                             );
                         } else if (!tableName) {
@@ -4096,7 +4096,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             // Fetch table columns. Use the tab's own schema (not the connection-level
             // activeSchema) so a nested multi-db tab on a non-default schema fetches
             // columns from the right one.
-            const tabSchema = activeTab?.schema ?? activeSchema;
+            const tabSchema = activeTabQuerySchema;
             const columns = await client.call('get_columns', {
                 connectionId: activeConnectionId,
                 tableName: activeTab.activeTable,
@@ -4215,7 +4215,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         updateTab,
         t,
         settings.resultPageSize,
-        activeSchema,
+        activeTabQuerySchema,
         showAlert,
     ]);
 
@@ -4279,7 +4279,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 // Fetch columns for validation. Use the tab's own schema (not the
                 // connection-level activeSchema) so a nested multi-db tab on a
                 // non-default schema validates against the right columns.
-                const tabSchema = activeTab?.schema ?? activeSchema;
+                const tabSchema = activeTabQuerySchema;
                 const columns = await client.call('get_columns', {
                     connectionId: activeConnectionId,
                     tableName: activeTable,
@@ -4346,7 +4346,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
             const dataChangeScope = getTableDataChangeScope(
                 activeCapabilities,
-                activeTab?.schema,
+                isMultiDb ? activeTabQuerySchema : activeTab?.schema,
                 activeSchema,
                 activeTab?.database,
             );
@@ -4547,6 +4547,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         t,
         applyToAll,
         activeSchema,
+        activeTabQuerySchema,
+        isMultiDb,
         activeCapabilities,
         showAlert,
         rowIdentity,
@@ -7079,7 +7081,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                         : undefined
                                                 }
                                                 connectionId={activeConnectionId}
-                                                schema={activeTab.schema ?? activeSchema}
+                                                schema={activeTabQuerySchema}
                                                 database={activeTab.database}
                                                 onRefresh={handleRefresh}
                                                 onEditingChange={handleEditingChange}
@@ -7143,7 +7145,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                             connectionId={activeConnectionId}
                                             driver={activeDriver}
                                             capabilities={activeCapabilities}
-                                            schema={activeTab?.schema ?? activeSchema}
+                                            schema={activeTabQuerySchema}
                                             database={
                                                 activeTab?.database ??
                                                 activeDatabaseName ??
