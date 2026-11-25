@@ -100,6 +100,7 @@ const {settingsState} = vi.hoisted(() => ({
     settingsState: {} as {
         nullDisplay?: 'default' | 'parenthesized' | 'emptySet' | 'empty';
         resultZebraStripes?: boolean;
+        resultGridDensity?: string;
     },
 }));
 
@@ -408,6 +409,63 @@ describe('DataGrid NULL display (#1300)', () => {
         expect(cell(container, 1).textContent).toBe('');
         expect(cell(container, 1).querySelector('[data-null-marker]')).not.toBeNull();
         expect(cell(container, 2).querySelector('[data-null-marker]')).toBeNull();
+    });
+});
+
+describe('DataGrid row density (#339)', () => {
+    afterEach(() => {
+        delete settingsState.resultGridDensity;
+    });
+
+    const renderGrid = () =>
+        render(
+            <DataGrid
+                columns={['id', 'name']}
+                data={[
+                    [1, 'Alice'],
+                    [2, 'Bob'],
+                ]}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                readonly
+            />,
+        );
+    const firstRow = (container: HTMLElement) =>
+        container.querySelector<HTMLElement>('tr[data-row-index="0"]')!;
+    const dataCell = (container: HTMLElement) =>
+        firstRow(container).querySelector<HTMLElement>('td[data-col-index="0"]')!;
+    // The row virtualizer's own size estimate, from its latest options.
+    const estimatedRowHeight = () => {
+        const rowOptions = virtualizerOptionsMock.mock.calls
+            .map(([options]) => options)
+            .filter((options) => !options.horizontal);
+        return rowOptions.at(-1).estimateSize(0) as number;
+    };
+
+    it('renders 35 px rows with the default density', () => {
+        const {container} = renderGrid();
+        expect(firstRow(container).style.height).toBe('35px');
+        expect(estimatedRowHeight()).toBe(35);
+        expect(dataCell(container)).toHaveClass('py-1.5');
+    });
+
+    it('renders shorter rows with the compact density', () => {
+        settingsState.resultGridDensity = 'compact';
+        const {container} = renderGrid();
+        expect(parseFloat(firstRow(container).style.height)).toBeLessThan(35);
+    });
+
+    it('sizes the virtualizer to the compact row', () => {
+        settingsState.resultGridDensity = 'compact';
+        const {container} = renderGrid();
+        expect(estimatedRowHeight()).toBeLessThan(35);
+        expect(estimatedRowHeight()).toBe(parseFloat(firstRow(container).style.height));
+    });
+
+    it('tightens the cell padding with the compact density', () => {
+        settingsState.resultGridDensity = 'compact';
+        const {container} = renderGrid();
+        expect(dataCell(container)).not.toHaveClass('py-1.5');
     });
 });
 
