@@ -270,3 +270,28 @@ describe('notebookRunAll disabled cells', () => {
         });
     });
 });
+
+describe('notebookRunAll result aliases', () => {
+    const cells = [
+        makeCell({id: 'a', alias: 'sales', content: 'SELECT 1'}),
+        makeCell({id: 'b', alias: 'off', content: 'SELECT 2', isDisabled: true}),
+        makeCell({id: 'c', content: 'SELECT * FROM {{sales}}'}),
+        makeCell({id: 'd', alias: 'late', content: 'SELECT 3'}),
+    ];
+
+    it('waits for an earlier cell named by its alias, wherever it is', () => {
+        expect(earlierReferencedCellIds(2, 'SELECT * FROM {{sales}} JOIN {{late}}', cells)).toEqual(
+            ['a'],
+        );
+        expect(earlierReferencedCellIds(2, 'SELECT * FROM {{missing}}', cells)).toEqual([]);
+    });
+
+    it('blocks on a disabled prerequisite named by its alias, also through another cell', () => {
+        expect(findDisabledPrerequisites('SELECT * FROM {{off}}', cells)).toEqual([1]);
+        const chained = [
+            ...cells,
+            makeCell({id: 'e', alias: 'chain', content: 'SELECT * FROM {{off}}'}),
+        ];
+        expect(findDisabledPrerequisites('SELECT * FROM {{chain}}', chained)).toEqual([1]);
+    });
+});

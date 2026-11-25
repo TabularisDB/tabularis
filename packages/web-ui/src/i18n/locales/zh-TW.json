@@ -2470,6 +2470,34 @@
             "sectionQueryPlan": "查詢計畫",
             "queryPlanOutdated": "查詢或連線已更改。請重新執行以重新整理查詢計畫。",
             "queryPlanUnresolved": "解釋此查詢之前，請先成功執行引用的儲存格：{{refs}}",
+            "alias": {
+                "label": "結果別名",
+                "placeholder": "alias",
+                "add": "新增結果別名",
+                "editLabel": "編輯結果別名 {{alias}}",
+                "help": "結果別名：無論此儲存格移到哪裡，其他 SQL 儲存格都以 {{reference}} 使用此結果。可使用字母、數字和底線；留空即可移除。",
+                "completionDetail": "儲存格 {{n}} 的結果",
+                "usageCell": "儲存格 {{n}}",
+                "usageParam": "參數 @{{name}}",
+                "issues": {
+                    "invalid": "請使用字母、數字和底線，並以字母或底線開頭。",
+                    "tooLong": "別名最多 {{max}} 個字元。",
+                    "reserved": "cell_1 這類名稱保留給依位置的參照。",
+                    "duplicate": "儲存格 {{n}} 已在使用此別名。",
+                    "notSql": "只有 SQL 儲存格可以設定結果別名。",
+                    "inUse": "{{reference}} 仍被 {{places}} 使用。請先修改這些參照，再重新命名或移除別名。"
+                }
+            },
+            "referenceErrors": {
+                "unresolved": "無法解析的儲存格參照：{{details}}",
+                "missing": "{{ref}} 未指向任何儲存格。",
+                "duplicate": "{{ref}} 是多個儲存格的別名。",
+                "notSql": "{{ref}} 不是 SQL 儲存格。",
+                "disabled": "{{ref}} 已停用。",
+                "noResult": "{{ref}} 沒有結果：請先成功執行它。",
+                "unsupported": "無法使用 {{ref}}：此連線的驅動程式未宣告 SQL 方言，因此無法將儲存格結果加入其查詢。",
+                "circular": "{{ref}} 會回到此儲存格：儲存格不能直接或透過其他儲存格使用自己的結果。"
+            },
             "explainPopout": "在完整檢視中開啟",
             "toggleQueryPlan": "顯示查詢計畫",
             "hideQueryPlan": "隱藏查詢計畫",
@@ -2508,6 +2536,7 @@
                     "deleteCell": "刪除了儲存格 {{n}}",
                     "reorder": "重新排序儲存格",
                     "renameCell": "重新命名了儲存格 {{n}}",
+                    "aliasCell": "修改了別名（儲存格 {{n}}）",
                     "schemaCell": "更改了資料庫（儲存格 {{n}}）",
                     "chartCell": "更改了圖表（儲存格 {{n}}）",
                     "kpiCell": "變更了 KPI（儲存格 {{n}}）",

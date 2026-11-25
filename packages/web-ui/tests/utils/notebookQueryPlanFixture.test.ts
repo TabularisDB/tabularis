@@ -37,6 +37,6 @@ describe('query-plan manual fixture', () => {
         expect(prepared.sql).not.toContain('{{cell_');
         expect(
             resolveQueryVariables(notebook.cells[2].content, notebook.cells).unresolvedRefs,
-        ).toEqual([{match: '{{cell_99}}', cellIndex: 98}]);
+        ).toEqual([{match: '{{cell_99}}', cellIndex: 98, reason: 'missing'}]);
     });
 });

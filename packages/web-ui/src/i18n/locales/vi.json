@@ -2465,6 +2465,34 @@
       "sectionQueryPlan": "Kế hoạch truy vấn",
       "queryPlanOutdated": "Truy vấn hoặc kết nối đã thay đổi. Hãy chạy lại để làm mới kế hoạch.",
       "queryPlanUnresolved": "Hãy chạy thành công các ô được tham chiếu trước khi explain truy vấn này: {{refs}}",
+      "alias": {
+        "label": "Bí danh kết quả",
+        "placeholder": "alias",
+        "add": "Thêm bí danh kết quả",
+        "editLabel": "Sửa bí danh kết quả {{alias}}",
+        "help": "Bí danh kết quả: các ô SQL khác dùng kết quả này dưới dạng {{reference}}, dù ô này được di chuyển đến đâu. Gồm chữ cái, chữ số và dấu gạch dưới; để trống để xóa.",
+        "completionDetail": "Kết quả của ô {{n}}",
+        "usageCell": "ô {{n}}",
+        "usageParam": "tham số @{{name}}",
+        "issues": {
+          "invalid": "Dùng chữ cái, chữ số và dấu gạch dưới, bắt đầu bằng chữ cái hoặc dấu gạch dưới.",
+          "tooLong": "Bí danh có tối đa {{max}} ký tự.",
+          "reserved": "Các tên như cell_1 được dành cho tham chiếu theo vị trí.",
+          "duplicate": "Ô {{n}} đã dùng bí danh này.",
+          "notSql": "Chỉ ô SQL mới có thể có bí danh kết quả.",
+          "inUse": "{{reference}} vẫn đang được dùng bởi {{places}}. Hãy sửa các tham chiếu đó trước, rồi đổi tên hoặc xóa bí danh."
+        }
+      },
+      "referenceErrors": {
+        "unresolved": "Tham chiếu ô chưa được giải quyết: {{details}}",
+        "missing": "{{ref}} không trỏ tới ô nào.",
+        "duplicate": "{{ref}} là bí danh của nhiều ô.",
+        "notSql": "{{ref}} không phải là ô SQL.",
+        "disabled": "{{ref}} đã bị tắt.",
+        "noResult": "{{ref}} chưa có kết quả: hãy chạy thành công ô đó trước.",
+        "unsupported": "Không thể dùng {{ref}}: trình điều khiển của kết nối này không khai báo phương ngữ SQL, nên không thể thêm kết quả của ô vào truy vấn.",
+        "circular": "{{ref}} dẫn ngược về ô này: một ô không thể dùng kết quả của chính nó, dù trực tiếp hay qua các ô khác."
+      },
       "explainPopout": "Mở ở chế độ toàn màn hình",
       "toggleQueryPlan": "Hiện kế hoạch truy vấn",
       "hideQueryPlan": "Ẩn kế hoạch truy vấn",
@@ -2503,6 +2531,7 @@
           "deleteCell": "Đã xóa ô {{n}}",
           "reorder": "Đã sắp xếp lại các ô",
           "renameCell": "Đã đổi tên ô {{n}}",
+          "aliasCell": "Đã đổi bí danh (ô {{n}})",
           "schemaCell": "Đã đổi cơ sở dữ liệu (ô {{n}})",
           "chartCell": "Đã đổi biểu đồ (ô {{n}})",
           "kpiCell": "Đã thay đổi KPI (ô {{n}})",

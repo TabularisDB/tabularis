@@ -33,7 +33,9 @@ export function exportNotebookToSql(title: string, cells: readonly NotebookCell[
     cells.forEach((cell, index) => {
         if (cell.type !== 'sql' || cell.content.trim() === '') return;
         const name = cell.name ? sanitizeSqlCommentText(cell.name) : '';
-        const header = `-- ---- Cell ${index + 1}${name ? `: ${name}` : ''} ----`;
+        // An alias is a plain identifier, so it is safe in the comment as is.
+        const alias = cell.alias ? ` {{${cell.alias}}}` : '';
+        const header = `-- ---- Cell ${index + 1}${alias}${name ? `: ${name}` : ''} ----`;
         // A trailing line break keeps the next header out of a source that
         // ends in a `--` comment; the source itself is left untouched.
         const source = /[\r\n]$/.test(cell.content) ? cell.content : `${cell.content}\n`;
@@ -46,7 +48,7 @@ export function exportNotebookToSql(title: string, cells: readonly NotebookCell[
         `-- Tabularis notebook${safeTitle ? `: ${safeTitle}` : ''}`,
         '-- SQL source of the notebook cells, in notebook order.',
         '-- WARNING: this is notebook source, not a runnable script.',
-        '-- Notebook placeholders (@name, ${name}) and cell references ({{cell_N}})',
+        '-- Notebook placeholders (@name, ${name}) and cell references ({{cell_N}}, {{alias}})',
         '-- are not expanded, and each cell may run on its own connection and database.',
         '-- No statement delimiters were added between cells.',
         '',

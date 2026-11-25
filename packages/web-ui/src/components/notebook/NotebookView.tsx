@@ -50,7 +50,10 @@ import {
     resolveQueryVariables,
     findUnresolvedDependencies,
     variableOptionsForDriver,
+    describeUnresolvedReferences,
+    supportsNamedResultReferences,
 } from '@/utils/notebookVariables';
+import {cellReferenceLabel, checkAliasChange, referenceSuggestions} from '@/utils/notebookAlias';
 import {
     resolveParams,
     supportsTypedParams,
@@ -114,10 +117,13 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     // Lets notebook parameters skip `@name` inside string literals and comments.
     const sqlDialect = resolveSqlSyntax(activeCapabilities);
     const typedParamsSupported = supportsTypedParams(sqlDialect);
-    const variableOptions = useMemo(
-        () => variableOptionsForDriver(activeCapabilities ?? activeDriver, activeDriver),
-        [activeCapabilities, activeDriver],
-    );
+    const variableOptions = useMemo(() => {
+        const driver = activeCapabilities ?? activeDriver;
+        return {
+            ...variableOptionsForDriver(driver, activeDriver),
+            ...(supportsNamedResultReferences(driver) ? {} : {namedReferencesUnsupported: true}),
+        };
+    }, [activeCapabilities, activeDriver]);
     const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
     const effectiveSchema = tab.schema || activeSchema || (isMultiDb ? selectedDatabases[0] : null);
     useSqlAutocompleteRegistration(connectionId, {
@@ -157,7 +163,9 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const autoScrollSpeedRef = useRef(0);
     const autoScrollRafRef = useRef<number | null>(null);
     const notebookIdRef = useRef(tab.notebookId);
-    const runCellRef = useRef<(cellId: string) => Promise<CellRunOutcome>>(async () => undefined);
+    const runCellRef = useRef<
+        (cellId: string, waiting?: readonly string[]) => Promise<CellRunOutcome>
+    >(async () => undefined);
 
     // Undo/redo history (autosave means edits are otherwise irreversible).
     const notebookRef = useRef<NotebookState | null>(notebook);
@@ -391,7 +399,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     );
 
     const runCellInner = useCallback(
-        async (cellId: string): Promise<CellRunOutcome> => {
+        /** `waiting`: the cells that run this one as their dependency, outermost first. */
+        async (cellId: string, waiting: readonly string[] = []): Promise<CellRunOutcome> => {
             const cell = cellsRef.current.find((c) => c.id === cellId);
             // A disabled cell never runs, whichever way it is asked to.
             if (cell?.isDisabled) return 'skipped';
@@ -445,7 +454,9 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 updateCell(cellId, {
                     error: t('editor.notebook.blockedByDisabled', {
                         count: disabledDeps.length,
-                        refs: disabledDeps.map((i) => `{{cell_${i + 1}}}`).join(', '),
+                        refs: disabledDeps
+                            .map((i) => cellReferenceLabel(cellsRef.current[i], i))
+                            .join(', '),
                     }),
                     isLoading: false,
                     result: null,
@@ -464,13 +475,24 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                         depCell.content.trim() &&
                         !depCell.isDisabled
                     ) {
-                        await runCellRef.current(depCell.id);
+                        // A cell that needs itself, directly or through others, would wait forever.
+                        if (depCell.id === cellId || waiting.includes(depCell.id)) {
+                            updateCell(cellId, {
+                                error: t('editor.notebook.referenceErrors.circular', {
+                                    ref: cellReferenceLabel(depCell, depIndex),
+                                }),
+                                isLoading: false,
+                                result: null,
+                            });
+                            return;
+                        }
+                        await runCellRef.current(depCell.id, [...waiting, cellId]);
                         if (disabledMeanwhile()) return 'skipped';
                         // Check if dependency failed
                         const updated = cellsRef.current[depIndex];
                         if (updated?.error) {
                             updateCell(cellId, {
-                                error: `Dependency {{cell_${depIndex + 1}}} failed: ${updated.error}`,
+                                error: `Dependency ${cellReferenceLabel(updated, depIndex)} failed: ${updated.error}`,
                                 isLoading: false,
                                 result: null,
                             });
@@ -488,11 +510,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             );
 
             if (unresolvedRefs.length > 0) {
-                const refLabels = unresolvedRefs
-                    .map((r) => `{{cell_${r.cellIndex + 1}}}`)
-                    .join(', ');
                 updateCell(cellId, {
-                    error: `Unresolved cell references: ${refLabels}. Referenced cells must be SQL cells with content.`,
+                    error: describeUnresolvedReferences(unresolvedRefs, t),
                     isLoading: false,
                     result: null,
                 });
@@ -579,13 +598,13 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const runningCellsRef = useRef(0);
 
     const runCell = useCallback(
-        async (cellId: string): Promise<CellRunOutcome> => {
+        async (cellId: string, waiting?: readonly string[]): Promise<CellRunOutcome> => {
             runningCellsRef.current += 1;
             if (runningCellsRef.current === 1) {
                 updateTab(tab.id, {isLoading: true});
             }
             try {
-                return await runCellInner(cellId);
+                return await runCellInner(cellId, waiting);
             } finally {
                 runningCellsRef.current -= 1;
                 if (runningCellsRef.current === 0) {
@@ -1291,6 +1310,12 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                                     onRun={() => runCell(cell.id)}
                                     onDuplicate={() => duplicateCell(cell.id)}
                                     canDuplicate={!isExecuting}
+                                    checkAlias={(alias) =>
+                                        checkAliasChange(cellsRef.current, params, cell.id, alias)
+                                    }
+                                    getReferenceSuggestions={() =>
+                                        referenceSuggestions(cellsRef.current, cell.id)
+                                    }
                                     connectionId={connectionId}
                                     {...queryPlanProps(cell)}
                                     activeSchema={cell.schema || effectiveSchema || undefined}

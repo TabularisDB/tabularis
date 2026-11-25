@@ -2464,6 +2464,34 @@
       "sectionQueryPlan": "Plan de requête",
       "queryPlanOutdated": "La requête ou la connexion a changé. Réexécutez la requête pour actualiser le plan.",
       "queryPlanUnresolved": "Exécutez avec succès les cellules référencées avant d’expliquer cette requête : {{refs}}",
+      "alias": {
+        "label": "Alias du résultat",
+        "placeholder": "alias",
+        "add": "Ajouter un alias de résultat",
+        "editLabel": "Modifier l'alias de résultat {{alias}}",
+        "help": "Alias du résultat : les autres cellules SQL utilisent ce résultat sous la forme {{reference}}, où que cette cellule soit déplacée. Lettres, chiffres et tirets bas ; laissez vide pour le supprimer.",
+        "completionDetail": "Résultat de la cellule {{n}}",
+        "usageCell": "cellule {{n}}",
+        "usageParam": "paramètre @{{name}}",
+        "issues": {
+          "invalid": "Utilisez des lettres, des chiffres et des tirets bas, en commençant par une lettre ou un tiret bas.",
+          "tooLong": "Un alias peut comporter au plus {{max}} caractères.",
+          "reserved": "Les noms comme cell_1 sont réservés aux références par position.",
+          "duplicate": "La cellule {{n}} utilise déjà cet alias.",
+          "notSql": "Seules les cellules SQL peuvent avoir un alias de résultat.",
+          "inUse": "{{reference}} est encore utilisé par {{places}}. Modifiez d'abord ces références, puis renommez ou supprimez l'alias."
+        }
+      },
+      "referenceErrors": {
+        "unresolved": "Références de cellules non résolues : {{details}}",
+        "missing": "{{ref}} ne désigne aucune cellule.",
+        "duplicate": "{{ref}} est l'alias de plusieurs cellules.",
+        "notSql": "{{ref}} n'est pas une cellule SQL.",
+        "disabled": "{{ref}} est désactivée.",
+        "noResult": "{{ref}} n'a pas de résultat : exécutez-la d'abord avec succès.",
+        "unsupported": "{{ref}} ne peut pas être utilisé : le pilote de cette connexion ne déclare pas de dialecte SQL, le résultat d'une cellule ne peut donc pas être ajouté à sa requête.",
+        "circular": "{{ref}} ramène à cette cellule : une cellule ne peut pas utiliser son propre résultat, ni directement ni via d'autres cellules."
+      },
       "explainPopout": "Ouvrir en vue complète",
       "toggleQueryPlan": "Afficher le plan de requête",
       "hideQueryPlan": "Masquer le plan de requête",
@@ -2502,6 +2530,7 @@
           "deleteCell": "Cellule {{n}} supprimée",
           "reorder": "Cellules réordonnées",
           "renameCell": "Cellule {{n}} renommée",
+          "aliasCell": "Alias modifié (cellule {{n}})",
           "schemaCell": "Base de données modifiée (cellule {{n}})",
           "chartCell": "Graphique modifié (cellule {{n}})",
           "kpiCell": "KPI modifié (cellule {{n}})",

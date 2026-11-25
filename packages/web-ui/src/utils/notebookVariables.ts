@@ -2,7 +2,8 @@ import type {NotebookCell} from '@/types/notebook';
 import type {QueryResult} from '@/types/editor';
 import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
 import {getQuoteChar, quoteIdentifierWith} from './identifiers';
-import {stripLeadingComments} from './sqlSplitter';
+import {isDialect, stripLeadingComments} from './sqlSplitter';
+import {findCellsByAlias} from './notebookAlias';
 import type {BooleanLiteralStyle} from '@/types/plugins';
 import {
     booleanLiteralWithStyle,
@@ -11,19 +12,49 @@ import {
     stringEscapeStyle,
 } from './sqlLiteral';
 
-const CELL_REF_PATTERN = /\{\{cell_(\d+)\}\}/g;
+/**
+ * `{{cell_N}}` names the N-th cell by position (the original syntax); any other
+ * `{{name}}` names the SQL cell whose result alias is `name`, wherever it is.
+ */
+const CELL_REF_PATTERN = /\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g;
+const POSITIONAL_REF = /^cell_(\d+)$/;
 
 export interface CellReference {
     match: string;
+    /**
+     * 0-based index of the referenced cell. A named reference that no cell, or
+     * more than one cell, answers to has -1.
+     */
     cellIndex: number;
+    /** Set for a named reference: the alias it uses. */
+    alias?: string;
 }
 
-export function extractCellReferences(sql: string): CellReference[] {
+/** Why a reference could not be replaced by a result. */
+export type UnresolvedReason =
+    'missing' | 'duplicate' | 'notSql' | 'disabled' | 'noResult' | 'unsupported';
+
+export interface UnresolvedReference extends CellReference {
+    reason: UnresolvedReason;
+}
+
+function toReference(match: string, name: string, cells?: NotebookCell[]): CellReference {
+    const positional = POSITIONAL_REF.exec(name);
+    if (positional) return {match, cellIndex: Number(positional[1]) - 1};
+    const targets = cells ? findCellsByAlias(cells, name) : [];
+    return {match, cellIndex: targets.length === 1 ? targets[0] : -1, alias: name};
+}
+
+/**
+ * The references in `sql`, in order. Named references are looked up in
+ * `cells`; without them their `cellIndex` is -1.
+ */
+export function extractCellReferences(sql: string, cells?: NotebookCell[]): CellReference[] {
     const refs: CellReference[] = [];
     let match: RegExpExecArray | null;
     const regex = new RegExp(CELL_REF_PATTERN.source, 'g');
     while ((match = regex.exec(sql)) !== null) {
-        refs.push({match: match[0], cellIndex: Number(match[1]) - 1});
+        refs.push(toReference(match[0], match[1], cells));
     }
     return refs;
 }
@@ -113,7 +144,7 @@ function resultToCte(
 
 export interface ResolvedQuery {
     sql: string;
-    unresolvedRefs: CellReference[];
+    unresolvedRefs: UnresolvedReference[];
 }
 
 /**
@@ -123,7 +154,7 @@ export interface ResolvedQuery {
  * Returns them in sorted order (lowest index first) for sequential execution.
  */
 export function findUnresolvedDependencies(sql: string, cells: NotebookCell[]): number[] {
-    const refs = extractCellReferences(sql);
+    const refs = extractCellReferences(sql, cells);
     const indices = new Set<number>();
     for (const ref of refs) {
         const targetCell = cells[ref.cellIndex];
@@ -157,6 +188,26 @@ export interface ResolveVariablesOptions {
      * (`'true'`), as before the field existed.
      */
     booleanLiterals?: BooleanLiteralStyle;
+    /**
+     * The driver does not declare that it speaks SQL (see
+     * {@link supportsNamedResultReferences}): a named reference is reported
+     * instead of being turned into a CTE.
+     */
+    namedReferencesUnsupported?: boolean;
+}
+
+/**
+ * Whether a named result reference can be expanded for this driver. The CTE is
+ * SQL the host writes, so a plugin has to declare a dialect (`sql_dialect` or
+ * `sql_syntax.extends`) first, as for other host-written SQL; a bare driver id
+ * is a built-in SQL driver. `{{cell_N}}` keeps working everywhere, as before.
+ */
+export function supportsNamedResultReferences(
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
+): boolean {
+    if (typeof driver !== 'object' || driver === null) return true;
+    const caps = 'capabilities' in driver ? driver.capabilities : driver;
+    return isDialect(caps?.sql_syntax?.extends) || isDialect(caps?.sql_dialect);
 }
 
 /**
@@ -192,41 +243,51 @@ export function resolveQueryVariables(
 ): ResolvedQuery {
     if (!hasCellReferences(sql)) return {sql, unresolvedRefs: []};
 
-    const unresolvedRefs: CellReference[] = [];
+    const unresolvedRefs: UnresolvedReference[] = [];
     const ctes: string[] = [];
-    const seen = new Set<number>();
+    const seen = new Set<string>();
+    const identifierQuote = options?.identifierQuote || '"';
     let resolvedSql = sql.replace(
         new RegExp(CELL_REF_PATTERN.source, 'g'),
-        (match: string, number: string) => {
-            const cellIndex = Number(number) - 1;
-            const targetCell = cells[cellIndex];
-            // A disabled cell's cached output is not current: never substitute it.
-            if (
-                !targetCell ||
-                targetCell.type !== 'sql' ||
-                targetCell.isDisabled ||
-                !targetCell.result ||
-                targetCell.error
-            ) {
-                unresolvedRefs.push({match, cellIndex});
+        (match: string, name: string) => {
+            const ref = toReference(match, name, cells);
+            const unresolved = (reason: UnresolvedReason) => {
+                unresolvedRefs.push({...ref, reason});
                 return match;
+            };
+            if (ref.alias !== undefined) {
+                if (options?.namedReferencesUnsupported) return unresolved('unsupported');
+                if (ref.cellIndex < 0) {
+                    const shared = findCellsByAlias(cells, ref.alias).length > 1;
+                    return unresolved(shared ? 'duplicate' : 'missing');
+                }
             }
+            const targetCell = cells[ref.cellIndex];
+            if (!targetCell) return unresolved('missing');
+            if (targetCell.type !== 'sql') return unresolved('notSql');
+            // A disabled cell's cached output is not current: never substitute it.
+            if (targetCell.isDisabled) return unresolved('disabled');
+            if (!targetCell.result || targetCell.error) return unresolved('noResult');
 
-            const alias = `cell_${cellIndex + 1}`;
-            if (!seen.has(cellIndex)) {
-                seen.add(cellIndex);
+            // Named results are quoted, so an alias that is also a keyword still works.
+            const cteName =
+                ref.alias !== undefined
+                    ? quoteIdentifierWith(ref.alias, identifierQuote)
+                    : `cell_${ref.cellIndex + 1}`;
+            if (!seen.has(cteName)) {
+                seen.add(cteName);
                 ctes.push(
                     resultToCte(
                         targetCell.result,
-                        alias,
+                        cteName,
                         options?.escapeBackslashes ?? false,
                         options?.backslashLiterals ?? false,
-                        options?.identifierQuote || '"',
+                        identifierQuote,
                         options?.booleanLiterals,
                     ),
                 );
             }
-            return alias;
+            return cteName;
         },
     );
 
@@ -244,4 +305,23 @@ export function resolveQueryVariables(
     }
 
     return {sql: resolvedSql, unresolvedRefs};
+}
+
+type Translate = (key: string, options?: Record<string, unknown>) => string;
+
+/**
+ * One message for the references a cell could not resolve, each with why:
+ * no such cell or alias, an alias two cells share, a Markdown target, a
+ * disabled cell, no result yet, or a driver that cannot take the CTE.
+ */
+export function describeUnresolvedReferences(refs: UnresolvedReference[], t: Translate): string {
+    const seen = new Set<string>();
+    const details: string[] = [];
+    for (const ref of refs) {
+        const key = `${ref.match}:${ref.reason}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        details.push(t(`editor.notebook.referenceErrors.${ref.reason}`, {ref: ref.match}));
+    }
+    return t('editor.notebook.referenceErrors.unresolved', {details: details.join(' ')});
 }

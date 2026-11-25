@@ -2454,6 +2454,34 @@
       "sectionQueryPlan": "Query Plan",
       "queryPlanOutdated": "Nagbago ang query o koneksyon. Patakbuhin muli para i-refresh ang plan.",
       "queryPlanUnresolved": "Matagumpay na patakbuhin ang mga naka-reference na cell bago ipaliwanag ang query na ito: {{refs}}",
+      "alias": {
+        "label": "Alias ng resulta",
+        "placeholder": "alias",
+        "add": "Magdagdag ng alias ng resulta",
+        "editLabel": "I-edit ang alias ng resulta na {{alias}}",
+        "help": "Alias ng resulta: ginagamit ng ibang SQL cell ang resultang ito bilang {{reference}}, saan man ilipat ang cell na ito. Mga titik, numero at underscore; iwanang blangko para alisin ito.",
+        "completionDetail": "Resulta ng cell {{n}}",
+        "usageCell": "cell {{n}}",
+        "usageParam": "parameter @{{name}}",
+        "issues": {
+          "invalid": "Gumamit ng mga titik, numero at underscore, na nagsisimula sa titik o underscore.",
+          "tooLong": "Hanggang {{max}} character lang ang alias.",
+          "reserved": "Nakalaan ang mga pangalang tulad ng cell_1 para sa mga reference ayon sa posisyon.",
+          "duplicate": "Ginagamit na ng cell {{n}} ang alias na ito.",
+          "notSql": "SQL cell lang ang puwedeng magkaroon ng alias ng resulta.",
+          "inUse": "Ginagamit pa ang {{reference}} ng {{places}}. Palitan muna ang mga reference na iyon, saka palitan ang pangalan o alisin ang alias."
+        }
+      },
+      "referenceErrors": {
+        "unresolved": "Mga hindi nalutas na reference sa cell: {{details}}",
+        "missing": "Walang cell na tinutukoy ang {{ref}}.",
+        "duplicate": "Ang {{ref}} ay alias ng higit sa isang cell.",
+        "notSql": "Hindi SQL cell ang {{ref}}.",
+        "disabled": "Naka-disable ang {{ref}}.",
+        "noResult": "Walang resulta ang {{ref}}: patakbuhin muna ito nang matagumpay.",
+        "unsupported": "Hindi magagamit ang {{ref}}: hindi nagdedeklara ng SQL dialect ang driver ng koneksyong ito, kaya hindi maidaragdag sa query nito ang resulta ng cell.",
+        "circular": "Bumabalik ang {{ref}} sa cell na ito: hindi puwedeng gamitin ng isang cell ang sarili nitong resulta, direkta man o sa pamamagitan ng ibang cell."
+      },
       "explainPopout": "Buksan sa buong view",
       "toggleQueryPlan": "Ipakita ang query plan",
       "hideQueryPlan": "Itago ang query plan",
@@ -2492,6 +2520,7 @@
           "deleteCell": "Binura ang cell {{n}}",
           "reorder": "Inayos ang mga cell",
           "renameCell": "Pinalitan ang pangalan ng cell {{n}}",
+          "aliasCell": "Binago ang alias (cell {{n}})",
           "schemaCell": "Binago ang database (cell {{n}})",
           "chartCell": "Binago ang chart (cell {{n}})",
           "kpiCell": "Binago ang KPI (cell {{n}})",

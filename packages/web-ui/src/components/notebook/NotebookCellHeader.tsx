@@ -22,7 +22,9 @@ import {
     PowerOff,
 } from 'lucide-react';
 import type {NotebookCellType} from '@/types/notebook';
+import type {AliasChangeCheck} from '@/utils/notebookAlias';
 import {CellNameAiButton} from './CellNameAiButton';
+import {CellAliasEditor} from './CellAliasEditor';
 import {useEscapeKey} from '@/hooks/useEscapeKey';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {useToast} from '@/hooks/useToast';
@@ -60,6 +62,9 @@ interface NotebookCellHeaderProps {
     onToggleCollapse: () => void;
     cellName?: string;
     onNameChange: (name: string) => void;
+    /** SQL only: the result alias other cells reference as `{{alias}}`. */
+    cellAlias?: string;
+    onAliasCommit?: (alias: string) => AliasChangeCheck;
     cellContent?: string;
     includeInReport?: boolean;
     onToggleIncludeInReport?: () => void;
@@ -139,6 +144,8 @@ export function NotebookCellHeader({
     onToggleCollapse,
     cellName,
     onNameChange,
+    cellAlias,
+    onAliasCommit,
     cellContent,
     includeInReport,
     onToggleIncludeInReport,
@@ -271,6 +278,9 @@ export function NotebookCellHeader({
                     >
                         {cellName || t('editor.notebook.cellNamePlaceholder')}
                     </button>
+                )}
+                {cellType === 'sql' && onAliasCommit && (
+                    <CellAliasEditor alias={cellAlias} onCommit={onAliasCommit} />
                 )}
                 {cellContent && (
                     <CellNameAiButton content={cellContent} onNameGenerated={onNameChange} />

@@ -2497,6 +2497,34 @@
       "sectionQueryPlan": "Plano de consulta",
       "queryPlanOutdated": "A consulta ou a conexão mudou. Execute novamente para atualizar o plano.",
       "queryPlanUnresolved": "Execute com sucesso as células referenciadas antes de explicar esta consulta: {{refs}}",
+      "alias": {
+        "label": "Alias do resultado",
+        "placeholder": "alias",
+        "add": "Adicionar alias do resultado",
+        "editLabel": "Editar alias do resultado {{alias}}",
+        "help": "Alias do resultado: outras células SQL usam este resultado como {{reference}}, para onde quer que esta célula seja movida. Letras, dígitos e sublinhados; deixe vazio para removê-lo.",
+        "completionDetail": "Resultado da célula {{n}}",
+        "usageCell": "célula {{n}}",
+        "usageParam": "parâmetro @{{name}}",
+        "issues": {
+          "invalid": "Use letras, dígitos e sublinhados, começando com uma letra ou um sublinhado.",
+          "tooLong": "Um alias pode ter no máximo {{max}} caracteres.",
+          "reserved": "Nomes como cell_1 são reservados para referências por posição.",
+          "duplicate": "A célula {{n}} já usa este alias.",
+          "notSql": "Somente células SQL podem ter um alias do resultado.",
+          "inUse": "{{reference}} ainda é usado por {{places}}. Altere essas referências primeiro e depois renomeie ou remova o alias."
+        }
+      },
+      "referenceErrors": {
+        "unresolved": "Referências de células não resolvidas: {{details}}",
+        "missing": "{{ref}} não corresponde a nenhuma célula.",
+        "duplicate": "{{ref}} é o alias de mais de uma célula.",
+        "notSql": "{{ref}} não é uma célula SQL.",
+        "disabled": "{{ref}} está desativada.",
+        "noResult": "{{ref}} não tem resultado: execute-a com sucesso primeiro.",
+        "unsupported": "{{ref}} não pode ser usado: o driver desta conexão não declara um dialeto SQL, então o resultado de uma célula não pode ser adicionado à consulta.",
+        "circular": "{{ref}} leva de volta a esta célula: uma célula não pode usar o próprio resultado, nem diretamente nem por meio de outras células."
+      },
       "explainPopout": "Abrir em visualização completa",
       "toggleQueryPlan": "Mostrar plano de consulta",
       "hideQueryPlan": "Ocultar plano de consulta",
@@ -2535,6 +2563,7 @@
           "deleteCell": "Célula {{n}} excluída",
           "reorder": "Células reordenadas",
           "renameCell": "Célula {{n}} renomeada",
+          "aliasCell": "Alias alterado (célula {{n}})",
           "schemaCell": "Banco de dados alterado (célula {{n}})",
           "chartCell": "Gráfico alterado (célula {{n}})",
           "kpiCell": "KPI alterado (célula {{n}})",

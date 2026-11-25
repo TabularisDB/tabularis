@@ -2,6 +2,7 @@ import type {NotebookCell, NotebookFile, NotebookParam} from '@/types/notebook';
 import {generateCellId} from './notebook';
 import {isParamType, normalizeParam, validateParamName} from './notebookParams';
 import {sanitizeKpiConfig} from './notebookKpi';
+import {findAliasProblems} from './notebookAlias';
 
 /**
  * A well-formed param from an untrusted notebook file, or null. The name must
@@ -60,6 +61,7 @@ export function serializeNotebook(
             type: c.type,
             content: c.content,
             ...(c.name ? {name: c.name} : {}),
+            ...(c.type === 'sql' && c.alias ? {alias: c.alias} : {}),
             ...(c.schema ? {schema: c.schema} : {}),
             ...(c.chartConfig ? {chartConfig: c.chartConfig} : {}),
             ...(c.isParallel ? {isParallel: c.isParallel} : {}),
@@ -112,6 +114,13 @@ export function deserializeNotebook(json: string): {
         throw new Error('Invalid notebook file format');
     }
 
+    // An alias other cells may reference must name exactly one SQL cell: a file
+    // with a clash is refused rather than bound to whichever cell comes first.
+    const aliasProblems = findAliasProblems(data.cells);
+    if (aliasProblems.length > 0) {
+        throw new Error(`Invalid cell aliases: ${aliasProblems.join('; ')}`);
+    }
+
     const raw = data as unknown as Record<string, unknown>;
     return {
         title: data.title,
@@ -122,6 +131,7 @@ export function deserializeNotebook(json: string): {
                 type: c.type,
                 content: c.content,
                 name: cellRaw.name as string | undefined,
+                alias: typeof c.alias === 'string' ? c.alias : undefined,
                 schema: c.schema,
                 chartConfig: (cellRaw.chartConfig as NotebookCell['chartConfig']) ?? null,
                 isParallel: cellRaw.isParallel as boolean | undefined,

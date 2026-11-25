@@ -2434,6 +2434,34 @@
       "sectionQueryPlan": "クエリプラン",
       "queryPlanOutdated": "クエリまたは接続が変更されました。再実行してプランを更新してください。",
       "queryPlanUnresolved": "このクエリを説明する前に、参照先のセルを正常に実行してください：{{refs}}",
+      "alias": {
+        "label": "結果エイリアス",
+        "placeholder": "alias",
+        "add": "結果エイリアスを追加",
+        "editLabel": "結果エイリアス {{alias}} を編集",
+        "help": "結果エイリアス: このセルをどこに移動しても、他の SQL セルはこの結果を {{reference}} として参照できます。英字、数字、アンダースコアが使えます。空にすると削除されます。",
+        "completionDetail": "セル {{n}} の結果",
+        "usageCell": "セル {{n}}",
+        "usageParam": "パラメーター @{{name}}",
+        "issues": {
+          "invalid": "英字、数字、アンダースコアを使い、英字またはアンダースコアで始めてください。",
+          "tooLong": "エイリアスは最大 {{max}} 文字です。",
+          "reserved": "cell_1 のような名前は位置による参照用に予約されています。",
+          "duplicate": "セル {{n}} がすでにこのエイリアスを使っています。",
+          "notSql": "結果エイリアスを持てるのは SQL セルだけです。",
+          "inUse": "{{reference}} はまだ {{places}} で使われています。先にそれらの参照を変更してから、エイリアスの名前を変更または削除してください。"
+        }
+      },
+      "referenceErrors": {
+        "unresolved": "解決できないセル参照: {{details}}",
+        "missing": "{{ref}} に該当するセルがありません。",
+        "duplicate": "{{ref}} は複数のセルのエイリアスです。",
+        "notSql": "{{ref}} は SQL セルではありません。",
+        "disabled": "{{ref}} は無効になっています。",
+        "noResult": "{{ref}} には結果がありません。先に正常に実行してください。",
+        "unsupported": "{{ref}} は使えません: この接続のドライバーは SQL 方言を宣言していないため、セルの結果をクエリに追加できません。",
+        "circular": "{{ref}} はこのセルに戻ってきます。セルは、直接でも他のセル経由でも、自分自身の結果を使えません。"
+      },
       "explainPopout": "全体表示で開く",
       "toggleQueryPlan": "クエリプランを表示",
       "hideQueryPlan": "クエリプランを非表示",
@@ -2472,6 +2500,7 @@
           "deleteCell": "セル {{n}} を削除",
           "reorder": "セルを並べ替え",
           "renameCell": "セル {{n}} の名前を変更",
+          "aliasCell": "エイリアスを変更 (セル {{n}})",
           "schemaCell": "データベースを変更（セル {{n}}）",
           "chartCell": "チャートを変更（セル {{n}}）",
           "kpiCell": "KPI を変更（セル {{n}}）",

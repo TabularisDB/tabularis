@@ -2387,6 +2387,34 @@
       "sectionQueryPlan": "쿼리 계획",
       "queryPlanOutdated": "쿼리 또는 연결이 변경되었습니다. 계획을 새로 고치려면 다시 실행하세요.",
       "queryPlanUnresolved": "이 쿼리를 설명하기 전에 참조된 셀을 성공적으로 실행하세요: {{refs}}",
+      "alias": {
+        "label": "결과 별칭",
+        "placeholder": "alias",
+        "add": "결과 별칭 추가",
+        "editLabel": "결과 별칭 {{alias}} 편집",
+        "help": "결과 별칭: 이 셀을 어디로 옮기든 다른 SQL 셀은 이 결과를 {{reference}}(으)로 참조합니다. 영문자, 숫자, 밑줄을 사용할 수 있으며, 비워 두면 제거됩니다.",
+        "completionDetail": "셀 {{n}}의 결과",
+        "usageCell": "셀 {{n}}",
+        "usageParam": "매개변수 @{{name}}",
+        "issues": {
+          "invalid": "영문자, 숫자, 밑줄을 사용하고 영문자나 밑줄로 시작하세요.",
+          "tooLong": "별칭은 최대 {{max}}자까지 가능합니다.",
+          "reserved": "cell_1 같은 이름은 위치 기반 참조용으로 예약되어 있습니다.",
+          "duplicate": "셀 {{n}}이(가) 이미 이 별칭을 사용합니다.",
+          "notSql": "SQL 셀만 결과 별칭을 가질 수 있습니다.",
+          "inUse": "{{reference}}은(는) 아직 {{places}}에서 사용 중입니다. 먼저 해당 참조를 변경한 다음 별칭 이름을 바꾸거나 제거하세요."
+        }
+      },
+      "referenceErrors": {
+        "unresolved": "해결되지 않은 셀 참조: {{details}}",
+        "missing": "{{ref}}에 해당하는 셀이 없습니다.",
+        "duplicate": "{{ref}}은(는) 여러 셀의 별칭입니다.",
+        "notSql": "{{ref}}은(는) SQL 셀이 아닙니다.",
+        "disabled": "{{ref}}은(는) 비활성화되어 있습니다.",
+        "noResult": "{{ref}}에 결과가 없습니다. 먼저 성공적으로 실행하세요.",
+        "unsupported": "{{ref}}을(를) 사용할 수 없습니다: 이 연결의 드라이버가 SQL 방언을 선언하지 않아 셀 결과를 쿼리에 추가할 수 없습니다.",
+        "circular": "{{ref}}이(가) 이 셀로 되돌아옵니다. 셀은 직접이든 다른 셀을 통해서든 자신의 결과를 사용할 수 없습니다."
+      },
       "explainPopout": "전체 보기로 열기",
       "toggleQueryPlan": "쿼리 계획 표시",
       "hideQueryPlan": "쿼리 계획 숨기기",
@@ -2425,6 +2453,7 @@
           "deleteCell": "{{n}}번 셀 삭제",
           "reorder": "셀 순서 변경",
           "renameCell": "{{n}}번 셀 이름 변경",
+          "aliasCell": "별칭 변경 (셀 {{n}})",
           "schemaCell": "데이터베이스 변경 ({{n}}번 셀)",
           "chartCell": "차트 변경 ({{n}}번 셀)",
           "kpiCell": "KPI 변경 (셀 {{n}})",
