@@ -1197,10 +1197,15 @@ pub async fn get_view_definition(
     view_name: &str,
     schema: Option<&str>,
 ) -> Result<String, String> {
+    use sqlx::Executor;
     let pool = get_mysql_pool(params).await?;
-    let text = resolve_text_proto(&pool, params).await?;
     let query = format!("SHOW CREATE VIEW {}", qualified_name(schema, view_name));
-    let row = fetch_one_row(&pool, text, &query, &[])
+    // Always the text protocol: MySQL 5.7 keeps returning the old definition
+    // when a cached prepared `SHOW CREATE VIEW` is re-executed after another
+    // connection altered the view (create/alter run on the view database's
+    // pool, so the next Edit View would show the SQL from before the save).
+    let row = pool
+        .fetch_one(sqlx::raw_sql(&query))
         .await
         .map_err(|e| format!("Failed to get view definition: {}", e))?;
     let definition = mysql_row_str(&row, 1);
