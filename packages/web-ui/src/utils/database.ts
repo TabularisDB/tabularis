@@ -132,16 +132,21 @@ export function isSchemaBasedMultiDb(
  * `database` instead). For a flat multi-db tab the database lives in the tab's
  * `schema` field (reused), so that is preferred over the connection-level active
  * database so a query run on a non-primary database replays against that
- * database, not the primary.
+ * database, not the primary. A flat multi-db tab with neither field runs on
+ * `querySchema` (`resolveTabQuerySchema`, the database the toolbar selector
+ * shows), which can differ from the connection's active database once the
+ * database list is refreshed, so that is recorded before the active database
+ * (#1674).
  */
 export function resolveHistoryDatabase(
     tab: {database?: string | null; schema?: string | null},
     isMultiDb: boolean,
     activeDatabaseName: string | null | undefined,
+    querySchema?: string | null,
 ): string | undefined {
     if (tab.database) return tab.database;
     if (isMultiDb) {
-        return tab.schema ?? activeDatabaseName ?? undefined;
+        return tab.schema || querySchema || activeDatabaseName || undefined;
     }
     return undefined;
 }

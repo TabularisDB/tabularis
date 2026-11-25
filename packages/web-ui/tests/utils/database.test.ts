@@ -445,6 +445,22 @@ describe('resolveHistoryDatabase', () => {
         ).toBe('primary');
     });
 
+    it('records the database a flat multi-db tab with neither field ran on (#1674)', () => {
+        // After the database list is refreshed the selector (and the run) can use
+        // a database other than the connection's active one.
+        expect(
+            resolveHistoryDatabase({database: undefined, schema: undefined}, true, 'alpha', 'aaa'),
+        ).toBe('aaa');
+        expect(resolveHistoryDatabase({schema: ''}, true, 'alpha', 'aaa')).toBe('aaa');
+        expect(resolveHistoryDatabase({schema: 'beta'}, true, 'alpha', 'aaa')).toBe('beta');
+        expect(resolveHistoryDatabase({database: 'explicit'}, true, 'alpha', 'aaa')).toBe(
+            'explicit',
+        );
+        expect(resolveHistoryDatabase({}, true, 'alpha', null)).toBe('alpha');
+        // Outside the flat layout the query schema never leaks in.
+        expect(resolveHistoryDatabase({schema: 'public'}, false, null, 'public')).toBeUndefined();
+    });
+
     it('returns undefined for a flat multi-db tab with neither schema nor active database', () => {
         expect(
             resolveHistoryDatabase({database: undefined, schema: undefined}, true, null),

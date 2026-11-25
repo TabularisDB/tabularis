@@ -1599,6 +1599,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     {database: targetTab?.database, schema: targetTab?.schema},
                     isMultiDb,
                     activeDatabaseName,
+                    schema,
                 );
 
                 const start = performance.now();
@@ -1920,6 +1921,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 {database: targetTab?.database, schema: targetTab?.schema},
                 isMultiDb,
                 activeDatabaseName,
+                schema,
             );
 
             // Entry ids are reused per tab, so drop offsets from the previous run.
