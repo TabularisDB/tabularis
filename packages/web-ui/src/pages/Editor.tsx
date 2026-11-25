@@ -871,6 +871,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const activeTabFlatDatabase = isMultiDb
         ? resolveFlatMultiDbTabDatabase(activeTab, selectedDatabases)
         : undefined;
+    // Where the active tab's SQL runs: the database the toolbar selector shows
+    // in the flat multi-db layout (#1674).
+    const activeTabQuerySchema = resolveTabQuerySchema(
+        activeTab,
+        isMultiDb,
+        selectedDatabases,
+        activeSchema,
+    );
 
     // Update window title when the active tab changes
     useEffect(() => {
@@ -4965,13 +4973,13 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     useSqlAutocompleteRegistration(activeConnectionId, {
         monaco: monacoInstance,
-        schema: activeTab?.schema ?? activeSchema,
+        schema: activeTabQuerySchema,
         database: activeTab?.database,
         enabled: !isNotebookTab && !isUsersTab && !isPluginWorkspaceTab,
     });
 
     const sqlDiagnostics = useSqlDiagnosticsOptions(activeConnectionId, {
-        schema: activeTab?.schema ?? activeSchema,
+        schema: activeTabQuerySchema,
         database: activeTab?.database,
         enabled: !isNotebookTab && !isUsersTab,
     });
@@ -4984,7 +4992,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             !activeTab
         )
             return undefined;
-        const schema = activeTab.schema ?? activeSchema;
+        const schema = activeTabQuerySchema;
         const database = activeTab.database ?? activeDatabaseName;
         // Only use already-loaded metadata for this tab's exact namespace.
         const cached = inlineTables(
@@ -5010,6 +5018,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         settings.aiInlineCompletionEnabled,
         activeConnectionId,
         activeTab,
+        activeTabQuerySchema,
         activeSchema,
         activeDatabaseName,
         activeCapabilities,
@@ -7251,7 +7260,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 isOpen={isAiModalOpen}
                 onClose={() => setIsAiModalOpen(false)}
                 connectionId={activeConnectionId ?? undefined}
-                schema={activeTab?.schema ?? activeSchema ?? undefined}
+                schema={activeTabQuerySchema ?? undefined}
                 database={activeTab?.database}
                 initialPrompt={aiFixPrompt ?? undefined}
                 onInsert={(q) => {
@@ -7275,7 +7284,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 }}
                 query={visualExplainQuery ?? activeTab?.query ?? ''}
                 connectionId={activeConnectionId ?? ''}
-                schema={activeTab?.schema ?? activeSchema ?? undefined}
+                schema={activeTabQuerySchema ?? undefined}
                 database={activeTab?.database}
             />
             <ExplainSelectionModal
