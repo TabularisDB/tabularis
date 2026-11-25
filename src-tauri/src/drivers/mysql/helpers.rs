@@ -6,6 +6,17 @@ pub(super) fn escape_identifier(name: &str) -> String {
     name.replace('`', "``")
 }
 
+/// Quotes an object name, qualified with its database when one is given.
+///
+/// The pool's session database is the connection default, so on a connection
+/// with several databases an unqualified name resolves in the wrong one.
+pub(super) fn qualified_name(schema: Option<&str>, name: &str) -> String {
+    match schema.filter(|s| !s.is_empty()) {
+        Some(s) => format!("`{}`.`{}`", escape_identifier(s), escape_identifier(name)),
+        None => format!("`{}`", escape_identifier(name)),
+    }
+}
+
 /// Renders a `&str` as a quoted MySQL string literal for the text protocol.
 ///
 /// Used when a query has to bypass the prepared-statement protocol (e.g.

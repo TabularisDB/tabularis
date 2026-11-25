@@ -1,10 +1,31 @@
 use super::build_mysql_pk_where;
 use super::helpers::{
     inline_str_placeholders, mysql_bytes_literal, mysql_column_types, mysql_string_literal,
+    qualified_name,
 };
 use super::{is_text_protocol_stmt, push_mysql_update_value, MysqlDriver, TextProto};
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::models::{ConnectionParams, DatabaseSelection};
+
+#[test]
+fn qualified_name_prefixes_the_database() {
+    assert_eq!(qualified_name(Some("db_b"), "v_test"), "`db_b`.`v_test`");
+}
+
+#[test]
+fn qualified_name_without_database_stays_unqualified() {
+    assert_eq!(qualified_name(None, "v_test"), "`v_test`");
+    assert_eq!(qualified_name(Some(""), "v_test"), "`v_test`");
+}
+
+#[test]
+fn qualified_name_escapes_backticks_and_keeps_other_characters() {
+    assert_eq!(
+        qualified_name(Some("weird`db"), "weird`view"),
+        "`weird``db`.`weird``view`"
+    );
+    assert_eq!(qualified_name(Some("my.db"), "vüé 1"), "`my.db`.`vüé 1`");
+}
 
 #[test]
 fn build_connection_url_includes_disabled_ssl_mode() {
