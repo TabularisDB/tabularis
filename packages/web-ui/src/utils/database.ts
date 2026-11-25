@@ -169,6 +169,30 @@ export function resolveFlatMultiDbTabDatabase(
 }
 
 /**
+ * The schema a tab's query runs on (the `schema` sent with `execute_query` and
+ * the other calls that run the tab's SQL).
+ *
+ * In the flat multi-database layout this is the database the toolbar selector
+ * shows (`resolveFlatMultiDbTabDatabase`), so a tab that carries no database
+ * of its own (a console opened from the keyboard shortcut or the empty editor)
+ * runs on the database it displays instead of on none, which made MySQL answer
+ * "No database selected" until the same database was picked again (#1674).
+ * Other layouts keep the tab's schema, falling back to the connection's
+ * active schema.
+ */
+export function resolveTabQuerySchema(
+    tab: TabDatabaseTarget | null | undefined,
+    isMultiDb: boolean,
+    selectedDatabases: string[],
+    activeSchema: string | null | undefined,
+): string | null | undefined {
+    if (isMultiDb) {
+        return resolveFlatMultiDbTabDatabase(tab, selectedDatabases) ?? activeSchema;
+    }
+    return tab?.schema ?? activeSchema;
+}
+
+/**
  * The tab fields to set when the toolbar selector picks `database` in the flat
  * multi-database layout. `database` is cleared so a leftover per-tab database
  * override (from a saved query) cannot keep the next run on the old database.
