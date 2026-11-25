@@ -3372,9 +3372,16 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 sourceType,
             );
 
-            const targetSchema = activeCapabilities?.schemas
-                ? getReferencedSchema(fk, currentTab.schema)
-                : undefined;
+            // In the flat multi-database layout (MySQL) the source tab's
+            // database is its schema: keep it, or the new tab would fall back
+            // to the first selected database (#1674).
+            const sourceSchema = isMultiDb
+                ? resolveTabQuerySchema(currentTab, isMultiDb, selectedDatabases, activeSchema)
+                : currentTab.schema;
+            const targetSchema =
+                activeCapabilities?.schemas || isMultiDb
+                    ? getReferencedSchema(fk, sourceSchema)
+                    : undefined;
 
             const newTabId = addTab({
                 type: 'table',
@@ -3407,7 +3414,17 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 runQuery(undefined, 1, newTabId, undefined, filterClause, '', undefined);
             }, 0);
         },
-        [activeConnectionId, activeDriver, activeCapabilities, addTab, updateTab, runQuery],
+        [
+            activeConnectionId,
+            activeDriver,
+            activeCapabilities,
+            isMultiDb,
+            selectedDatabases,
+            activeSchema,
+            addTab,
+            updateTab,
+            runQuery,
+        ],
     );
 
     // Filtering by a value from the grid (e.g. a top value in the column
