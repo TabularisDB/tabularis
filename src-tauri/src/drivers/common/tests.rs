@@ -554,8 +554,7 @@ fn test_build_paginated_query_keeps_locking_clause_last() {
             "SELECT * FROM t WHERE x IN (SELECT y FROM u FOR UPDATE)",
             100,
             1,
-            false,
-            false
+            POSTGRES_SQLITE,
         ),
         "SELECT * FROM t WHERE x IN (SELECT y FROM u FOR UPDATE) LIMIT 101 OFFSET 0"
     );
@@ -580,7 +579,7 @@ fn test_build_paginated_query_reads_limit_after_locking_clause() {
         ),
     ] {
         assert_eq!(
-            build_paginated_query_for(q, 100, 1, false, false),
+            build_paginated_query_for(q, 100, 1, POSTGRES_SQLITE),
             expected,
             "{q}"
         );
