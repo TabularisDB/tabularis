@@ -31,7 +31,7 @@ use helpers::{
     escape_identifier, inline_str_placeholders, is_raw_sql_function, is_wkt_geometry,
     mysql_bytes_literal, mysql_column_types, mysql_default_sql, mysql_on_update,
     mysql_row_max_length, mysql_row_str, mysql_row_str_opt, mysql_server_flags,
-    mysql_string_literal,
+    mysql_string_literal, qualified_name,
 };
 use row_identity::get_float_columns;
 use sqlx::{Column, Row};
@@ -1175,15 +1175,37 @@ pub async fn get_views(
     Ok(views)
 }
 
+/// Pool whose session database is `schema` when one is given, so unqualified
+/// names in a statement resolve there and not in the connection's default
+/// database (same routing as `acquire_mysql_conn`).
+async fn get_mysql_pool_in(
+    params: &ConnectionParams,
+    schema: Option<&str>,
+) -> Result<sqlx::MySqlPool, String> {
+    match schema.filter(|s| !s.is_empty()) {
+        Some(db) => {
+            let mut p = params.clone();
+            p.database = crate::models::DatabaseSelection::Single(db.to_string());
+            get_mysql_pool(&p).await
+        }
+        None => get_mysql_pool(params).await,
+    }
+}
+
 pub async fn get_view_definition(
     params: &ConnectionParams,
     view_name: &str,
+    schema: Option<&str>,
 ) -> Result<String, String> {
+    use sqlx::Executor;
     let pool = get_mysql_pool(params).await?;
-    let text = resolve_text_proto(&pool, params).await?;
-    let escaped_name = escape_identifier(view_name);
-    let query = format!("SHOW CREATE VIEW `{}`", escaped_name);
-    let row = fetch_one_row(&pool, text, &query, &[])
+    let query = format!("SHOW CREATE VIEW {}", qualified_name(schema, view_name));
+    // Always the text protocol: MySQL 5.7 keeps returning the old definition
+    // when a cached prepared `SHOW CREATE VIEW` is re-executed after another
+    // connection altered the view (create/alter run on the view database's
+    // pool, so the next Edit View would show the SQL from before the save).
+    let row = pool
+        .fetch_one(sqlx::raw_sql(&query))
         .await
         .map_err(|e| format!("Failed to get view definition: {}", e))?;
     let definition = mysql_row_str(&row, 1);
@@ -1195,10 +1217,14 @@ pub async fn create_view(
     params: &ConnectionParams,
     view_name: &str,
     definition: &str,
+    schema: Option<&str>,
 ) -> Result<(), String> {
-    let pool = get_mysql_pool(params).await?;
-    let escaped_name = escape_identifier(view_name);
-    let query = format!("CREATE VIEW `{}` AS {}", escaped_name, definition);
+    let pool = get_mysql_pool_in(params, schema).await?;
+    let query = format!(
+        "CREATE VIEW {} AS {}",
+        qualified_name(schema, view_name),
+        definition
+    );
     sqlx::raw_sql(&query)
         .execute(&pool)
         .await
@@ -1210,10 +1236,14 @@ pub async fn alter_view(
     params: &ConnectionParams,
     view_name: &str,
     definition: &str,
+    schema: Option<&str>,
 ) -> Result<(), String> {
-    let pool = get_mysql_pool(params).await?;
-    let escaped_name = escape_identifier(view_name);
-    let query = format!("ALTER VIEW `{}` AS {}", escaped_name, definition);
+    let pool = get_mysql_pool_in(params, schema).await?;
+    let query = format!(
+        "ALTER VIEW {} AS {}",
+        qualified_name(schema, view_name),
+        definition
+    );
     // `ALTER VIEW` is not supported by MySQL's prepared-statement protocol
     // (server error 1295), so it must go through `raw_sql()` (text protocol)
     // rather than `sqlx::query()`. See `is_text_protocol_stmt` for context.
@@ -1224,10 +1254,13 @@ pub async fn alter_view(
     Ok(())
 }
 
-pub async fn drop_view(params: &ConnectionParams, view_name: &str) -> Result<(), String> {
+pub async fn drop_view(
+    params: &ConnectionParams,
+    view_name: &str,
+    schema: Option<&str>,
+) -> Result<(), String> {
     let pool = get_mysql_pool(params).await?;
-    let escaped_name = escape_identifier(view_name);
-    let query = format!("DROP VIEW IF EXISTS `{}`", escaped_name);
+    let query = format!("DROP VIEW IF EXISTS {}", qualified_name(schema, view_name));
     // Routed through `raw_sql()` (text protocol) for consistency with
     // create/alter view, which the prepared-statement protocol rejects
     // with server error 1295.
@@ -2283,9 +2316,9 @@ impl DatabaseDriver for MysqlDriver {
         &self,
         params: &crate::models::ConnectionParams,
         view_name: &str,
-        _schema: Option<&str>,
+        schema: Option<&str>,
     ) -> Result<String, String> {
-        get_view_definition(params, view_name).await
+        get_view_definition(params, view_name, schema).await
     }
 
     async fn get_view_columns(
@@ -2302,9 +2335,9 @@ impl DatabaseDriver for MysqlDriver {
         params: &crate::models::ConnectionParams,
         view_name: &str,
         definition: &str,
-        _schema: Option<&str>,
+        schema: Option<&str>,
     ) -> Result<(), String> {
-        create_view(params, view_name, definition).await
+        create_view(params, view_name, definition, schema).await
     }
 
     async fn alter_view(
@@ -2312,18 +2345,18 @@ impl DatabaseDriver for MysqlDriver {
         params: &crate::models::ConnectionParams,
         view_name: &str,
         definition: &str,
-        _schema: Option<&str>,
+        schema: Option<&str>,
     ) -> Result<(), String> {
-        alter_view(params, view_name, definition).await
+        alter_view(params, view_name, definition, schema).await
     }
 
     async fn drop_view(
         &self,
         params: &crate::models::ConnectionParams,
         view_name: &str,
-        _schema: Option<&str>,
+        schema: Option<&str>,
     ) -> Result<(), String> {
-        drop_view(params, view_name).await
+        drop_view(params, view_name, schema).await
     }
 
     async fn get_routines(
