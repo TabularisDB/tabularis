@@ -2502,6 +2502,34 @@
       "sectionQueryPlan": "Query Plan",
       "queryPlanOutdated": "The query or connection changed. Re-run to refresh the plan.",
       "queryPlanUnresolved": "Run referenced cells successfully before explaining this query: {{refs}}",
+      "alias": {
+        "label": "Result alias",
+        "placeholder": "alias",
+        "add": "Add result alias",
+        "editLabel": "Edit result alias {{alias}}",
+        "help": "Result alias: other SQL cells use this result as {{reference}}, wherever this cell is moved. Letters, digits and underscores; leave empty to remove it.",
+        "completionDetail": "Result of cell {{n}}",
+        "usageCell": "cell {{n}}",
+        "usageParam": "parameter @{{name}}",
+        "issues": {
+          "invalid": "Use letters, digits and underscores, starting with a letter or an underscore.",
+          "tooLong": "An alias can have at most {{max}} characters.",
+          "reserved": "Names like cell_1 are reserved for position-based references.",
+          "duplicate": "Cell {{n}} already uses this alias.",
+          "notSql": "Only SQL cells can have a result alias.",
+          "inUse": "{{reference}} is still used by {{places}}. Change those references first, then rename or remove the alias."
+        }
+      },
+      "referenceErrors": {
+        "unresolved": "Unresolved cell references: {{details}}",
+        "missing": "{{ref}} names no cell.",
+        "duplicate": "{{ref}} is the alias of more than one cell.",
+        "notSql": "{{ref}} is not an SQL cell.",
+        "disabled": "{{ref}} is disabled.",
+        "noResult": "{{ref}} has no result: run it successfully first.",
+        "unsupported": "{{ref}} cannot be used: this connection's driver does not declare an SQL dialect, so a cell result cannot be added to its query.",
+        "circular": "{{ref}} leads back to this cell: a cell cannot use its own result, directly or through other cells."
+      },
       "explainPopout": "Open in full view",
       "toggleQueryPlan": "Show query plan",
       "hideQueryPlan": "Hide query plan",
@@ -2540,6 +2568,7 @@
           "deleteCell": "Deleted cell {{n}}",
           "reorder": "Reordered cells",
           "renameCell": "Renamed cell {{n}}",
+          "aliasCell": "Changed alias (cell {{n}})",
           "schemaCell": "Changed database (cell {{n}})",
           "chartCell": "Changed chart (cell {{n}})",
           "kpiCell": "Changed KPI (cell {{n}})",

@@ -2428,6 +2428,34 @@
       "sectionQueryPlan": "Abfrageplan",
       "queryPlanOutdated": "Die Abfrage oder Verbindung wurde geändert. Erneut ausführen, um den Plan zu aktualisieren.",
       "queryPlanUnresolved": "Referenzierte Zellen erfolgreich ausführen, bevor diese Abfrage erklärt wird: {{refs}}",
+      "alias": {
+        "label": "Ergebnis-Alias",
+        "placeholder": "alias",
+        "add": "Ergebnis-Alias hinzufügen",
+        "editLabel": "Ergebnis-Alias {{alias}} bearbeiten",
+        "help": "Ergebnis-Alias: Andere SQL-Zellen verwenden dieses Ergebnis als {{reference}}, egal wohin diese Zelle verschoben wird. Buchstaben, Ziffern und Unterstriche; leer lassen, um ihn zu entfernen.",
+        "completionDetail": "Ergebnis von Zelle {{n}}",
+        "usageCell": "Zelle {{n}}",
+        "usageParam": "Parameter @{{name}}",
+        "issues": {
+          "invalid": "Verwende Buchstaben, Ziffern und Unterstriche, beginnend mit einem Buchstaben oder Unterstrich.",
+          "tooLong": "Ein Alias darf höchstens {{max}} Zeichen lang sein.",
+          "reserved": "Namen wie cell_1 sind für positionsbasierte Verweise reserviert.",
+          "duplicate": "Zelle {{n}} verwendet diesen Alias bereits.",
+          "notSql": "Nur SQL-Zellen können einen Ergebnis-Alias haben.",
+          "inUse": "{{reference}} wird noch von {{places}} verwendet. Ändere zuerst diese Verweise und benenne den Alias dann um oder entferne ihn."
+        }
+      },
+      "referenceErrors": {
+        "unresolved": "Nicht aufgelöste Zellverweise: {{details}}",
+        "missing": "{{ref}} bezeichnet keine Zelle.",
+        "duplicate": "{{ref}} ist der Alias mehrerer Zellen.",
+        "notSql": "{{ref}} ist keine SQL-Zelle.",
+        "disabled": "{{ref}} ist deaktiviert.",
+        "noResult": "{{ref}} hat kein Ergebnis: führe die Zelle zuerst erfolgreich aus.",
+        "unsupported": "{{ref}} kann nicht verwendet werden: Der Treiber dieser Verbindung gibt keinen SQL-Dialekt an, daher kann kein Zellergebnis in seine Abfrage eingefügt werden.",
+        "circular": "{{ref}} führt zurück zu dieser Zelle: Eine Zelle kann ihr eigenes Ergebnis nicht verwenden, weder direkt noch über andere Zellen."
+      },
       "explainPopout": "In voller Ansicht öffnen",
       "toggleQueryPlan": "Abfrageplan anzeigen",
       "hideQueryPlan": "Abfrageplan ausblenden",
@@ -2466,6 +2494,7 @@
           "deleteCell": "Zelle {{n}} gelöscht",
           "reorder": "Zellen neu angeordnet",
           "renameCell": "Zelle {{n}} umbenannt",
+          "aliasCell": "Alias geändert (Zelle {{n}})",
           "schemaCell": "Datenbank geändert (Zelle {{n}})",
           "chartCell": "Diagramm geändert (Zelle {{n}})",
           "kpiCell": "KPI geändert (Zelle {{n}})",

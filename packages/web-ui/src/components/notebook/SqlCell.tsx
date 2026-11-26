@@ -2,6 +2,7 @@ import {useTranslation} from 'react-i18next';
 import type {NotebookCell} from '@/types/notebook';
 import type {CellChartConfig, CellKpiConfig} from '@/types/notebook';
 import type {ResolvedQuery} from '@/utils/notebookVariables';
+import type {ReferenceSuggestion} from '@/utils/notebookAlias';
 import {SqlCellEditor} from './SqlCellEditor';
 import {SqlCellResult} from './SqlCellResult';
 import {SqlCellExplain} from './SqlCellExplain';
@@ -22,6 +23,7 @@ interface SqlCellProps {
     explainQuery?: ResolvedQuery;
     explainError?: string;
     schema?: string;
+    getReferenceSuggestions?: () => ReferenceSuggestion[];
 }
 
 export function SqlCell({
@@ -40,6 +42,7 @@ export function SqlCell({
     explainQuery,
     explainError,
     schema,
+    getReferenceSuggestions,
 }: SqlCellProps) {
     const {t} = useTranslation();
     const unresolvedRefs = explainQuery?.unresolvedRefs ?? [];
@@ -54,6 +57,7 @@ export function SqlCell({
                 schema={schema}
                 collapsed={cell.isQueryCollapsed}
                 onToggleCollapse={onToggleQueryCollapse}
+                getReferenceSuggestions={getReferenceSuggestions}
             />
             {cell.isDisabled && (
                 <p

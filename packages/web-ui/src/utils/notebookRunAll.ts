@@ -58,7 +58,7 @@ export function earlierReferencedCellIds(
     cells: NotebookCell[],
 ): string[] {
     const ids: string[] = [];
-    for (const {cellIndex: referenced} of extractCellReferences(sql)) {
+    for (const {cellIndex: referenced} of extractCellReferences(sql, cells)) {
         if (referenced >= cellIndex) continue;
         const target = cells[referenced];
         if (target) ids.push(target.id);
@@ -89,7 +89,7 @@ export function findDisabledPrerequisites(
     const disabled = new Set<number>();
     const visited = new Set<number>();
     const visit = (text: string) => {
-        for (const {cellIndex} of extractCellReferences(text)) {
+        for (const {cellIndex} of extractCellReferences(text, cells)) {
             const target = cells[cellIndex];
             if (!target || target.type !== 'sql') continue;
             if (target.isDisabled) {

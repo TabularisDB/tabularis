@@ -82,6 +82,7 @@ export interface NotebookCell {
     type: NotebookCellType;
     content: string;
     name?: string; // Optional display name shown in header and outline
+    alias?: string; // SQL only: unique result alias other cells reference as {{alias}}
     schema?: string; // SQL only: per-cell database override
     result?: QueryResult | null;
     error?: string;
@@ -119,6 +120,7 @@ export interface NotebookFile {
         type: NotebookCellType;
         content: string;
         name?: string;
+        alias?: string;
         schema?: string;
         chartConfig?: CellChartConfig | null;
         isParallel?: boolean;

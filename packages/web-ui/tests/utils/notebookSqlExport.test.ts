@@ -66,7 +66,18 @@ describe('notebookSqlExport', () => {
             expect(text).toContain('not a runnable script');
             expect(text).toContain('@name');
             expect(text).toContain('{{cell_N}}');
+            expect(text).toContain('{{alias}}');
             expect(text).toContain('connection and database');
+        });
+
+        it('names the result alias of a cell in its header', () => {
+            const text =
+                exportNotebookToSql('N', [
+                    sql('a', 'SELECT 1', {alias: 'sales', name: 'Sales'}),
+                    sql('b', 'SELECT * FROM {{sales}}'),
+                ]) ?? '';
+            expect(text).toContain('-- ---- Cell 1 {{sales}}: Sales ----\nSELECT 1\n');
+            expect(text).toContain('-- ---- Cell 2 ----\nSELECT * FROM {{sales}}\n');
         });
 
         it('leaves out results, errors, history and the per-cell database', () => {

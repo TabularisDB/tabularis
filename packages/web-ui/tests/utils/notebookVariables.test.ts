@@ -5,7 +5,11 @@ import {
     resolveQueryVariables,
     findUnresolvedDependencies,
     variableOptionsForDriver,
+    describeUnresolvedReferences,
+    supportsNamedResultReferences,
 } from '@/utils/notebookVariables';
+import {removeCellFromCells} from '@/utils/notebook';
+import {reorderCells} from '@/utils/notebookDnd';
 import type {NotebookCell} from '@/types/notebook';
 import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
 import {GOOGLESQL_CAPS} from '../../../../tests/fixtures/sql-syntax/googlesql';
@@ -204,11 +208,12 @@ describe('notebookVariables', () => {
         });
 
         it.each([
-            {reason: 'missing result', cells: [makeCell()]},
-            {reason: 'missing cell', cells: []},
-            {reason: 'markdown cell', cells: [makeCell({type: 'markdown'})]},
+            {reason: 'missing result', cells: [makeCell()], why: 'noResult'},
+            {reason: 'missing cell', cells: [], why: 'missing'},
+            {reason: 'markdown cell', cells: [makeCell({type: 'markdown'})], why: 'notSql'},
             {
                 reason: 'errored cell',
+                why: 'noResult',
                 cells: [
                     makeCell({
                         error: 'query failed',
@@ -216,7 +221,7 @@ describe('notebookVariables', () => {
                     }),
                 ],
             },
-        ])('should preserve each unresolved occurrence for $reason', ({cells}) => {
+        ])('should preserve each unresolved occurrence for $reason', ({cells, why}) => {
             const sql =
                 'SELECT * FROM {{cell_1}} UNION SELECT * FROM {{cell_01}} ' +
                 'UNION SELECT * FROM {{cell_3}} UNION SELECT * FROM {{cell_1}}';
@@ -224,10 +229,10 @@ describe('notebookVariables', () => {
 
             expect(result.sql).toBe(sql);
             expect(result.unresolvedRefs).toEqual([
-                {match: '{{cell_1}}', cellIndex: 0},
-                {match: '{{cell_01}}', cellIndex: 0},
-                {match: '{{cell_3}}', cellIndex: 2},
-                {match: '{{cell_1}}', cellIndex: 0},
+                {match: '{{cell_1}}', cellIndex: 0, reason: why},
+                {match: '{{cell_01}}', cellIndex: 0, reason: why},
+                {match: '{{cell_3}}', cellIndex: 2, reason: 'missing'},
+                {match: '{{cell_1}}', cellIndex: 0, reason: why},
             ]);
         });
 
@@ -252,9 +257,9 @@ describe('notebookVariables', () => {
                     'UNION SELECT * FROM {{cell_2}}',
             );
             expect(result.unresolvedRefs).toEqual([
-                {match: '{{cell_2}}', cellIndex: 1},
-                {match: '{{cell_02}}', cellIndex: 1},
-                {match: '{{cell_2}}', cellIndex: 1},
+                {match: '{{cell_2}}', cellIndex: 1, reason: 'noResult'},
+                {match: '{{cell_02}}', cellIndex: 1, reason: 'noResult'},
+                {match: '{{cell_2}}', cellIndex: 1, reason: 'noResult'},
             ]);
         });
 
@@ -731,7 +736,9 @@ describe('notebookVariables with disabled cells', () => {
         const cells = [makeCell({id: 'a', content: 'SELECT 1', result: cached, isDisabled: true})];
         const resolved = resolveQueryVariables('SELECT * FROM {{cell_1}}', cells);
         expect(resolved.sql).toBe('SELECT * FROM {{cell_1}}');
-        expect(resolved.unresolvedRefs).toEqual([{match: '{{cell_1}}', cellIndex: 0}]);
+        expect(resolved.unresolvedRefs).toEqual([
+            {match: '{{cell_1}}', cellIndex: 0, reason: 'disabled'},
+        ]);
     });
 
     it('does not schedule a disabled cell as a dependency to run', () => {
@@ -740,5 +747,231 @@ describe('notebookVariables with disabled cells', () => {
             makeCell({id: 'b', content: 'SELECT 2'}),
         ];
         expect(findUnresolvedDependencies('SELECT {{cell_1}}, {{cell_2}}', cells)).toEqual([1]);
+    });
+});
+
+describe('notebookVariables named result aliases', () => {
+    const salesResult = {columns: ['region', 'total'], rows: [['eu', 10]], affected_rows: 0};
+    const ordersResult = {columns: ['id'], rows: [[7]], affected_rows: 0};
+
+    function notebook(): NotebookCell[] {
+        return [
+            makeCell({id: 'orders', alias: 'orders', result: ordersResult}),
+            makeCell({id: 'sales', alias: 'sales', result: salesResult}),
+            makeCell({id: 'report', content: 'SELECT * FROM {{sales}}'}),
+        ];
+    }
+
+    it('extracts named references, looked up by alias', () => {
+        const cells = notebook();
+        expect(extractCellReferences('SELECT * FROM {{sales}} JOIN {{cell_1}}', cells)).toEqual([
+            {match: '{{sales}}', cellIndex: 1, alias: 'sales'},
+            {match: '{{cell_1}}', cellIndex: 0},
+        ]);
+        expect(extractCellReferences('SELECT * FROM {{nope}}', cells)).toEqual([
+            {match: '{{nope}}', cellIndex: -1, alias: 'nope'},
+        ]);
+        // Without cells a named reference cannot be placed.
+        expect(extractCellReferences('{{sales}}')[0].cellIndex).toBe(-1);
+        expect(hasCellReferences('SELECT * FROM {{sales}}')).toBe(true);
+    });
+
+    it('does not treat other braces as references', () => {
+        for (const sql of ["SELECT '{{}}'", "SELECT '{{1x}}'", 'SELECT {{ sales }}', '{sales}']) {
+            expect(hasCellReferences(sql)).toBe(false);
+        }
+    });
+
+    it('resolves a named reference to a quoted CTE of that cell', () => {
+        const {sql, unresolvedRefs} = resolveQueryVariables('SELECT * FROM {{sales}}', notebook());
+        expect(unresolvedRefs).toEqual([]);
+        expect(sql).toBe(
+            'WITH "sales" AS (\n  SELECT \'eu\' AS "region", 10 AS "total"\n)\nSELECT * FROM "sales"',
+        );
+    });
+
+    it('follows the cell when it is moved: same alias, same result', () => {
+        const cells = notebook();
+        const before = resolveQueryVariables('SELECT * FROM {{sales}}', cells).sql;
+        // Move the source to the end, then to the top.
+        const moved = reorderCells(cells, 1, 2);
+        expect(moved[2].id).toBe('sales');
+        expect(resolveQueryVariables('SELECT * FROM {{sales}}', moved).sql).toBe(before);
+        const top = reorderCells(cells, 1, 0);
+        expect(resolveQueryVariables('SELECT * FROM {{sales}}', top).sql).toBe(before);
+        // A positional reference still follows the position, as before: after the
+        // move, cell 2 is another cell.
+        expect(resolveQueryVariables('SELECT * FROM {{cell_2}}', top).sql).toContain('7 AS "id"');
+        expect(
+            resolveQueryVariables('SELECT * FROM {{cell_2}}', moved).unresolvedRefs[0].reason,
+        ).toBe('noResult');
+    });
+
+    it('reports a deleted source as missing instead of using another cell', () => {
+        const cells = removeCellFromCells(notebook(), 'sales');
+        const {sql, unresolvedRefs} = resolveQueryVariables('SELECT * FROM {{sales}}', cells);
+        expect(sql).toBe('SELECT * FROM {{sales}}');
+        expect(unresolvedRefs).toEqual([
+            {match: '{{sales}}', cellIndex: -1, alias: 'sales', reason: 'missing'},
+        ]);
+    });
+
+    it('reports an alias two cells share as a duplicate', () => {
+        const cells = [...notebook(), makeCell({id: 'copy', alias: 'sales', result: ordersResult})];
+        const {unresolvedRefs} = resolveQueryVariables('SELECT * FROM {{sales}}', cells);
+        expect(unresolvedRefs.map((r) => r.reason)).toEqual(['duplicate']);
+        expect(findUnresolvedDependencies('SELECT * FROM {{sales}}', cells)).toEqual([]);
+    });
+
+    it('reports Markdown, disabled and not yet run targets with their reason', () => {
+        const cells = [
+            makeCell({id: 'md', type: 'markdown', alias: 'notes', content: '# x'}),
+            makeCell({id: 'off', alias: 'off', result: salesResult, isDisabled: true}),
+            makeCell({id: 'fresh', alias: 'fresh', content: 'SELECT 1'}),
+            makeCell({id: 'broken', alias: 'broken', result: salesResult, error: 'boom'}),
+        ];
+        const {unresolvedRefs} = resolveQueryVariables(
+            'SELECT * FROM {{notes}}, {{off}}, {{fresh}}, {{broken}}, {{cell_1}}, {{cell_9}}',
+            cells,
+        );
+        expect(unresolvedRefs.map((r) => [r.match, r.reason])).toEqual([
+            ['{{notes}}', 'notSql'],
+            ['{{off}}', 'disabled'],
+            ['{{fresh}}', 'noResult'],
+            ['{{broken}}', 'noResult'],
+            ['{{cell_1}}', 'notSql'],
+            ['{{cell_9}}', 'missing'],
+        ]);
+    });
+
+    it('runs a named dependency that has no result yet, but never a disabled one', () => {
+        const cells = [
+            makeCell({id: 'a', alias: 'fresh', content: 'SELECT 1'}),
+            makeCell({id: 'b', alias: 'off', content: 'SELECT 2', isDisabled: true}),
+        ];
+        expect(findUnresolvedDependencies('SELECT * FROM {{fresh}} JOIN {{off}}', cells)).toEqual([
+            0,
+        ]);
+    });
+
+    it('uses a plugin capabilities object for quoting the CTE and its columns', () => {
+        const caps = {
+            identifier_quote: '`',
+            sql_dialect: 'mysql',
+        } as unknown as DriverCapabilities;
+        const {sql} = resolveQueryVariables(
+            'SELECT * FROM {{sales}}',
+            notebook(),
+            variableOptionsForDriver(caps, 'my-plugin'),
+        );
+        expect(sql).toBe(
+            "WITH `sales` AS (\n  SELECT 'eu' AS `region`, 10 AS `total`\n)\nSELECT * FROM `sales`",
+        );
+
+        const brackets = {
+            identifier_quote: '[',
+            sql_dialect: 'mssql',
+        } as unknown as DriverCapabilities;
+        const bracketSql = resolveQueryVariables(
+            'SELECT * FROM {{sales}} JOIN {{cell_1}} ON 1=1',
+            notebook(),
+            variableOptionsForDriver(brackets, 'mssql-plugin'),
+        ).sql;
+        expect(bracketSql).toContain('[sales] AS (');
+        expect(bracketSql).toContain('AS [region]');
+        expect(bracketSql).toContain('cell_1 AS (');
+        expect(bracketSql).toContain('FROM [sales] JOIN cell_1 ON 1=1');
+    });
+
+    it('quotes an alias that is also a keyword', () => {
+        const cells = [makeCell({id: 'k', alias: 'select', result: ordersResult})];
+        const {sql} = resolveQueryVariables('SELECT * FROM {{select}}', cells);
+        expect(sql).toBe('WITH "select" AS (\n  SELECT 7 AS "id"\n)\nSELECT * FROM "select"');
+    });
+
+    it('explains instead of sending SQL when the driver declares no SQL dialect', () => {
+        const caps = {identifier_quote: '"'} as unknown as DriverCapabilities;
+        expect(supportsNamedResultReferences(caps)).toBe(false);
+        const {sql, unresolvedRefs} = resolveQueryVariables('db.find({{sales}})', notebook(), {
+            ...variableOptionsForDriver(caps, 'mongo-plugin'),
+            namedReferencesUnsupported: true,
+        });
+        expect(sql).toBe('db.find({{sales}})');
+        expect(unresolvedRefs.map((r) => r.reason)).toEqual(['unsupported']);
+
+        // Declared dialects, a manifest and built-in ids all speak SQL.
+        const extendsOnly = {
+            identifier_quote: '"',
+            sql_syntax: {extends: 'postgres'},
+        } as unknown as DriverCapabilities;
+        expect(supportsNamedResultReferences(extendsOnly)).toBe(true);
+        const manifest = {
+            id: 'pg',
+            capabilities: {identifier_quote: '"', sql_dialect: 'postgres'},
+        } as unknown as PluginManifest;
+        expect(supportsNamedResultReferences(manifest)).toBe(true);
+        const bareManifest = {
+            id: 'mongo',
+            capabilities: {identifier_quote: '"'},
+        } as unknown as PluginManifest;
+        expect(supportsNamedResultReferences(bareManifest)).toBe(false);
+        const badDialect = {
+            identifier_quote: '"',
+            sql_dialect: 'mongodb',
+        } as unknown as DriverCapabilities;
+        expect(supportsNamedResultReferences(badDialect)).toBe(false);
+        expect(supportsNamedResultReferences('mysql')).toBe(true);
+        expect(supportsNamedResultReferences(null)).toBe(true);
+    });
+
+    it('keeps {{cell_N}} working on such drivers, as before', () => {
+        const caps = {identifier_quote: '"'} as unknown as DriverCapabilities;
+        const {sql, unresolvedRefs} = resolveQueryVariables(
+            'SELECT * FROM {{cell_1}}',
+            notebook(),
+            {
+                ...variableOptionsForDriver(caps, 'mongo-plugin'),
+                namedReferencesUnsupported: true,
+            },
+        );
+        expect(unresolvedRefs).toEqual([]);
+        expect(sql).toContain('cell_1 AS (');
+    });
+
+    it('adds one CTE per name when a cell is referenced by alias and position', () => {
+        const {sql} = resolveQueryVariables(
+            'SELECT * FROM {{sales}} a JOIN {{sales}} b JOIN {{cell_2}} c',
+            notebook(),
+        );
+        expect(sql.match(/"sales" AS \(/g)).toHaveLength(1);
+        expect(sql.match(/cell_2 AS \(/g)).toHaveLength(1);
+        expect(sql).toContain('FROM "sales" a JOIN "sales" b JOIN cell_2 c');
+    });
+
+    it('merges named CTEs into a query that has its own WITH clause', () => {
+        const {sql} = resolveQueryVariables(
+            'WITH x AS (SELECT 1) SELECT * FROM x, {{sales}}',
+            notebook(),
+        );
+        expect(sql.startsWith('WITH "sales" AS (')).toBe(true);
+        expect(sql).toContain('),\nx AS (SELECT 1) SELECT * FROM x, "sales"');
+    });
+
+    describe('describeUnresolvedReferences', () => {
+        const t = (key: string, options?: Record<string, unknown>) =>
+            `${key.split('.').pop()}(${Object.values(options ?? {}).join('|')})`;
+
+        it('names each reference with its reason, once', () => {
+            expect(
+                describeUnresolvedReferences(
+                    [
+                        {match: '{{sales}}', cellIndex: -1, alias: 'sales', reason: 'missing'},
+                        {match: '{{sales}}', cellIndex: -1, alias: 'sales', reason: 'missing'},
+                        {match: '{{cell_3}}', cellIndex: 2, reason: 'noResult'},
+                    ],
+                    t,
+                ),
+            ).toBe('unresolved(missing({{sales}}) noResult({{cell_3}}))');
+        });
     });
 });

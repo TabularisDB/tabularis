@@ -4,6 +4,7 @@ import type {CellChartConfig} from '@/types/notebook';
 import {useDatabase} from '@/hooks/useDatabase';
 import {supportsExplain} from '@/utils/driverCapabilities';
 import type {ResolvedQuery} from '@/utils/notebookVariables';
+import type {AliasChangeCheck, ReferenceSuggestion} from '@/utils/notebookAlias';
 import {restoreFromHistory, getHistorySize} from '@/utils/notebookHistory';
 import {isCellIncludedInReport} from '@/utils/notebook';
 import {NotebookCellHeader} from './NotebookCellHeader';
@@ -22,6 +23,10 @@ interface NotebookCellWrapperProps {
     onRun: () => void;
     onDuplicate?: () => void;
     canDuplicate?: boolean;
+    /** Whether this cell may take an alias, given the rest of the notebook. */
+    checkAlias?: (alias: string) => AliasChangeCheck;
+    /** What a `{{` typed in this cell can complete to. */
+    getReferenceSuggestions?: () => ReferenceSuggestion[];
     connectionId: string;
     explainQuery?: ResolvedQuery;
     /** Why the query plan cannot be requested, such as a parameter that cannot be sent. */
@@ -48,6 +53,8 @@ export function NotebookCellWrapper({
     onRun,
     onDuplicate,
     canDuplicate,
+    checkAlias,
+    getReferenceSuggestions,
     connectionId,
     explainQuery,
     explainError,
@@ -127,6 +134,18 @@ export function NotebookCellWrapper({
                 onToggleCollapse={() => onUpdate({isCollapsed: !cell.isCollapsed})}
                 cellName={cell.name}
                 onNameChange={(name) => onUpdate({name: name || undefined})}
+                cellAlias={cell.alias}
+                onAliasCommit={
+                    checkAlias
+                        ? (alias) => {
+                              const check = checkAlias(alias);
+                              if (check.ok && check.alias !== cell.alias) {
+                                  onUpdate({alias: check.alias});
+                              }
+                              return check;
+                          }
+                        : undefined
+                }
                 cellContent={cell.content}
                 includeInReport={isCellIncludedInReport(cell)}
                 onToggleIncludeInReport={() =>
@@ -163,6 +182,7 @@ export function NotebookCellWrapper({
                     explainQuery={explainQuery}
                     explainError={explainError}
                     schema={activeSchema}
+                    getReferenceSuggestions={getReferenceSuggestions}
                 />
             ) : !cell.isCollapsed ? (
                 <MarkdownCell

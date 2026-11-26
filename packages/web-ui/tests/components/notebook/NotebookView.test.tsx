@@ -32,6 +32,11 @@ const fixtures = vi.hoisted(() => ({
     matchesShortcut: vi.fn(),
     showAlert: vi.fn(),
     mounts: new Map<string, number>(),
+    checkAlias: new Map<string, ComponentProps<typeof NotebookCellWrapper>['checkAlias']>(),
+    suggestions: new Map<
+        string,
+        ComponentProps<typeof NotebookCellWrapper>['getReferenceSuggestions']
+    >(),
 }));
 
 vi.mock('react-i18next', () => {
@@ -174,7 +179,11 @@ vi.mock('@/components/notebook/NotebookCellWrapper', async () => {
             onMoveDown,
             onDuplicate,
             canDuplicate,
+            checkAlias,
+            getReferenceSuggestions,
         }: ComponentProps<typeof NotebookCellWrapper>) => {
+            fixtures.checkAlias.set(cell.id, checkAlias);
+            fixtures.suggestions.set(cell.id, getReferenceSuggestions);
             // A remount discards per-cell plan state, so mounts are observable here.
             useEffect(() => {
                 fixtures.mounts.set(cell.id, (fixtures.mounts.get(cell.id) ?? 0) + 1);
@@ -401,22 +410,25 @@ describe('NotebookView', () => {
                 partial: {result: null},
                 reference: '{{cell_1}}',
                 cellIndex: 0,
+                reason: 'noResult',
             },
             {
                 name: 'errored result',
                 partial: {result: sourceResult, error: 'Previous execution failed'},
                 reference: '{{cell_1}}',
                 cellIndex: 0,
+                reason: 'noResult',
             },
             {
                 name: 'missing cell',
                 partial: {result: sourceResult},
                 reference: '{{cell_9}}',
                 cellIndex: 8,
+                reason: 'missing',
             },
         ])(
             'keeps a $name unresolved without lazy-executing dependencies',
-            async ({partial, reference, cellIndex}) => {
+            async ({partial, reference, cellIndex, reason}) => {
                 renderNotebook({
                     params: [{name: 'source', value: reference}],
                     cells: [
@@ -427,7 +439,7 @@ describe('NotebookView', () => {
                 await settle();
                 expect(explainFor('target')).toEqual({
                     sql: `SELECT * FROM ${reference}`,
-                    unresolvedRefs: [{match: reference, cellIndex}],
+                    unresolvedRefs: [{match: reference, cellIndex, reason}],
                 });
                 fireEvent.change(screen.getByRole('textbox', {name: 'SQL target'}), {
                     target: {value: 'SELECT id FROM @source'},
@@ -435,7 +447,7 @@ describe('NotebookView', () => {
                 await settle();
                 expect(explainFor('target')).toEqual({
                     sql: `SELECT id FROM ${reference}`,
-                    unresolvedRefs: [{match: reference, cellIndex}],
+                    unresolvedRefs: [{match: reference, cellIndex, reason}],
                 });
                 expect(savedCell('source')).toMatchObject(partial);
                 expect(savedCell('source').history).toBeUndefined();
@@ -1863,5 +1875,158 @@ describe('NotebookView', () => {
             expect(explainFor('off')).toBeNull();
             expect(mockInvoke).not.toHaveBeenCalled();
         });
+    });
+});
+
+describe('NotebookView result aliases', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        fixtures.notebooks.clear();
+        fixtures.checkAlias.clear();
+        fixtures.suggestions.clear();
+        fixtures.database.activeDriver = 'postgres';
+        fixtures.database.activeCapabilities = null;
+        fixtures.database.activeSchema = 'active_schema';
+        fixtures.guardQuery.mockReset().mockResolvedValue(true);
+        fixtures.matchesShortcut.mockReset().mockReturnValue(false);
+        mockInvoke.mockReset().mockResolvedValue(queryResult);
+    });
+
+    const namedSql = `WITH "people" AS (\n  SELECT 7 AS "id", '${String.raw`C:\team\O''Reilly`}' AS "label"\n)\nSELECT * FROM "people"`;
+
+    it('runs a named reference against the aliased cell after it moves', async () => {
+        renderNotebook({
+            cells: [
+                sqlCell('source', 'SELECT id, label FROM people', {
+                    alias: 'people',
+                    result: sourceResult,
+                }),
+                sqlCell('other', 'SELECT 1', {result: queryResult}),
+                sqlCell('target', 'SELECT * FROM {{people}}'),
+            ],
+        });
+        fireEvent.click(screen.getByRole('button', {name: 'Move down source'}));
+        expect(fixtures.notebooks.get(notebookId)?.cells.map((c) => c.id)).toEqual([
+            'other',
+            'source',
+            'target',
+        ]);
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'Run target'}));
+        });
+        expect(mockInvoke).toHaveBeenCalledExactlyOnceWith(
+            'execute_query',
+            expect.objectContaining({query: namedSql}),
+        );
+        expect(savedCell('target')).toMatchObject({result: queryResult, error: undefined});
+    });
+
+    it('runs an aliased dependency that has no result yet first', async () => {
+        renderNotebook({
+            cells: [
+                sqlCell('target', 'SELECT * FROM {{people}}'),
+                sqlCell('source', 'SELECT id, label FROM people', {alias: 'people'}),
+            ],
+        });
+        mockInvoke.mockResolvedValueOnce(sourceResult);
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'Run target'}));
+        });
+        expect(mockInvoke.mock.calls.map(([, args]) => (args as {query: string}).query)).toEqual([
+            'SELECT id, label FROM people',
+            namedSql,
+        ]);
+    });
+
+    it.each([
+        {name: 'a missing alias', cells: [] as NotebookCell[], capabilities: null},
+        {
+            name: 'a duplicated alias',
+            cells: [
+                sqlCell('a', 'SELECT 1', {alias: 'people', result: sourceResult}),
+                sqlCell('b', 'SELECT 2', {alias: 'people', result: queryResult}),
+            ],
+            capabilities: null,
+        },
+        {
+            name: 'a driver that declares no SQL dialect',
+            cells: [sqlCell('a', 'SELECT 1', {alias: 'people', result: sourceResult})],
+            capabilities: {identifier_quote: '"'},
+        },
+    ])('stops with an explanation and sends nothing for $name', async ({cells, capabilities}) => {
+        fixtures.database.activeCapabilities =
+            capabilities as typeof fixtures.database.activeCapabilities;
+        renderNotebook({cells: [...cells, sqlCell('target', 'SELECT * FROM {{people}}')]});
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'Run target'}));
+        });
+        expect(mockInvoke).not.toHaveBeenCalled();
+        expect(savedCell('target')).toMatchObject({
+            error: 'editor.notebook.referenceErrors.unresolved',
+            isLoading: false,
+        });
+    });
+
+    it.each([
+        {name: 'by alias', content: 'SELECT * FROM {{loop}}'},
+        {name: 'by position', content: 'SELECT * FROM {{cell_1}}'},
+    ])(
+        'reports a cell that needs its own result $name instead of waiting forever',
+        async ({content}) => {
+            renderNotebook({cells: [sqlCell('self', content, {alias: 'loop'})]});
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', {name: 'Run self'}));
+            });
+            expect(mockInvoke).not.toHaveBeenCalled();
+            expect(savedCell('self')).toMatchObject({
+                error: 'editor.notebook.referenceErrors.circular',
+                isLoading: false,
+            });
+        },
+    );
+
+    it('reports two cells that need each other, and runs neither', async () => {
+        renderNotebook({
+            cells: [
+                sqlCell('a', 'SELECT * FROM {{b}}', {alias: 'a'}),
+                sqlCell('b', 'SELECT * FROM {{a}}', {alias: 'b'}),
+            ],
+        });
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'Run a'}));
+        });
+        expect(mockInvoke).not.toHaveBeenCalled();
+        expect(savedCell('b')).toMatchObject({
+            error: 'editor.notebook.referenceErrors.circular',
+            isLoading: false,
+        });
+        expect(savedCell('a')).toMatchObject({
+            error: 'Dependency {{b}} failed: editor.notebook.referenceErrors.circular',
+            isLoading: false,
+        });
+    });
+
+    it('checks alias changes against the current cells and parameters', () => {
+        renderNotebook({
+            params: [{name: 'src', value: '{{people}}'}],
+            cells: [
+                sqlCell('source', 'SELECT 1', {alias: 'people'}),
+                sqlCell('target', 'SELECT 2'),
+            ],
+        });
+        expect(fixtures.checkAlias.get('target')?.('PEOPLE')).toEqual({
+            ok: false,
+            issue: 'duplicate',
+            conflictIndex: 0,
+        });
+        expect(fixtures.checkAlias.get('source')?.('humans')).toEqual({
+            ok: false,
+            issue: 'inUse',
+            usage: {cellIndices: [], params: ['src']},
+        });
+        expect(fixtures.suggestions.get('target')?.()).toEqual([
+            {label: 'people', cellIndex: 0, kind: 'alias'},
+            {label: 'cell_1', cellIndex: 0, kind: 'position'},
+        ]);
     });
 });

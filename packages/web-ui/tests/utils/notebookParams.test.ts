@@ -393,7 +393,9 @@ describe('notebookParams', () => {
                 expect(
                     validateParam(typed('c', 'a', 'select', {options: ['a', '{{cell_2}}']})),
                 ).toBe('cellReference');
-                expect(validateParam(typed('t', '{{cell}} {cell_1}', 'text'))).toBeNull();
+                // A named result reference is a cell reference too.
+                expect(validateParam(typed('t', 'see {{sales}}', 'text'))).toBe('cellReference');
+                expect(validateParam(typed('t', '{{ cell }} {cell_1} {{1x}}', 'text'))).toBeNull();
             });
         });
 

@@ -489,3 +489,43 @@ describe('NotebookCellWrapper enable/disable toggle', () => {
         expect(screen.queryByText('editor.notebook.cellDisabled')).not.toBeInTheDocument();
     });
 });
+
+describe('NotebookCellWrapper result alias', () => {
+    beforeEach(() => {
+        database.getConnectionData.mockReset().mockReturnValue(undefined);
+    });
+
+    it('saves an accepted alias and leaves a refused one unsaved', () => {
+        const props = makeProps();
+        const checkAlias = vi.fn((alias: string) =>
+            alias === 'sales'
+                ? ({ok: true, alias: 'sales'} as const)
+                : ({ok: false, issue: 'reserved'} as const),
+        );
+        render(<NotebookCellWrapper {...props} checkAlias={checkAlias} />);
+        fireEvent.click(screen.getByRole('button', {name: 'editor.notebook.alias.add'}));
+        const input = screen.getByRole('textbox', {name: 'editor.notebook.alias.label'});
+        fireEvent.change(input, {target: {value: 'cell_1'}});
+        fireEvent.keyDown(input, {key: 'Enter'});
+        expect(props.onUpdate).not.toHaveBeenCalled();
+        expect(screen.getByRole('alert')).toHaveTextContent(
+            'editor.notebook.alias.issues.reserved',
+        );
+        fireEvent.change(input, {target: {value: 'sales'}});
+        fireEvent.keyDown(input, {key: 'Enter'});
+        expect(checkAlias).toHaveBeenLastCalledWith('sales');
+        expect(props.onUpdate).toHaveBeenCalledExactlyOnceWith({alias: 'sales'});
+    });
+
+    it('shows no alias control on Markdown cells', () => {
+        const props = makeProps();
+        render(
+            <NotebookCellWrapper
+                {...props}
+                cell={{id: 'md', type: 'markdown', content: '# Notes'}}
+                checkAlias={vi.fn()}
+            />,
+        );
+        expect(screen.queryByRole('button', {name: 'editor.notebook.alias.add'})).toBeNull();
+    });
+});

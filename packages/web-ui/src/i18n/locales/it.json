@@ -2490,6 +2490,34 @@
       "sectionQueryPlan": "Piano di query",
       "queryPlanOutdated": "La query o la connessione è cambiata. Esegui di nuovo per aggiornare il piano.",
       "queryPlanUnresolved": "Esegui correttamente le celle referenziate prima di spiegare questa query: {{refs}}",
+      "alias": {
+        "label": "Alias del risultato",
+        "placeholder": "alias",
+        "add": "Aggiungi alias del risultato",
+        "editLabel": "Modifica alias del risultato {{alias}}",
+        "help": "Alias del risultato: le altre celle SQL usano questo risultato come {{reference}}, ovunque venga spostata questa cella. Lettere, cifre e trattini bassi; lascia vuoto per rimuoverlo.",
+        "completionDetail": "Risultato della cella {{n}}",
+        "usageCell": "cella {{n}}",
+        "usageParam": "parametro @{{name}}",
+        "issues": {
+          "invalid": "Usa lettere, cifre e trattini bassi, iniziando con una lettera o un trattino basso.",
+          "tooLong": "Un alias può avere al massimo {{max}} caratteri.",
+          "reserved": "I nomi come cell_1 sono riservati ai riferimenti per posizione.",
+          "duplicate": "La cella {{n}} usa già questo alias.",
+          "notSql": "Solo le celle SQL possono avere un alias del risultato.",
+          "inUse": "{{reference}} è ancora usato da {{places}}. Modifica prima quei riferimenti, poi rinomina o rimuovi l'alias."
+        }
+      },
+      "referenceErrors": {
+        "unresolved": "Riferimenti a celle non risolti: {{details}}",
+        "missing": "{{ref}} non corrisponde a nessuna cella.",
+        "duplicate": "{{ref}} è l'alias di più celle.",
+        "notSql": "{{ref}} non è una cella SQL.",
+        "disabled": "{{ref}} è disattivata.",
+        "noResult": "{{ref}} non ha un risultato: eseguila prima con successo.",
+        "unsupported": "{{ref}} non può essere usato: il driver di questa connessione non dichiara un dialetto SQL, quindi il risultato di una cella non può essere aggiunto alla sua query.",
+        "circular": "{{ref}} riporta a questa cella: una cella non può usare il proprio risultato, né direttamente né tramite altre celle."
+      },
       "explainPopout": "Apri in vista completa",
       "toggleQueryPlan": "Mostra piano di query",
       "hideQueryPlan": "Nascondi piano di query",
@@ -2528,6 +2556,7 @@
           "deleteCell": "Eliminata cella {{n}}",
           "reorder": "Celle riordinate",
           "renameCell": "Rinominata cella {{n}}",
+          "aliasCell": "Alias modificato (cella {{n}})",
           "schemaCell": "Database cambiato (cella {{n}})",
           "chartCell": "Grafico cambiato (cella {{n}})",
           "kpiCell": "KPI modificato (cella {{n}})",

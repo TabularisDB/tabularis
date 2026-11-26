@@ -769,3 +769,67 @@ describe('notebookFile typed parameters', () => {
         ]);
     });
 });
+
+describe('notebookFile result aliases', () => {
+    const cells: NotebookCell[] = [
+        {id: 'a', type: 'sql', content: 'SELECT 1', alias: 'sales'},
+        {id: 'b', type: 'sql', content: 'SELECT * FROM {{sales}}'},
+        {id: 'c', type: 'markdown', content: '# x'},
+    ];
+
+    function fileWith(fileCells: Array<Record<string, unknown>>): string {
+        return JSON.stringify({version: 2, title: 'T', createdAt: '', cells: fileCells});
+    }
+
+    it('writes the alias of SQL cells only', () => {
+        const file = serializeNotebook('T', [
+            ...cells,
+            {id: 'd', type: 'markdown', content: 'x', alias: 'stray'},
+        ]);
+        expect(file.cells[0].alias).toBe('sales');
+        expect('alias' in file.cells[1]).toBe(false);
+        expect('alias' in file.cells[3]).toBe(false);
+    });
+
+    it('round-trips aliases, so named references still bind to the same cell', () => {
+        const json = JSON.stringify(serializeNotebook('T', cells));
+        const loaded = deserializeNotebook(json).cells;
+        expect(loaded.map((c) => c.alias)).toEqual(['sales', undefined, undefined]);
+        // Ids are new on import; the alias is what ties the reference to its cell.
+        expect(loaded[0].id).not.toBe('a');
+        expect(loaded[1].content).toBe('SELECT * FROM {{sales}}');
+    });
+
+    it('loads legacy files without aliases and keeps their {{cell_N}} references', () => {
+        const loaded = deserializeNotebook(
+            fileWith([
+                {type: 'sql', content: 'SELECT 1'},
+                {type: 'sql', content: 'SELECT * FROM {{cell_1}}'},
+            ]),
+        ).cells;
+        expect(loaded.map((c) => c.alias)).toEqual([undefined, undefined]);
+        expect(loaded[1].content).toBe('SELECT * FROM {{cell_1}}');
+    });
+
+    it('rejects a file whose aliases are ambiguous instead of picking a cell', () => {
+        expect(() =>
+            deserializeNotebook(
+                fileWith([
+                    {type: 'sql', content: 'SELECT 1', alias: 'sales'},
+                    {type: 'sql', content: 'SELECT 2', alias: 'Sales'},
+                    {type: 'sql', content: 'SELECT * FROM {{sales}}'},
+                ]),
+            ),
+        ).toThrow('Invalid cell aliases: Cells 1 and 2 both use the alias "Sales"');
+    });
+
+    it.each([
+        [{type: 'sql', content: 'x', alias: 'cell_2'}, 'reserved for position-based references'],
+        [{type: 'sql', content: 'x', alias: 'two words'}, 'is not a valid alias'],
+        [{type: 'sql', content: 'x', alias: ''}, 'is not a valid alias'],
+        [{type: 'sql', content: 'x', alias: ['a']}, 'has an alias that is not text'],
+        [{type: 'markdown', content: 'x', alias: 'notes'}, 'is not an SQL cell'],
+    ])('rejects an invalid alias: %j', (cell, message) => {
+        expect(() => deserializeNotebook(fileWith([cell]))).toThrow(message);
+    });
+});

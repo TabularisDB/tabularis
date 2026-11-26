@@ -78,3 +78,102 @@ describe('SqlCellEditor height', () => {
         expect(screen.getByTestId('cell-editor').parentElement!.style.height).toBe('84px');
     });
 });
+
+describe('SqlCellEditor reference completion', () => {
+    interface Provider {
+        triggerCharacters: string[];
+        provideCompletionItems: (
+            model: unknown,
+            position: {lineNumber: number; column: number},
+        ) => {suggestions: Array<Record<string, unknown>>};
+    }
+
+    function mountWith(getReferenceSuggestions?: () => Array<Record<string, unknown>>) {
+        render(
+            <SettingsContext.Provider
+                value={{
+                    settings: {...DEFAULT_SETTINGS, aiEnabled: false},
+                    updateSetting: vi.fn(),
+                    isLoading: false,
+                }}
+            >
+                <SqlCellEditor
+                    {...props}
+                    getReferenceSuggestions={
+                        getReferenceSuggestions as Parameters<
+                            typeof SqlCellEditor
+                        >[0]['getReferenceSuggestions']
+                    }
+                />
+            </SettingsContext.Provider>,
+        );
+        let provider: Provider | undefined;
+        let disposeListener = () => {};
+        const dispose = vi.fn();
+        let line = '';
+        const model = {getLineContent: () => line};
+        act(() =>
+            mount(
+                {
+                    getContentHeight: () => 60,
+                    onDidContentSizeChange: vi.fn(),
+                    getModel: () => model,
+                    onDidDispose: (listener: () => void) => {
+                        disposeListener = listener;
+                    },
+                } as unknown as Parameters<OnMount>[0],
+                {
+                    languages: {
+                        registerCompletionItemProvider: (_language: string, p: Provider) => {
+                            provider = p;
+                            return {dispose};
+                        },
+                        CompletionItemKind: {Reference: 1, Variable: 2},
+                    },
+                } as unknown as Parameters<OnMount>[1],
+            ),
+        );
+        const complete = (text: string, column: number, target: unknown = model) => {
+            line = text;
+            return provider!.provideCompletionItems(target, {lineNumber: 3, column}).suggestions;
+        };
+        return {provider: provider!, complete, dispose, disposeEditor: () => disposeListener()};
+    }
+
+    const suggestions = [
+        {label: 'sales', cellIndex: 0, kind: 'alias'},
+        {label: 'cell_1', cellIndex: 0, kind: 'position'},
+    ];
+
+    it('completes {{ to aliases first, replacing a closing }} already there', () => {
+        const {provider, complete} = mountWith(() => suggestions);
+        expect(provider.triggerCharacters).toEqual(['{']);
+        // Cursor after `FROM {{` (1-based column 8), Monaco auto-closed the braces.
+        const items = complete('FROM {{}}', 8);
+        expect(items.map((i) => [i.label, i.insertText, i.kind])).toEqual([
+            ['sales', 'sales}}', 1],
+            ['cell_1', 'cell_1}}', 2],
+        ]);
+        expect(items[0].range).toEqual({
+            startLineNumber: 3,
+            endLineNumber: 3,
+            startColumn: 8,
+            endColumn: 10,
+        });
+        expect(items[0].detail).toBe('editor.notebook.alias.completionDetail');
+    });
+
+    it('offers nothing outside a reference, in another editor or without targets', () => {
+        const {complete} = mountWith(() => suggestions);
+        expect(complete('SELECT sa', 10)).toEqual([]);
+        expect(complete('FROM {{', 8, {getLineContent: () => 'FROM {{'})).toEqual([]);
+        const empty = mountWith(() => []);
+        expect(empty.complete('FROM {{', 8)).toEqual([]);
+    });
+
+    it('removes its provider with the editor', () => {
+        const {dispose, disposeEditor} = mountWith(() => suggestions);
+        disposeEditor();
+        expect(dispose).toHaveBeenCalled();
+    });
+});

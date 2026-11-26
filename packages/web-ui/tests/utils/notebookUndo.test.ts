@@ -390,3 +390,36 @@ describe('notebookUndo disabled cells', () => {
         expect(forward?.state.cells[0].isDisabled).toBe(true);
     });
 });
+
+describe('notebookUndo result aliases', () => {
+    const base: NotebookState = {cells: [{id: 'c1', type: 'sql', content: 'SELECT 1'}]};
+    const aliased: NotebookState = {cells: [{...base.cells[0], alias: 'sales'}]};
+
+    it('counts an alias change as an edit of the document', () => {
+        expect(documentSignature(base)).not.toBe(documentSignature(aliased));
+        expect(recordEdit(createHistory(), base, aliased, 10_000).past).toEqual([base]);
+    });
+
+    it('describes it as an alias change of that cell', () => {
+        expect(describeChange(base, aliased)).toEqual({kind: 'aliasCell', n: 1, detail: 'sales'});
+        expect(describeChange(aliased, base)).toEqual({
+            kind: 'aliasCell',
+            n: 1,
+            detail: undefined,
+        });
+    });
+
+    it('undoes and redoes the alias', () => {
+        const history = recordEdit(createHistory(), base, aliased, 10_000);
+        const back = undo(history, aliased);
+        expect(back?.state.cells[0].alias).toBeUndefined();
+        const forward = redo(back!.history, back!.state);
+        expect(forward?.state.cells[0].alias).toBe('sales');
+    });
+
+    it('keeps the alias off a duplicated cell', () => {
+        const [, copy] = duplicateCellToEnd(aliased.cells, 'c1');
+        expect(copy.alias).toBeUndefined();
+        expect(copy.content).toBe('SELECT 1');
+    });
+});

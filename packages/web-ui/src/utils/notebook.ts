@@ -45,17 +45,20 @@ export function addCellToCells(
 
 /**
  * A document-only copy of `cell` with a fresh id: same type, content, name,
- * schema and display/chart configuration, but no result, error, execution
- * time, loading state or execution history. Markdown copies start in edit
- * mode and every copy starts expanded. The query plan starts closed: an open
- * plan fetches EXPLAIN as soon as it mounts, and duplicating must not run
- * anything against the database. Nothing is shared with the original.
+ * schema and display/chart configuration, but no result alias (it must stay
+ * unique), result, error, execution time, loading state or execution history.
+ * Markdown copies start in edit mode and every copy starts expanded. The
+ * query plan starts closed: an open plan fetches EXPLAIN as soon as it mounts,
+ * and duplicating must not run anything against the database. Nothing is
+ * shared with the original.
  */
 export function duplicateCell(cell: NotebookCell): NotebookCell {
     const {chartConfig, kpiConfig} = cell;
     return {
         ...cell,
         id: generateCellId(),
+        // An alias names one result: the copy starts without one.
+        alias: undefined,
         chartConfig: chartConfig
             ? {...chartConfig, valueColumns: [...chartConfig.valueColumns]}
             : chartConfig,
