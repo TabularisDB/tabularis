@@ -367,6 +367,32 @@ fn test_build_paginated_query_reads_sqlite_negative_limit_as_no_limit() {
 }
 
 #[test]
+fn test_build_paginated_query_keeps_an_offset_above_u32_max() {
+    // The offset used to be cut to `u32` and fall back to 0, so the editor
+    // showed rows the original query skips. Both SQLite spellings.
+    for q in [
+        "SELECT id FROM (SELECT 1 AS id) t LIMIT -1 OFFSET 4294967296",
+        "SELECT id FROM (SELECT 1 AS id) t LIMIT 4294967296, -1",
+    ] {
+        assert_eq!(
+            super::build_paginated_query_for_sqlite(q, 100, 1),
+            "SELECT id FROM (SELECT 1 AS id) t LIMIT 101 OFFSET 4294967296",
+            "{q}"
+        );
+        assert_eq!(
+            super::build_paginated_query_for_sqlite(q, 100, 2),
+            "SELECT id FROM (SELECT 1 AS id) t LIMIT 101 OFFSET 4294967396",
+            "{q}"
+        );
+    }
+    // The same for the other drivers.
+    assert_eq!(
+        build_paginated_query("SELECT * FROM t LIMIT 10 OFFSET 4294967296", 100, 1),
+        "SELECT * FROM t LIMIT 10 OFFSET 4294967296"
+    );
+}
+
+#[test]
 fn test_build_paginated_query_leaves_negative_limit_to_mysql_and_postgres() {
     // MySQL and PostgreSQL reject a negative LIMIT; the query must still reach
     // them with it, so the user sees that error instead of a paged result.

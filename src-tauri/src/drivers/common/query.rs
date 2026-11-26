@@ -574,11 +574,9 @@ fn build_paginated_query_with(
         .as_ref()
         .and_then(|r| r.limit)
         .and_then(|l| l.try_into().ok());
-    let user_offset: u32 = row_limit
-        .as_ref()
-        .and_then(|r| r.offset)
-        .and_then(|o| o.try_into().ok())
-        .unwrap_or(0);
+    // Kept as `u64`: an offset above `u32::MAX` used to fall back to 0, so
+    // `LIMIT -1 OFFSET 4294967296` showed the first rows instead of none.
+    let user_offset: u64 = row_limit.as_ref().and_then(|r| r.offset).unwrap_or(0);
     // Cut at the clauses even when they set nothing (`LIMIT ALL`, `OFFSET 0`).
     let has_row_limit = row_limit.is_some();
     let base_source = if has_row_limit {
@@ -597,7 +595,7 @@ fn build_paginated_query_with(
         None => page_size + 1,
     };
 
-    let offset = user_offset.saturating_add(page_offset);
+    let offset = user_offset.saturating_add(u64::from(page_offset));
 
     let separator =
         if trailing_comment_start(&base, hash_comments, line_comment_requires_space).is_some() {
