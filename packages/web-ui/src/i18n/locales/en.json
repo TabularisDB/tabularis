@@ -869,6 +869,11 @@
       "horizontal": "Horizontal",
       "vertical": "Vertical"
     },
+    "connectionColor": {
+      "title": "Connection color",
+      "bottomBar": "Color bar at the bottom",
+      "bottomBarDesc": "Show a thick bar in the connection's color along the bottom of the window, so connections are easier to tell apart."
+    },
     "dataGrid": {
       "title": "Data Grid",
       "stickyHeaders": "Sticky column headers",
@@ -1613,6 +1618,8 @@
     "save": "Save",
     "failSave": "Failed to save connection",
     "selectSshConnection": "Select SSH Connection",
+    "sshUserOverride": "SSH User Override (optional)",
+    "sshUserOverrideHint": "Leave blank to use the selected SSH connection default user.",
     "useSshConnection": "Use Existing SSH Connection",
     "createInlineSsh": "Configure SSH Inline",
     "manageSshConnections": "Manage SSH Connections",
@@ -2439,7 +2446,8 @@
           "number": "Number",
           "boolean": "Boolean",
           "date": "Date",
-          "select": "List"
+          "select": "List",
+          "unknown": "Unknown"
         },
         "issues": {
           "invalidNumber": "Enter a number such as 42 or -0.5",
@@ -2449,7 +2457,8 @@
           "noOptions": "Add at least one option",
           "required": "A value is required",
           "emptyNeedsNull": "Enter a value or tick NULL",
-          "cellReference": "A typed value cannot contain a cell reference"
+          "cellReference": "A typed value cannot contain a cell reference",
+          "unknownType": "This version of Tabularis does not know this type"
         },
         "errors": {
           "invalid": "Parameter @{{name}} cannot be sent: {{reason}}",

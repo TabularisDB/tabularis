@@ -8,6 +8,7 @@ import type {NotebookToolbar} from '@/components/notebook/NotebookToolbar';
 import type {QueryResult, Tab} from '@/types/editor';
 import type {NotebookCell, NotebookParam, NotebookState} from '@/types/notebook';
 import type {DriverCapabilities} from '@/types/plugins';
+import {deserializeNotebook} from '@/utils/notebookFile';
 import {chooseNotebookImport} from '@/utils/notebookTransfer';
 
 // The real Parameters panel and Report view run here, on the notebook's own
@@ -161,6 +162,11 @@ async function click(name: string) {
 
 const row = (name: string) => within(screen.getByRole('group', {name: `@${name}`}));
 const valueOf = (name: string) => row(name).getByRole('textbox', {name: `${K}.value`});
+/** The message a row names, through its group's `aria-describedby`. */
+const messageOf = (name: string) =>
+    document.getElementById(
+        screen.getByRole('group', {name: `@${name}`}).getAttribute('aria-describedby') ?? '',
+    );
 
 describe('NotebookView typed parameters', () => {
     beforeEach(() => {
@@ -234,7 +240,30 @@ describe('NotebookView typed parameters', () => {
         expect(savedCell('q').error).toBe(`${K}.errors.invalid @start ${K}.issues.invalidDate`);
         expect(mockInvoke).not.toHaveBeenCalled();
         // The panel shows the same row as invalid, so it can be fixed.
-        expect(row('start').getByRole('alert')).toHaveTextContent(`${K}.issues.invalidDate`);
+        expect(messageOf('start')).toHaveTextContent(`${K}.issues.invalidDate`);
+    });
+
+    it('stops the cell when a parameter loaded from a file has a type this build does not know', async () => {
+        fixtures.database.activeCapabilities = pluginDriver;
+        const {params} = deserializeNotebook(
+            JSON.stringify({
+                version: 2,
+                title: 'x',
+                createdAt: '2026-01-01',
+                cells: [],
+                params: [{name: 'since', value: '2026-01-01 10:00', type: 'datetime'}],
+            }),
+        );
+        renderNotebook({params, cells: [sqlCell('q', 'SELECT * FROM t WHERE d >= @since')]});
+
+        await click('Run q');
+        // Wait for the run to end one way or the other: stopped, or sent.
+        await waitFor(() => expect(savedCell('q').error ?? executedQueries()[0]).toBeDefined());
+
+        // `@since` must not reach the database: MySQL reads it as a NULL user variable.
+        expect(executedQueries()).toEqual([]);
+        expect(savedCell('q').error).toBe(`${K}.errors.invalid @since ${K}.issues.unknownType`);
+        expect(messageOf('since')).toHaveTextContent(`${K}.issues.unknownType`);
     });
 
     it.each([
@@ -249,7 +278,7 @@ describe('NotebookView typed parameters', () => {
         });
 
         expect(row('tbl').getByRole('combobox', {name: `${K}.type`})).toBeDisabled();
-        expect(row('name').getByRole('alert')).toHaveTextContent(`${K}.unsupportedDriver`);
+        expect(messageOf('name')).toHaveTextContent(`${K}.unsupportedDriver`);
 
         await click('Run typed');
         expect(savedCell('typed').error).toBe(`${K}.errors.unsupported @name`);

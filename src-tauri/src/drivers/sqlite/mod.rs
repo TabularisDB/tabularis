@@ -699,8 +699,16 @@ async fn exec_on_sqlite_conn(
     if is_select && limit.is_some() {
         let l = limit.unwrap();
 
-        final_query =
-            crate::drivers::common::build_paginated_query_for(query, l, page, false, false);
+        final_query = crate::drivers::common::build_paginated_query_for(
+            query,
+            l,
+            page,
+            crate::drivers::common::ScanRules {
+                hash_comments: false,
+                line_comment_requires_space: false,
+                backslash_escapes: false,
+            },
+        );
 
         pagination = Some(Pagination {
             page,
