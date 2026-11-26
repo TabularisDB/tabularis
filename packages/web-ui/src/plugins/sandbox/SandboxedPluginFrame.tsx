@@ -16,6 +16,7 @@ import {
 import {parsePluginNativeComponent, parsePluginNativeRect} from '@/utils/pluginNative';
 import {publishPluginEvent, subscribePluginEvent} from '@/utils/pluginEvents';
 import {fitFrameHeight, frameScrollports} from '@/utils/pluginFrameFit';
+import {parsePluginSaveFile} from '@/utils/pluginSaveFile';
 import type {PluginNativeComponent} from '@/types/pluginNative';
 import {NativePluginComponent} from './NativePluginComponent';
 import {isReadOnlyQuery} from '@/utils/sqlAnalysis';
@@ -301,6 +302,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
         const controller = new AbortController();
         let disposed = false;
         const eventSubscriptions = new Map<string, () => void>();
+        let saveFileOpen = false;
         const handlers = {
             'api.event.publish': (name: unknown, detail: unknown) =>
                 publishPluginEvent(pluginId, providerString(name, 'plugin event name', 64), detail),
@@ -382,6 +384,21 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                     throw new Error('Invalid clipboard text');
                 await getActivePlatformCapabilities().writeClipboard(value);
                 return null;
+            },
+            'api.saveFile': async (value: unknown) => {
+                if (contextRef.current.workspaceActive === false)
+                    throw new Error('Inactive workspaces cannot save files');
+                // Only a click in the frame can open a save dialog or start a download.
+                if (!navigator.userActivation?.isActive)
+                    throw new Error('Saving a file requires a user interaction');
+                if (saveFileOpen) throw new Error('Another file from this plugin is being saved');
+                saveFileOpen = true;
+                try {
+                    const request = await parsePluginSaveFile(value);
+                    return await getActivePlatformCapabilities().downloadFile(request);
+                } finally {
+                    saveFileOpen = false;
+                }
             },
             'ui.native.set': (value: unknown) => {
                 const component = parsePluginNativeComponent(

@@ -41,7 +41,8 @@ context data and slot-specific RPC methods; functions are never sent through
 `postMessage`. Secret-field keys and values are validated on the host.
 
 Most RPC requests time out after 30 seconds; plugin SQL queries may take up to
-five minutes before the guest stops waiting. The host query is not cancelled
+five minutes and `saveFile` up to an hour (the save dialog stays open until the
+user closes it) before the guest stops waiting. The host query is not cancelled
 when the guest times out. Internal guest resources use reserved
 `__runtime__.js` and `__host.css__` paths so plugin files named `runtime.js` or
 `host.css` remain addressable.
@@ -64,6 +65,18 @@ Workspace opening remains synchronous in the guest: it returns a stable local
 reservation identifier while the host opens or reactivates the matching tab.
 Asynchronous host failures are reported through the plugin error toast. The
 reservation is not a host tab identifier and must not be used to control tabs.
+
+## Saving files (API 0.4.2)
+
+The frame is not given `allow-downloads`, and its opaque origin stops the
+webview from saving a blob or data URL it shows. `saveFile` sends the bytes over
+the frame's MessagePort instead, and the host passes them to the platform's
+`downloadFile`: the native save dialog on desktop, a download in the browser.
+The host checks the request before anything is shown: a recent user
+interaction propagated from the frame, an active workspace, no other save open
+from the same frame, at most 64 MiB of `Blob`/`ArrayBuffer`/typed-array data,
+and a file name reduced to its base name. The data is copied when it arrives,
+so the plugin cannot change what is written.
 
 ## Plugin migration
 

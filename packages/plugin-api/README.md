@@ -104,6 +104,24 @@ enabled owning plugin. Plugins must allowlist setup methods and return only safe
 metadata; the secret-bearing `account_import` method stays reserved for the host.
 `copyText(text)` uses the host clipboard for installation commands or diagnostics.
 
+`saveFile({data, suggestedName, mimeType?})` (API `0.4.2`) lets the user save
+data the plugin holds, such as a BLOB it displays, as a file. `data` is a `Blob`,
+`ArrayBuffer` or typed array of at most 64 MiB. The desktop app opens its save
+dialog; the browser host starts a download. The plugin frame keeps its
+`allow-scripts`-only sandbox: the host writes the file. Call it from a click
+handler, because the host refuses a save without a recent user interaction, and
+only one save per frame can be open at a time. The host keeps only the base name
+of `suggestedName`, without folders or control characters. The promise resolves
+to `true` when the file was saved and `false` when the user cancelled the dialog.
+
+```tsx
+import { saveFile } from "@tabularis/plugin-api";
+
+<button onClick={() => saveFile({ data: bytes, suggestedName: "photo.jpg", mimeType: "image/jpeg" })}>
+  Save image
+</button>
+```
+
 ## Connection-scoped plugin services
 
 `usePluginRpc` uses the active saved connection unless an explicit connection ID is supplied. The host checks that the enabled external plugin owns that connection and sends its resolved saved parameters and stored secrets only to that plugin process. The UI cannot supply connection credentials in the envelope or read stored secret values.
@@ -137,6 +155,7 @@ assertHostCompat(); // throws if the running Tabularis is older than MIN_HOST_VE
 | `0.3.0`         | `0.3.0` | Sandboxed UI API and callback RPC |
 | `0.4.0`         | `0.4.0` | Secret-field slot callback and fixed Google OAuth exchange |
 | `0.4.1`         | `0.4.1` | Scoped provider accounts, service RPCs, workspaces and native component bridge |
+| `0.4.2`         | `0.4.2` | `saveFile` through the host save dialog or download |
 
 ## Slot reference
 

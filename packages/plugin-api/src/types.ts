@@ -125,6 +125,15 @@ export interface UsePluginThemeReturn {
     colors: ThemeColors | null;
 }
 
+/** A file a plugin asks the host to save. The host keeps only the base name of `suggestedName`. */
+export interface PluginSaveFileOptions {
+    /** At most 64 MiB. */
+    data: Blob | ArrayBuffer | ArrayBufferView;
+    suggestedName: string;
+    /** Used for web downloads, for example `image/png`. */
+    mimeType?: string;
+}
+
 /**
  * Minimal i18next-compatible translator signature.
  * Plugins should treat this as read-only.
@@ -142,6 +151,8 @@ export interface TabularisHostApi {
     usePluginEvent: (pluginId: string, name: string, listener: (detail: unknown) => void) => void;
     PluginSelect: ComponentType<PluginSelectProps>;
     copyText: (text: string) => Promise<void>;
+    /** Save data through the host's save dialog (desktop) or a download (web); `true` when saved. */
+    saveFile: (options: PluginSaveFileOptions) => Promise<boolean>;
     PluginResourceList: ComponentType<PluginResourceListProps>;
     PluginCodeEditor: ComponentType<PluginCodeEditorProps>;
     PluginExplorerSection: ComponentType<PluginExplorerSectionProps>;

@@ -16,6 +16,7 @@ export {
     usePluginTranslation,
     openUrl,
     copyText,
+    saveFile,
 } from './hooks/usePluginApi';
 
 export {usePluginRpc} from './hooks/usePluginRpc';

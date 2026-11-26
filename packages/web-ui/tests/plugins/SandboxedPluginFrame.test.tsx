@@ -4,6 +4,8 @@ import {DEFAULT_SETTINGS} from '@/contexts/SettingsContext';
 import {SandboxedPluginFrame} from '@/plugins/sandbox/SandboxedPluginFrame';
 import type {PluginHostHandler} from '@/plugins/sandbox/connectFrame';
 import {publishPluginEvent} from '@/utils/pluginEvents';
+import {registerActivePlatformCapabilities} from '@/platform/activeCapabilities';
+import type {PlatformCapabilities} from '@/platform/capabilities';
 
 const mocks = vi.hoisted(() => ({
     connect: vi.fn(),
@@ -394,5 +396,56 @@ describe('SandboxedPluginFrame lifecycle', () => {
         unmount();
         await publishPluginEvent('google-sheets', 'branch-changed', {branch: 'later'});
         expect(mocks.call).not.toHaveBeenCalledWith('api.event', expect.anything());
+    });
+
+    it('saves plugin data through the platform download after a user interaction', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(true);
+        registerActivePlatformCapabilities({downloadFile} as unknown as PlatformCapabilities);
+        render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+
+        await expect(
+            handlers['api.saveFile']({
+                data: new Uint8Array([1, 2, 3]),
+                suggestedName: '../photo.jpg',
+                mimeType: 'image/jpeg',
+            }),
+        ).resolves.toBe(true);
+        expect(downloadFile).toHaveBeenCalledWith({
+            fileName: 'photo.jpg',
+            contents: new Uint8Array([1, 2, 3]),
+            mimeType: 'image/jpeg',
+        });
+
+        downloadFile.mockResolvedValueOnce(false);
+        await expect(
+            handlers['api.saveFile']({data: new Uint8Array([1]), suggestedName: 'a.bin'}),
+        ).resolves.toBe(false);
+    });
+
+    it('refuses a save without a user interaction or while another save is open', async () => {
+        let finish: (saved: boolean) => void = () => undefined;
+        const downloadFile = vi.fn(() => new Promise<boolean>((resolve) => (finish = resolve)));
+        registerActivePlatformCapabilities({downloadFile} as unknown as PlatformCapabilities);
+        render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        const request = {data: new Uint8Array([1]), suggestedName: 'a.bin'};
+
+        const first = handlers['api.saveFile'](request);
+        await waitFor(() => expect(downloadFile).toHaveBeenCalledOnce());
+        await expect(handlers['api.saveFile'](request)).rejects.toThrow(
+            'Another file from this plugin is being saved',
+        );
+        finish(true);
+        await expect(first).resolves.toBe(true);
+
+        Object.defineProperty(navigator, 'userActivation', {
+            configurable: true,
+            value: {isActive: false},
+        });
+        await expect(handlers['api.saveFile'](request)).rejects.toThrow(
+            'Saving a file requires a user interaction',
+        );
+        expect(downloadFile).toHaveBeenCalledOnce();
     });
 });

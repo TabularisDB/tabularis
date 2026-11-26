@@ -9,6 +9,7 @@ import type {
     UsePluginSettingReturn,
     UsePluginThemeReturn,
     UsePluginToastReturn,
+    PluginSaveFileOptions,
     PluginTranslator,
     GoogleOAuthTokenRequest,
     GoogleOAuthTokenResponse,
@@ -79,6 +80,14 @@ export async function openUrl(url: string): Promise<void> {
 /** Copy a command or diagnostic through the host clipboard. */
 export async function copyText(text: string): Promise<void> {
     return getHost().copyText(text);
+}
+
+/**
+ * Let the user save data as a file: a save dialog on desktop, a download in the browser.
+ * Call it from a click handler. Resolves to `false` when the user cancels the dialog.
+ */
+export async function saveFile(options: PluginSaveFileOptions): Promise<boolean> {
+    return getHost().saveFile(options);
 }
 
 /** Notify other mounted views of the same plugin with a JSON payload of at most 64 KiB. */
