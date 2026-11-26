@@ -338,7 +338,7 @@ pub async fn get_connection_metadata(
         crate::application::connections::saved_connection_driver(runtime, connection_id)?;
     let driver = crate::drivers::registry::get_driver(&driver_id)
         .await
-        .ok_or_else(|| format!("Unsupported driver: {driver_id}"))?;
+        .ok_or_else(|| crate::drivers::registry::unsupported_driver_message(&driver_id))?;
     if !driver.has_connection_metadata() {
         return Ok(None);
     }

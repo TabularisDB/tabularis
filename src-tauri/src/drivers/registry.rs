@@ -91,8 +91,21 @@ pub async fn get_connection_driver(
 ) -> Result<Arc<dyn DatabaseDriver>, String> {
     let driver = get_driver(&params.driver)
         .await
-        .ok_or_else(|| format!("Unsupported driver: {}", params.driver))?;
+        .ok_or_else(|| unsupported_driver_message(&params.driver))?;
     Ok(driver.for_connection(params).await?.unwrap_or(driver))
+}
+
+/// The error for a connection whose driver id is not registered. A driver that
+/// moved out of the app into a plugin names that plugin, so the person reading
+/// it knows what to install rather than that something is "unsupported".
+pub fn unsupported_driver_message(driver_id: &str) -> String {
+    let base = format!("Unsupported driver: {driver_id}");
+    match crate::plugins::force_install::replacement_plugin_for(driver_id) {
+        Some(plugin_id) => format!(
+            "{base}. This driver is provided by the \"{plugin_id}\" plugin, which is not installed or not enabled. Install it from the plugin registry, then retry."
+        ),
+        None => base,
+    }
 }
 
 /// Returns `true` if `id` already has a registered driver or UI-only

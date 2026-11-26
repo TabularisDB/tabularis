@@ -17,12 +17,23 @@
 use serde::Serialize;
 
 use crate::config::AppConfig;
-use crate::plugins::registry;
+use crate::plugins::{installer, registry, tabularium};
+use crate::runtime::RuntimeContext;
 
 /// Built-in driver id → replacement plugin id pairs that the app keeps
 /// installed automatically when a connection on the built-in exists. Adding
 /// a pair is the whole change required for the next deprecation.
 pub const MIGRATABLE_DRIVERS: &[(&str, &str)] = &[("postgres", "postgresql")];
+
+/// The plugin that replaced `driver_id`, when `driver_id` is either the removed
+/// built-in id or the plugin id itself. Lets an unregistered-driver error name
+/// the plugin to install for both pre- and post-migration connections.
+pub fn replacement_plugin_for(driver_id: &str) -> Option<&'static str> {
+    MIGRATABLE_DRIVERS
+        .iter()
+        .find(|(builtin, plugin)| *builtin == driver_id || *plugin == driver_id)
+        .map(|(_, plugin)| *plugin)
+}
 
 /// Log prefix shared by every message this module emits, so the force-install
 /// flow is greppable in logs at a glance.
@@ -118,4 +129,155 @@ pub(crate) fn registry_base_url(config: &AppConfig) -> &str {
         .tabularium_registry_url
         .as_deref()
         .unwrap_or(registry::DEFAULT_TABULARIUM_URL)
+}
+
+/// True when at least one saved connection uses the built-in driver id
+/// (pre-migration) or the replacement plugin id (post-migration). Checking
+/// both ids lets the install retry on a later launch when the first download
+/// failed after the migration had already moved the connections over. Pure so
+/// it can be tested without a runtime.
+pub(crate) fn needs_plugin_for(builtin_id: &str, plugin_id: &str, drivers: &[&str]) -> bool {
+    drivers.iter().any(|d| *d == builtin_id || *d == plugin_id)
+}
+
+/// Environment switch that stops a headless process (the web server, `--mcp`)
+/// from downloading a replacement plugin on its own. For air-gapped or
+/// locked-down deployments, where fetching and running a binary at startup is a
+/// policy decision the operator wants to make. The plugin can still be installed
+/// by hand. The desktop app is not affected.
+pub const DISABLE_AUTO_INSTALL_ENV: &str = "TABULARIS_DISABLE_PLUGIN_AUTO_INSTALL";
+
+/// Whether a raw [`DISABLE_AUTO_INSTALL_ENV`] value turns auto-install off:
+/// anything but an explicit "off" value (`0`, `false`, `no`, empty). Pure, so
+/// it is tested without touching the process environment.
+pub(crate) fn auto_install_disabled_by(value: Option<&str>) -> bool {
+    value.is_some_and(|value| {
+        !matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "" | "0" | "false" | "no"
+        )
+    })
+}
+
+/// True when the operator has turned headless auto-install off.
+pub(crate) fn auto_install_disabled() -> bool {
+    auto_install_disabled_by(std::env::var(DISABLE_AUTO_INSTALL_ENV).ok().as_deref())
+}
+
+/// Install (and activate) the replacement plugin for every [`MIGRATABLE_DRIVERS`]
+/// pair that a saved connection depends on. Runs from the web server and the
+/// MCP process, which share one bootstrap with the desktop app but have no
+/// desktop setup step to do it. Every failure is logged and swallowed: the
+/// check restarts from scratch on every launch, so a transient failure (no
+/// network, registry down) heals on the next one, and an air-gapped host simply
+/// keeps logging that the plugin is missing.
+pub async fn ensure_replacement_plugins(runtime: &RuntimeContext) {
+    let drivers: Vec<String> =
+        match crate::persistence::load_connections(&runtime.paths.connections_file()) {
+            Ok(connections) => connections
+                .iter()
+                .map(|c| c.params.driver.clone())
+                .collect(),
+            Err(error) => {
+                log::warn!("{LOG_PREFIX} could not read connections: {error}");
+                return;
+            }
+        };
+    let driver_refs: Vec<&str> = drivers.iter().map(String::as_str).collect();
+    for (builtin_id, plugin_id) in MIGRATABLE_DRIVERS {
+        if needs_plugin_for(builtin_id, plugin_id, &driver_refs) {
+            ensure_plugin_installed(runtime, plugin_id).await;
+        }
+    }
+}
+
+/// Install (and activate) `plugin_id` unless it is already installed or the
+/// latest release needs a newer Tabularis. Every failure path logs and returns,
+/// so a caller never has to handle one.
+pub async fn ensure_plugin_installed(runtime: &RuntimeContext, plugin_id: &str) {
+    match installer::list_installed_from(&runtime.paths.plugins_dir()) {
+        installed if installed.iter().any(|p| p.id == plugin_id) => return,
+        _ => {}
+    }
+    if !plugin_compatible_with_this_app(runtime, plugin_id).await {
+        log::warn!("{LOG_PREFIX} {plugin_id} has no compatible release, skipping");
+        return;
+    }
+    if let Err(error) =
+        crate::application::plugins::install_plugin(runtime, plugin_id.to_string(), None, None)
+            .await
+    {
+        log::warn!("{LOG_PREFIX} {plugin_id} install failed: {error}");
+        return;
+    }
+    // `install_plugin` hot-registers for this session but does not persist
+    // activation, so without this write the plugin vanishes on relaunch.
+    if let Err(error) = persist_activation(runtime, plugin_id) {
+        log::warn!("{LOG_PREFIX} could not activate {plugin_id}: {error}");
+    }
+    // Tell an already-open UI the plugin is installed and registered. Emitted
+    // even if the activation write failed: the driver is registered for this
+    // session either way.
+    let payload = serde_json::to_value(PluginActivatedPayload { plugin_id }).unwrap_or_default();
+    if let Err(error) = runtime.events.emit(PLUGIN_ACTIVATED_EVENT, payload) {
+        log::warn!("{LOG_PREFIX} could not emit {PLUGIN_ACTIVATED_EVENT}: {error}");
+    }
+}
+
+/// Persist `plugin_id` into `active_external_drivers`, leaving every other
+/// config field untouched. Idempotent. Bails without writing when the installed
+/// plugin list cannot be read: narrowing the list to `plugin_id` on a guess
+/// could silently deactivate every other installed plugin.
+pub(crate) fn persist_activation(runtime: &RuntimeContext, plugin_id: &str) -> Result<(), String> {
+    let config = crate::application::persistence::load_config(runtime);
+    let installed_ids: Vec<String> = installer::list_installed_from(&runtime.paths.plugins_dir())
+        .into_iter()
+        .map(|p| p.id)
+        .collect();
+    let updated = merge_active_driver(&config, plugin_id, &installed_ids);
+    if updated.active_external_drivers == config.active_external_drivers {
+        return Ok(());
+    }
+    // Pass only `active_external_drivers`: save_config overwrites every `Some`
+    // field, so writing back the full snapshot would revert any other setting
+    // the user changed in the meantime.
+    crate::application::persistence::save_config(
+        runtime,
+        AppConfig {
+            active_external_drivers: updated.active_external_drivers,
+            ..AppConfig::default()
+        },
+    )
+    .map(|_| ())
+}
+
+/// Whether the latest release of `plugin_id` supports this app's version.
+/// `install_plugin` does not check `min_tabularis_version` itself, so without
+/// this an unattended install could leave a plugin that needs a newer Tabularis
+/// installed but unusable. An unreachable registry counts as compatible, so a
+/// network blip does not permanently block an otherwise-fine install.
+async fn plugin_compatible_with_this_app(runtime: &RuntimeContext, plugin_id: &str) -> bool {
+    let config = crate::application::persistence::load_config(runtime);
+    let base = registry_base_url(&config).trim_end_matches('/');
+    let Ok(detail) = tabularium::fetch_plugin_detail(base, plugin_id).await else {
+        log::warn!("{LOG_PREFIX} could not fetch detail for {plugin_id}, assuming compatible");
+        return true;
+    };
+    let target = if detail.latest_version.is_empty() {
+        detail.releases.first()
+    } else {
+        detail
+            .releases
+            .iter()
+            .find(|r| r.version == detail.latest_version)
+            .or_else(|| detail.releases.first())
+    };
+    let Some(release) = target else {
+        log::warn!("{LOG_PREFIX} {plugin_id} has no releases on the registry");
+        return false;
+    };
+    let Some(min) = &release.min_tabularis_version else {
+        return true;
+    };
+    is_version_compatible(min, env!("CARGO_PKG_VERSION"))
 }

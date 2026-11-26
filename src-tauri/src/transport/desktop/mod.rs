@@ -216,18 +216,11 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             // `postgresql` plugin when a `postgres` connection exists). Spawned,
             // not `block_on`, so a slow or failed registry fetch never delays
             // window creation — same pattern as the health-check spawn below.
-            // See `.github/planning/postgres-plugin-force-install.md`.
-            for (builtin_id, plugin_id) in crate::plugins::force_install::MIGRATABLE_DRIVERS {
-                let handle = app.handle().clone();
-                let builtin_id = builtin_id.to_string();
-                let plugin_id = plugin_id.to_string();
+            // The web server and `--mcp` run the same function from bootstrap.
+            {
+                let runtime = app.state::<crate::runtime::RuntimeContext>().inner().clone();
                 tauri::async_runtime::spawn(async move {
-                    crate::transport::desktop::plugins::force_install::ensure_plugin_installed_if_needed(
-                        &handle,
-                        &builtin_id,
-                        &plugin_id,
-                    )
-                    .await;
+                    crate::plugins::force_install::ensure_replacement_plugins(&runtime).await;
                 });
             }
 

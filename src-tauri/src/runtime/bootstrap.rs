@@ -134,9 +134,33 @@ pub async fn bootstrap_application(
         {
             log::warn!("SSL-mode spelling migration failed: {e}");
         }
+        // Headless processes (web, `--mcp`) have no desktop setup step, so
+        // install the replacement plugin here for the connections just
+        // migrated onto it. Spawned so a slow or failed registry fetch never
+        // delays startup, and retried on every launch. Skipped without
+        // external plugins (nothing could register it), and for operators who
+        // set `TABULARIS_DISABLE_PLUGIN_AUTO_INSTALL`.
+        if should_auto_install_plugins(
+            &options,
+            crate::plugins::force_install::auto_install_disabled(),
+        ) {
+            let runtime = context.clone();
+            tokio::spawn(async move {
+                crate::plugins::force_install::ensure_replacement_plugins(&runtime).await;
+            });
+        }
     }
 
     Ok(BootstrappedApplication { context, config })
+}
+
+/// Whether bootstrap should spawn the replacement-plugin install. Only a
+/// process that runs the connection migration itself (web, `--mcp`) installs
+/// here; desktop migrates lazily and installs from its own setup. Needs external
+/// plugins loaded (nothing could register the driver otherwise) and the
+/// operator's opt-out not set.
+pub(crate) fn should_auto_install_plugins(options: &BootstrapOptions, disabled: bool) -> bool {
+    options.run_connection_migrations && options.load_external_plugins && !disabled
 }
 
 fn load_config(config_dir: &std::path::Path) -> AppConfig {

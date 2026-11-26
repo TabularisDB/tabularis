@@ -62,8 +62,15 @@ The entrypoint translates these into `tabularis web` flags. Arguments after the 
 | `TABULARIS_PORT` | `8080` | Port inside the container. |
 | `TABULARIS_HOST` | `0.0.0.0` | Bind address inside the container. |
 | `TABULARIS_DEBUG` | `false` | Debug logging. |
+| `TABULARIS_DISABLE_PLUGIN_AUTO_INSTALL` | `false` | Stops the server downloading the PostgreSQL plugin on start. See [PostgreSQL connections](#postgresql-connections). |
 
 `TABULARIS_WEB_PASSWORD`, `TABULARIS_WEB_PROXY_SECRET` and `TABULARIS_SECRET_KEY` also accept a `_FILE` variant pointing at a Docker or Kubernetes secret file.
+
+## PostgreSQL connections
+
+PostgreSQL is provided by the standalone `postgresql` plugin, not by the server itself. When the server starts and a saved connection uses PostgreSQL (the old built-in `postgres` id, which is rewritten to `postgresql`, or `postgresql`), it installs and activates the plugin from the plugin registry in the background if it is missing. A failed download is logged and tried again on the next start, and the server starts either way.
+
+For an air-gapped or locked-down host, set `TABULARIS_DISABLE_PLUGIN_AUTO_INSTALL=true` so the server never downloads anything on its own, and install the plugin yourself: place it under the plugins directory in `/data`, or install it from **Settings → Plugins** while the host can reach the registry. Until it is installed, PostgreSQL connections report `Unsupported driver: postgresql` with a note naming the plugin. The `--mcp` process behaves the same way, using the same environment variable.
 
 ## Stored credentials
 

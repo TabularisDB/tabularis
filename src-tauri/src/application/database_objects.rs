@@ -1440,7 +1440,7 @@ pub async fn map_inferred_column_types(
     } else {
         crate::drivers::registry::get_driver(&driver)
             .await
-            .ok_or_else(|| format!("Unsupported driver: {driver}"))?
+            .ok_or_else(|| crate::drivers::registry::unsupported_driver_message(&driver))?
     };
     Ok(kinds
         .iter()

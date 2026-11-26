@@ -16,7 +16,7 @@ async fn driver_for(
 ) -> Result<std::sync::Arc<dyn crate::drivers::driver_trait::DatabaseDriver>, String> {
     crate::drivers::registry::get_driver(id)
         .await
-        .ok_or_else(|| format!("Unsupported driver: {}", id))
+        .ok_or_else(|| crate::drivers::registry::unsupported_driver_message(id))
 }
 
 const DEFAULT_MYSQL_PORT: u16 = 3306;
