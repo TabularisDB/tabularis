@@ -24,6 +24,17 @@ describe('pluginSaveFileName', () => {
         expect(name.endsWith('x.jpeg')).toBe(true);
     });
 
+    it('shortens a long multibyte name to 255 UTF-8 bytes without splitting a character', () => {
+        const utf8 = new TextEncoder();
+        for (const char of ['界', '😀']) {
+            const name = pluginSaveFileName(`${char.repeat(100)}.txt`);
+            expect(utf8.encode(name).length).toBeLessThanOrEqual(255);
+            expect(name.endsWith(`${char}.txt`)).toBe(true);
+            expect(new TextDecoder().decode(utf8.encode(name))).toBe(name);
+        }
+        expect(pluginSaveFileName(`${'界'.repeat(85)}.txt`)).toBe(`${'界'.repeat(83)}.txt`);
+    });
+
     it('refuses a name that is not a string or names no file', () => {
         expect(() => pluginSaveFileName(undefined)).toThrow('must be a string');
         expect(() => pluginSaveFileName('folder/')).toThrow('must contain a file name');

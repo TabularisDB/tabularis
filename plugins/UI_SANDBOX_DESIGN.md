@@ -73,9 +73,11 @@ webview from saving a blob or data URL it shows. `saveFile` sends the bytes over
 the frame's MessagePort instead, and the host passes them to the platform's
 `downloadFile`: the native save dialog on desktop, a download in the browser.
 The host checks the request before anything is shown: a recent user
-interaction propagated from the frame, an active workspace, no other save open
-from the same frame, at most 64 MiB of `Blob`/`ArrayBuffer`/typed-array data,
-and a file name reduced to its base name. The data is copied when it arrives,
+interaction with focus in the frame (a click elsewhere in the app also activates
+the host window, so activation alone does not say where the user clicked), an
+active workspace, no other save open from the same frame, at most 64 MiB of
+`Blob`/`ArrayBuffer`/typed-array data, and a file name reduced to its base name
+and 255 UTF-8 bytes. The data is copied when it arrives,
 so the plugin cannot change what is written.
 
 ## Plugin migration

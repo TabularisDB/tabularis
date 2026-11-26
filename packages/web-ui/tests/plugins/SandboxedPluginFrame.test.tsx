@@ -403,6 +403,7 @@ describe('SandboxedPluginFrame lifecycle', () => {
         registerActivePlatformCapabilities({downloadFile} as unknown as PlatformCapabilities);
         render(frame());
         await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        screen.getByTitle('Plugin google-sheets').focus();
 
         await expect(
             handlers['api.saveFile']({
@@ -429,6 +430,7 @@ describe('SandboxedPluginFrame lifecycle', () => {
         registerActivePlatformCapabilities({downloadFile} as unknown as PlatformCapabilities);
         render(frame());
         await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        screen.getByTitle('Plugin google-sheets').focus();
         const request = {data: new Uint8Array([1]), suggestedName: 'a.bin'};
 
         const first = handlers['api.saveFile'](request);
@@ -447,5 +449,22 @@ describe('SandboxedPluginFrame lifecycle', () => {
             'Saving a file requires a user interaction',
         );
         expect(downloadFile).toHaveBeenCalledOnce();
+    });
+
+    it('refuses a save when the interaction was outside the plugin frame', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(true);
+        registerActivePlatformCapabilities({downloadFile} as unknown as PlatformCapabilities);
+        render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        // The host window is activated by a click on a host button, not in the plugin.
+        const button = document.createElement('button');
+        document.body.append(button);
+        button.focus();
+
+        await expect(
+            handlers['api.saveFile']({data: new Uint8Array([1]), suggestedName: 'a.bin'}),
+        ).rejects.toThrow('Saving a file requires a user interaction in the plugin');
+        expect(downloadFile).not.toHaveBeenCalled();
+        button.remove();
     });
 });

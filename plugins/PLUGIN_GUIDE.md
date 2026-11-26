@@ -2576,9 +2576,10 @@ data the plugin holds, such as a BLOB it displays, as a file. `data` is a `Blob`
 `ArrayBuffer` or typed array of at most 64 MiB. The desktop app opens its save
 dialog; the browser host starts a download. The plugin frame keeps its
 `allow-scripts`-only sandbox: the host writes the file. Call it from a click
-handler, because the host refuses a save without a recent user interaction, and
-only one save per frame can be open at a time. The host keeps only the base name
-of `suggestedName`, without folders or control characters. The promise resolves
+handler, because the host refuses a save without a recent user interaction in
+the plugin frame, and only one save per frame can be open at a time. The host
+keeps only the base name of `suggestedName`, without folders or control
+characters, shortened to 255 UTF-8 bytes. The promise resolves
 to `true` when the file was saved and `false` when the user cancelled the dialog.
 
 ```tsx

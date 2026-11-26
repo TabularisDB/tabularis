@@ -388,9 +388,13 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
             'api.saveFile': async (value: unknown) => {
                 if (contextRef.current.workspaceActive === false)
                     throw new Error('Inactive workspaces cannot save files');
-                // Only a click in the frame can open a save dialog or start a download.
+                // Only a recent interaction can open a save dialog or start a download. A click
+                // anywhere in the app activates the host window, so the frame must also have focus,
+                // which it takes when the user clicks or types in it.
                 if (!navigator.userActivation?.isActive)
                     throw new Error('Saving a file requires a user interaction');
+                if (document.activeElement !== frame)
+                    throw new Error('Saving a file requires a user interaction in the plugin');
                 if (saveFileOpen) throw new Error('Another file from this plugin is being saved');
                 saveFileOpen = true;
                 try {
