@@ -160,10 +160,24 @@ function parseJsonArray(text: string): {headers: string[]; rows: string[][]} | n
         const parsed = JSON.parse(text.trim());
         const arr = Array.isArray(parsed) ? parsed : [parsed];
         if (arr.length === 0 || typeof arr[0] !== 'object') return null;
-        const headers = Object.keys(arr[0]);
-        const rows = arr.map((obj: Record<string, unknown>) =>
+        // Every key of every object, in order of first appearance: exports
+        // often leave out a key whose value is null, so the first object alone
+        // can miss columns that later objects have.
+        const headers = [
+            ...new Set(
+                arr.flatMap((obj: unknown) =>
+                    obj !== null && typeof obj === 'object' ? Object.keys(obj) : [],
+                ),
+            ),
+        ];
+        const rows = arr.map((obj: Record<string, unknown> | null) =>
             headers.map((h) => {
-                const v = obj[h];
+                // Only the object's own keys: a missing `constructor` or
+                // `toString` must not read the inherited Object.prototype value.
+                const v =
+                    obj !== null && typeof obj === 'object' && Object.hasOwn(obj, h)
+                        ? obj[h]
+                        : undefined;
                 if (v === null || v === undefined) return '';
                 if (typeof v === 'object') return JSON.stringify(v);
                 return String(v);

@@ -56,6 +56,33 @@ describe('JSON parsing', () => {
         expect(result.hasHeaderRow).toBe(false);
     });
 
+    it('takes headers from every object, not only the first', () => {
+        // A key missing from the first object (often a null left out by the
+        // export) used to drop that column for every row.
+        const json = '[{"id":1},{"id":2,"email":"c@d.com"},{"note":"x","id":3}]';
+        const result = parseClipboardText(json);
+        expect(result.headers).toEqual(['id', 'email', 'note']);
+        expect(result.rows).toEqual([
+            ['1', '', ''],
+            ['2', 'c@d.com', ''],
+            ['3', '', 'x'],
+        ]);
+        expect(reParseWithHeaderOption(json, true, result).headers).toEqual([
+            'id',
+            'email',
+            'note',
+        ]);
+    });
+
+    it('leaves a cell empty when an object lacks a key named like an Object method', () => {
+        const result = parseClipboardText('[{"id":1},{"id":2,"constructor":"A","toString":"B"}]');
+        expect(result.headers).toEqual(['id', 'constructor', 'tostring']);
+        expect(result.rows).toEqual([
+            ['1', '', ''],
+            ['2', 'A', 'B'],
+        ]);
+    });
+
     it('handles single JSON object', () => {
         const result = parseClipboardText('{"name":"Alice","age":30}');
         expect(result.headers).toEqual(['name', 'age']);
