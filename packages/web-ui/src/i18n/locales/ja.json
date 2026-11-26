@@ -858,6 +858,10 @@
     "dataGrid": {
       "zebraStripes": "交互の行背景",
       "zebraStripesDesc": "1行おきに背景を網掛けし、横幅の広いテーブルでも行を追いやすくします。",
+      "rowDensity": "行の密度",
+      "rowDensityDesc": "コンパクトでは余白を減らして行の高さを抑え、より多くの行を画面に表示します。",
+      "rowDensityComfortable": "標準",
+      "rowDensityCompact": "コンパクト",
       "defaultSortDirection": "デフォルトの並び替え方向",
       "defaultSortDirectionDesc": "列ヘッダーを初めてクリックしたときの初期並び替え順序。",
       "sortAscending": "昇順",

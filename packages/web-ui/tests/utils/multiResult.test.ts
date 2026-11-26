@@ -527,6 +527,12 @@ describe('multiResult', () => {
             expect(getStackedGridHeight(20, 250)).toBe(250);
         });
 
+        it('should size the rows with a compact row height (#339)', () => {
+            // header (35) + 5 compact rows (25) = 160
+            expect(getStackedGridHeight(5, undefined, 25)).toBe(160);
+            expect(getStackedGridHeight(20, undefined, 25)).toBe(400);
+        });
+
         it('should return header height for zero rows', () => {
             expect(getStackedGridHeight(0)).toBe(35);
         });

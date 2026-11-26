@@ -194,6 +194,29 @@ export function AppearanceTab() {
                             />
                         </SettingRow>
                         <SettingRow
+                            label={t('settings.dataGrid.rowDensity')}
+                            description={t('settings.dataGrid.rowDensityDesc')}
+                        >
+                            <SettingButtonGroup
+                                value={
+                                    settings.resultGridDensity === 'compact'
+                                        ? 'compact'
+                                        : 'comfortable'
+                                }
+                                onChange={(v) => updateSetting('resultGridDensity', v)}
+                                options={[
+                                    {
+                                        value: 'comfortable',
+                                        label: t('settings.dataGrid.rowDensityComfortable'),
+                                    },
+                                    {
+                                        value: 'compact',
+                                        label: t('settings.dataGrid.rowDensityCompact'),
+                                    },
+                                ]}
+                            />
+                        </SettingRow>
+                        <SettingRow
                             label={t('settings.dataGrid.defaultSortDirection')}
                             description={t('settings.dataGrid.defaultSortDirectionDesc')}
                         >

@@ -117,6 +117,7 @@ export function DataGridCell({
         readonly: readonlyProp,
         nullLabel,
         zebraStripes,
+        cellDensityClass,
         maskedColIndices,
         revealedColIndices,
         revealedCells,
@@ -309,7 +310,7 @@ export function DataGridCell({
                     ? {...style, left: frozenLeft ?? undefined, top: frozenTop ?? undefined}
                     : style
             }
-            className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-result ${isEditing ? (isFrozen ? '' : 'relative') : `whitespace-nowrap truncate ${widthClassName}`} ${frozenClass} ${fkForPreview ? 'cursor-pointer' : 'cursor-text'} ${formatClass ? '' : stateClass} ${selectedColIndices.has(colIndex) || isInRange ? 'bg-accent-primary/15' : ''} ${focusClass} ${FIND_MATCH_CELL_CLASS} ${formatClass} ${className}`}
+            className={`px-4 ${cellDensityClass} text-sm border-b border-r border-default last:border-r-0 font-result ${isEditing ? (isFrozen ? '' : 'relative') : `whitespace-nowrap truncate ${widthClassName}`} ${frozenClass} ${fkForPreview ? 'cursor-pointer' : 'cursor-text'} ${formatClass ? '' : stateClass} ${selectedColIndices.has(colIndex) || isInRange ? 'bg-accent-primary/15' : ''} ${focusClass} ${FIND_MATCH_CELL_CLASS} ${formatClass} ${className}`}
             title={
                 // The hover tooltip would leak the real value of a masked cell.
                 !isEditing && !isMasked ? truncateCellPreview(formattedDisplay).text : ''

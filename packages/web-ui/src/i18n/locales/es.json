@@ -874,6 +874,10 @@
     "dataGrid": {
       "zebraStripes": "Fondo de filas alternas",
       "zebraStripesDesc": "Sombrea una fila de cada dos para seguir más fácilmente una fila en tablas anchas.",
+      "rowDensity": "Densidad de filas",
+      "rowDensityDesc": "Compacta usa filas más bajas con menos relleno, para que quepan más filas en pantalla.",
+      "rowDensityComfortable": "Cómoda",
+      "rowDensityCompact": "Compacta",
       "defaultSortDirection": "Dirección de orden predeterminada",
       "defaultSortDirectionDesc": "Orden inicial al hacer clic en el encabezado de una columna por primera vez.",
       "sortAscending": "Ascendente",

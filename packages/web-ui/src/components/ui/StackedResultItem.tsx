@@ -45,6 +45,8 @@ interface StackedResultItemProps {
     commandTargetRef?: Ref<DataGridCommandTarget>;
     initialScrollTop?: number;
     onScrollTopChange?: (scrollTop: number) => void;
+    /** Height of a grid row for the row density setting; sizes the stacked grid. */
+    rowHeight?: number;
 }
 
 export function StackedResultItem({
@@ -66,6 +68,7 @@ export function StackedResultItem({
     commandTargetRef,
     initialScrollTop,
     onScrollTopChange,
+    rowHeight,
 }: StackedResultItemProps) {
     const {t} = useTranslation();
     const [queryExpanded, setQueryExpanded] = useState(false);
@@ -77,7 +80,7 @@ export function StackedResultItem({
     const rowCount = entry.result?.rows.length ?? 0;
     // The grid below hides them; the header shows how many (#1299).
     const hiddenColumns = useHiddenColumns(entry.id, entry.result?.columns ?? []);
-    const autoHeight = entry.result ? getStackedGridHeight(rowCount) : 120;
+    const autoHeight = entry.result ? getStackedGridHeight(rowCount, undefined, rowHeight) : 120;
     const [userHeight, setUserHeight] = useState<number | null>(null);
     const gridHeight = userHeight ?? autoHeight;
 
@@ -380,6 +383,7 @@ export function StackedResultItem({
                                     initialScrollTop={initialScrollTop}
                                     onScrollTopChange={onScrollTopChange}
                                     onCopyAllRows={onCopyAllRows}
+                                    rowHeight={rowHeight}
                                     compact
                                 />
                             </div>

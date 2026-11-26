@@ -877,6 +877,10 @@
     "dataGrid": {
       "zebraStripes": "Magkakahaliling background ng row",
       "zebraStripesDesc": "I-shade bawat ikalawang row para mas madaling sundan ang isang row sa mga malapad na table.",
+      "rowDensity": "Density ng row",
+      "rowDensityDesc": "Gumagamit ang Compact ng mas mabababang row na may mas kaunting padding, kaya mas maraming row ang kasya sa screen.",
+      "rowDensityComfortable": "Comfortable",
+      "rowDensityCompact": "Compact",
       "defaultSortDirection": "Default na direksyon ng pag-uri-uri",
       "defaultSortDirectionDesc": "Paunang ayos ng pag-uri-uri kapag nag-click sa header ng column sa unang pagkakataon.",
       "sortAscending": "Pataas (Ascending)",

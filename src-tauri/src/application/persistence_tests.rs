@@ -425,6 +425,7 @@ fn saves_all_grid_preferences_and_preserves_them_on_partial_updates() {
         "nullDisplay": "emptySet",
         "tabLayout": "vertical",
         "resultZebraStripes": false,
+        "resultGridDensity": "compact",
         "rowEditorFollowSelection": false,
         "stickyColumnHeaders": false
     });

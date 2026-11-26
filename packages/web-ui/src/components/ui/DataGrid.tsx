@@ -71,6 +71,8 @@ import {useToast} from '@/hooks/useToast';
 import {
     USE_DEFAULT_SENTINEL,
     DATA_GRID_ROW_HEIGHT,
+    getDataGridRowHeight,
+    getDataGridCellDensityClass,
     DATA_GRID_MIN_COLUMN_WIDTH,
     DATA_GRID_MAX_COLUMN_WIDTH,
     formatCellValue,
@@ -478,6 +480,9 @@ export const DataGrid = React.memo(function DataGrid({
     const colorByType = settings.resultColorByType ?? false;
     const stickyColumnHeaders = settings.stickyColumnHeaders ?? true;
     const zebraStripes = settings.resultZebraStripes ?? false;
+    // Row density (#339): compact rows follow the font size, comfortable stay 35 px.
+    const rowHeight = getDataGridRowHeight(settings.resultGridDensity, settings.fontSize);
+    const cellDensityClass = getDataGridCellDensityClass(settings.resultGridDensity);
     // Display only (#1300): copy and export keep their own NULL text.
     const nullLabel = getNullDisplayLabel(settings.nullDisplay, t('dataGrid.null'));
     const defaultSortDirection = settings.defaultSortDirection ?? 'asc';
@@ -573,7 +578,7 @@ export const DataGrid = React.memo(function DataGrid({
         : null;
     const transposedScrollPaddingTop =
         (stickyColumnHeaders ? DATA_GRID_ROW_HEIGHT : 0) +
-        (transposedFrozenTop !== null ? DATA_GRID_ROW_HEIGHT : 0);
+        (transposedFrozenTop !== null ? rowHeight : 0);
     const [columnStatsTarget, setColumnStatsTarget] = useState<{
         x: number;
         y: number;
@@ -1771,10 +1776,18 @@ export const DataGrid = React.memo(function DataGrid({
     const rowVirtualizer = useVirtualizer({
         count: tableRows.length,
         getScrollElement: () => parentRef.current,
-        estimateSize: () => DATA_GRID_ROW_HEIGHT,
+        estimateSize: () => rowHeight,
         overscan: 10,
         enabled: !transposed,
     });
+    // The virtualizer caches row sizes and does not watch `estimateSize`, so a
+    // density or font size change while the grid is mounted re-measures the rows.
+    const measuredRowHeightRef = useRef(rowHeight);
+    useEffect(() => {
+        if (measuredRowHeightRef.current === rowHeight) return;
+        measuredRowHeightRef.current = rowHeight;
+        rowVirtualizer.measure();
+    }, [rowHeight, rowVirtualizer]);
 
     // Transposed layout (#561): records run horizontally, so they are
     // virtualized on the x axis instead. Fields (visual rows) are few enough
@@ -3420,7 +3433,7 @@ export const DataGrid = React.memo(function DataGrid({
             // PageUp/PageDown cover one viewport worth of visual rows, minus one
             // so the row the user came from stays visible as an anchor.
             const height = parentRef.current?.clientHeight ?? 0;
-            const pageStep = Math.max(1, Math.floor(height / DATA_GRID_ROW_HEIGHT) - 1);
+            const pageStep = Math.max(1, Math.floor(height / rowHeight) - 1);
             const next = navigateVisibleCell(
                 e.key,
                 focusedCell,
@@ -3455,6 +3468,7 @@ export const DataGrid = React.memo(function DataGrid({
             isFindOpen,
             closeFindBar,
             transposed,
+            rowHeight,
         ],
     );
 
@@ -3706,6 +3720,8 @@ export const DataGrid = React.memo(function DataGrid({
             openJsonViewerWindow,
             editInputRef,
             zebraStripes,
+            rowHeight,
+            cellDensityClass,
             nullLabel,
             frozenFirstColumnLeft,
             visibleColIndices,
@@ -3758,6 +3774,8 @@ export const DataGrid = React.memo(function DataGrid({
             openJsonViewerWindow,
             editInputRef,
             zebraStripes,
+            rowHeight,
+            cellDensityClass,
             nullLabel,
             frozenFirstColumnLeft,
             visibleColIndices,

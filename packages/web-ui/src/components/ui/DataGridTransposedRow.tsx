@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-    DATA_GRID_ROW_HEIGHT,
     TRANSPOSED_FIELD_LABEL_CLASS,
     TRANSPOSED_FROZEN_FIELD_LABEL_CLASS,
     TRANSPOSED_FIELD_LABEL_WIDTH,
@@ -87,7 +86,7 @@ export const MemoTransposedRow = React.memo(function MemoTransposedRow({
     return (
         <tr
             data-field-index={colIndex}
-            style={{height: DATA_GRID_ROW_HEIGHT}}
+            style={{height: ctx.rowHeight}}
             className={isZebra ? 'bg-surface-secondary/40' : undefined}
         >
             <th
@@ -102,7 +101,7 @@ export const MemoTransposedRow = React.memo(function MemoTransposedRow({
                     frozenTop !== null
                         ? TRANSPOSED_FROZEN_FIELD_LABEL_CLASS
                         : TRANSPOSED_FIELD_LABEL_CLASS
-                } px-4 py-1.5 text-xs font-semibold tracking-wider border-b border-r border-default whitespace-nowrap truncate ${
+                } px-4 ${ctx.cellDensityClass} text-xs font-semibold tracking-wider border-b border-r border-default whitespace-nowrap truncate ${
                     isFieldSelected
                         ? 'text-primary bg-accent-primary/20'
                         : isZebra

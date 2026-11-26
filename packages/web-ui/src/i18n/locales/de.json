@@ -843,6 +843,10 @@
     "dataGrid": {
       "zebraStripes": "Abwechselnder Zeilenhintergrund",
       "zebraStripesDesc": "Hebt jede zweite Zeile hervor, damit Sie eine Zeile auch in breiten Tabellen leichter verfolgen können.",
+      "rowDensity": "Zeilendichte",
+      "rowDensityDesc": "Kompakt verwendet niedrigere Zeilen mit weniger Abstand, sodass mehr Zeilen auf den Bildschirm passen.",
+      "rowDensityComfortable": "Komfortabel",
+      "rowDensityCompact": "Kompakt",
       "defaultSortDirection": "Standard-Sortierrichtung",
       "defaultSortDirectionDesc": "Anfängliche Sortierreihenfolge beim ersten Klicken auf einen Spaltenkopf.",
       "sortAscending": "Aufsteigend",

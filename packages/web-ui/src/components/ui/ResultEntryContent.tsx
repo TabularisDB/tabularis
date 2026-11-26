@@ -29,6 +29,8 @@ interface ResultEntryContentProps {
     onScrollTopChange?: (scrollTop: number) => void;
     /** Offer the Grid | Chart toggle in the status bar (non-compact only). */
     allowChart?: boolean;
+    /** Height of a grid row for the row density setting; sizes the compact grid. */
+    rowHeight?: number;
 }
 
 export function ResultEntryContent({
@@ -44,6 +46,7 @@ export function ResultEntryContent({
     initialScrollTop,
     onScrollTopChange,
     allowChart = false,
+    rowHeight,
 }: ResultEntryContentProps) {
     const {t} = useTranslation();
     const timingLabels = useTimingLabels();
@@ -137,7 +140,7 @@ export function ResultEntryContent({
     }
 
     if (compact) {
-        const gridHeight = getStackedGridHeight(entry.result.rows.length);
+        const gridHeight = getStackedGridHeight(entry.result.rows.length, undefined, rowHeight);
         return (
             <div style={{height: gridHeight}} className="overflow-hidden">
                 <DataGrid

@@ -811,6 +811,10 @@
     "dataGrid": {
       "zebraStripes": "줄무늬 행 배경",
       "zebraStripesDesc": "넓은 테이블에서 행을 더 쉽게 추적할 수 있도록 한 행 건너 음영을 적용합니다.",
+      "rowDensity": "행 밀도",
+      "rowDensityDesc": "컴팩트는 여백을 줄인 낮은 행을 사용해 화면에 더 많은 행을 표시합니다.",
+      "rowDensityComfortable": "기본",
+      "rowDensityCompact": "컴팩트",
       "defaultSortDirection": "기본 정렬 방향",
       "defaultSortDirectionDesc": "열 머리글을 처음 클릭했을 때의 초기 정렬 순서입니다.",
       "sortAscending": "오름차순",
