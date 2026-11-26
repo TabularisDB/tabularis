@@ -516,7 +516,7 @@ fn test_build_paginated_query_honors_user_limit_after_quoted_parenthesis_in_pare
     ] {
         assert_eq!(build_paginated_query(q, 100, 1), expected, "{q}");
         assert_eq!(
-            build_paginated_query_for(q, 100, 1, false, false),
+            build_paginated_query_for(q, 100, 1, POSTGRES_SQLITE),
             expected,
             "{q}"
         );
@@ -533,17 +533,13 @@ fn test_build_paginated_query_reads_backslash_escapes_in_parens_by_dialect() {
         r#"SELECT CONCAT("a)\"b", name) FROM t LIMIT 5"#,
     ] {
         let expected = q.replace("LIMIT 5", "LIMIT 5 OFFSET 0");
-        assert_eq!(
-            build_paginated_query_for(q, 100, 1, true, true),
-            expected,
-            "{q}"
-        );
+        assert_eq!(build_paginated_query_for(q, 100, 1, MYSQL), expected, "{q}");
     }
     // PostgreSQL and SQLite: a backslash is an ordinary character, so `'a\'`
     // is a whole string and the `)` after it closes the group.
     let q = r"SELECT * FROM t WHERE c IN ('a\') LIMIT 5";
     assert_eq!(
-        build_paginated_query_for(q, 100, 1, false, false),
+        build_paginated_query_for(q, 100, 1, POSTGRES_SQLITE),
         r"SELECT * FROM t WHERE c IN ('a\') LIMIT 5 OFFSET 0"
     );
 }
@@ -561,7 +557,7 @@ fn test_build_paginated_query_skips_postgres_dollar_quotes() {
     ] {
         let expected = q.replace(" LIMIT 5", " LIMIT 5 OFFSET 0");
         assert_eq!(
-            build_paginated_query_for(q, 100, 1, false, false),
+            build_paginated_query_for(q, 100, 1, POSTGRES_SQLITE),
             expected,
             "{q}"
         );
@@ -572,18 +568,17 @@ fn test_build_paginated_query_skips_postgres_dollar_quotes() {
             "SELECT * FROM t WHERE id = $1 LIMIT 5",
             100,
             1,
-            false,
-            false
+            POSTGRES_SQLITE
         ),
         "SELECT * FROM t WHERE id = $1 LIMIT 5 OFFSET 0"
     );
     assert_eq!(
-        build_paginated_query_for("SELECT a$b$ FROM t LIMIT 5", 100, 1, false, false),
+        build_paginated_query_for("SELECT a$b$ FROM t LIMIT 5", 100, 1, POSTGRES_SQLITE),
         "SELECT a$b$ FROM t LIMIT 5 OFFSET 0"
     );
     // In MySQL `$` belongs to identifiers: `$$` is no quote there.
     assert_eq!(
-        build_paginated_query_for("SELECT a$$b FROM t LIMIT 5", 100, 1, true, true),
+        build_paginated_query_for("SELECT a$$b FROM t LIMIT 5", 100, 1, MYSQL),
         "SELECT a$$b FROM t LIMIT 5 OFFSET 0"
     );
 }
