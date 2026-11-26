@@ -1578,6 +1578,8 @@
     "save": "I-save",
     "failSave": "Nabigong i-save ang connection",
     "selectSshConnection": "Pumili ng SSH Connection",
+    "sshUserOverride": "I-override ang SSH User (opsyonal)",
+    "sshUserOverrideHint": "Iwanang blangko upang gamitin ang default na user ng napiling SSH connection.",
     "useSshConnection": "Gumamit ng Umiiral na SSH Connection",
     "createInlineSsh": "I-configure ang SSH Inline",
     "manageSshConnections": "Pamahalaan ang mga SSH Connection",

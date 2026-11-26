@@ -1562,6 +1562,8 @@
     "save": "保存",
     "failSave": "接続の保存に失敗しました",
     "selectSshConnection": "SSH 接続を選択",
+    "sshUserOverride": "SSH ユーザーの上書き (任意)",
+    "sshUserOverrideHint": "空欄のままにすると、選択した SSH 接続のデフォルトユーザーがそのまま使われます。",
     "useSshConnection": "既存の SSH 接続を使用",
     "createInlineSsh": "SSH をインラインで設定",
     "manageSshConnections": "SSH 接続を管理",

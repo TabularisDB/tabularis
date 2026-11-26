@@ -1618,6 +1618,8 @@
     "save": "Save",
     "failSave": "Failed to save connection",
     "selectSshConnection": "Select SSH Connection",
+    "sshUserOverride": "SSH User Override (optional)",
+    "sshUserOverrideHint": "Leave blank to use the selected SSH connection default user.",
     "useSshConnection": "Use Existing SSH Connection",
     "createInlineSsh": "Configure SSH Inline",
     "manageSshConnections": "Manage SSH Connections",

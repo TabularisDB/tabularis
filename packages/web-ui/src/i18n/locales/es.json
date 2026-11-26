@@ -1578,6 +1578,8 @@
     "save": "Guardar",
     "failSave": "Error al guardar la conexión",
     "selectSshConnection": "Seleccionar Conexión SSH",
+    "sshUserOverride": "Usuario SSH alternativo (opcional)",
+    "sshUserOverrideHint": "Déjalo vacío para usar el usuario predeterminado de la conexión SSH seleccionada.",
     "useSshConnection": "Usar Conexión SSH Existente",
     "createInlineSsh": "Configurar SSH en Línea",
     "manageSshConnections": "Gestionar Conexiones SSH",

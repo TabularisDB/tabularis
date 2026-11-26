@@ -1614,6 +1614,8 @@
     "save": "Salvar",
     "failSave": "Falha ao salvar conexão",
     "selectSshConnection": "Selecionar Conexão SSH",
+    "sshUserOverride": "Substituir usuário SSH (opcional)",
+    "sshUserOverrideHint": "Deixe em branco para usar o usuário padrão da conexão SSH selecionada.",
     "useSshConnection": "Usar Conexão SSH Existente",
     "createInlineSsh": "Configurar SSH em Linha",
     "manageSshConnections": "Gerenciar Conexões SSH",

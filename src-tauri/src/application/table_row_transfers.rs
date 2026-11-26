@@ -151,6 +151,14 @@ fn same_host(a: Option<&str>, b: Option<&str>) -> bool {
     a == b || (is_loopback(&a) && is_loopback(&b))
 }
 
+fn effective_ssh_user(params: &ConnectionParams) -> Option<&str> {
+    params
+        .ssh_user
+        .as_deref()
+        .map(str::trim)
+        .filter(|user| !user.is_empty())
+}
+
 fn same_ssh_route(a: &ConnectionParams, b: &ConnectionParams) -> bool {
     let (a_on, b_on) = (a.ssh_enabled == Some(true), b.ssh_enabled == Some(true));
     if !a_on && !b_on {
@@ -160,7 +168,7 @@ fn same_ssh_route(a: &ConnectionParams, b: &ConnectionParams) -> bool {
         return false;
     }
     match (&a.ssh_connection_id, &b.ssh_connection_id) {
-        (Some(x), Some(y)) => x == y,
+        (Some(x), Some(y)) => x == y && effective_ssh_user(a) == effective_ssh_user(b),
         (None, None) => {
             a.ssh_host == b.ssh_host && a.ssh_port == b.ssh_port && a.ssh_user == b.ssh_user
         }
