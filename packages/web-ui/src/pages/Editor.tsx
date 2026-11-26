@@ -51,6 +51,7 @@ import {
     usesMultiDatabaseLayout,
     resolveHistoryDatabase,
     resolveFlatMultiDbTabDatabase,
+    resolveTabQuerySchema,
     selectFlatMultiDbTabDatabase,
     toFlatMultiDbTabTarget,
 } from '@/utils/database';
@@ -870,6 +871,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const activeTabFlatDatabase = isMultiDb
         ? resolveFlatMultiDbTabDatabase(activeTab, selectedDatabases)
         : undefined;
+    // Where the active tab's SQL runs: the database the toolbar selector shows
+    // in the flat multi-db layout (#1674).
+    const activeTabQuerySchema = resolveTabQuerySchema(
+        activeTab,
+        isMultiDb,
+        selectedDatabases,
+        activeSchema,
+    );
 
     // Update window title when the active tab changes
     useEffect(() => {
@@ -1573,7 +1582,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 const shouldRecordHistory =
                     targetTab?.type === 'console' || targetTab?.type === 'query_builder';
 
-                const schema = targetTab?.schema ?? activeSchema;
+                const schema = resolveTabQuerySchema(
+                    targetTab,
+                    isMultiDb,
+                    selectedDatabases,
+                    activeSchema,
+                );
                 // For history: store the tab's database (not the schema) so replay
                 // reopens the tab scoped to the right database. The schema is NOT the
                 // database — storing it as `database` made replay open the primary
@@ -1585,6 +1599,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     {database: targetTab?.database, schema: targetTab?.schema},
                     isMultiDb,
                     activeDatabaseName,
+                    schema,
                 );
 
                 const start = performance.now();
@@ -1739,7 +1754,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 tableName,
                                 generation,
                                 targetTabId,
-                                targetTab?.schema ?? undefined,
+                                schema ?? undefined,
                                 targetTab?.database,
                             );
                         } else if (!tableName) {
@@ -1846,6 +1861,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             views,
             materializedViews,
             isMultiDb,
+            selectedDatabases,
             activeDatabaseName,
             addHistoryEntry,
             guardQueryExecution,
@@ -1895,11 +1911,17 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             }
 
             const pageSize = resolveTabPageSize(targetTab.pageSize, settings.resultPageSize);
-            const schema = targetTab?.schema ?? activeSchema;
+            const schema = resolveTabQuerySchema(
+                targetTab,
+                isMultiDb,
+                selectedDatabases,
+                activeSchema,
+            );
             const historyDb = resolveHistoryDatabase(
                 {database: targetTab?.database, schema: targetTab?.schema},
                 isMultiDb,
                 activeDatabaseName,
+                schema,
             );
 
             // Entry ids are reused per tab, so drop offsets from the previous run.
@@ -2100,6 +2122,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             activeSchema,
             t,
             isMultiDb,
+            selectedDatabases,
             activeDatabaseName,
             addHistoryEntry,
             guardQueryExecution,
@@ -2169,7 +2192,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             if (!entry) return;
 
             const pageSize = resolveTabPageSize(currentTab?.pageSize, settings.resultPageSize);
-            const schema = currentTab?.schema ?? activeSchema;
+            const schema = resolveTabQuerySchema(
+                currentTab,
+                isMultiDb,
+                selectedDatabases,
+                activeSchema,
+            );
 
             scrollTopByEntryKeyRef.current.delete(`${targetTabId}:${entryId}`);
 
@@ -2252,7 +2280,15 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 activeQueryRequestIdsRef.current.delete(queryRequestId);
             }
         },
-        [client, activeConnectionId, updateTab, settings.resultPageSize, activeSchema],
+        [
+            client,
+            activeConnectionId,
+            updateTab,
+            settings.resultPageSize,
+            activeSchema,
+            isMultiDb,
+            selectedDatabases,
+        ],
     );
 
     const handlePageSizeChange = useCallback(
@@ -2311,7 +2347,13 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     const total = await client.call('count_query', {
                         connectionId: tab.connectionId,
                         query: countTarget,
-                        schema: tab.schema ?? activeSchema ?? undefined,
+                        schema:
+                            resolveTabQuerySchema(
+                                tab,
+                                isMultiDb,
+                                selectedDatabases,
+                                activeSchema,
+                            ) ?? undefined,
                         database: tab.database,
                         // Inside a transaction, count what the tab sees, uncommitted rows included.
                         sessionId: transactionTabIdsRef.current.has(tab.id) ? tab.id : undefined,
@@ -2335,6 +2377,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             activeTab,
             activeConnectionId,
             activeSchema,
+            isMultiDb,
+            selectedDatabases,
             activeDriver,
             activeCapabilities,
             updateTab,
@@ -2509,7 +2553,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 fetchAllRows(
                     query,
                     tab.result,
-                    tab.schema ?? activeSchema,
+                    resolveTabQuerySchema(tab, isMultiDb, selectedDatabases, activeSchema),
                     tab.activeTable,
                     tab.id,
                     tab.database,
@@ -2529,7 +2573,15 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             });
             return rows ?? null;
         },
-        [activeCapabilities, activeDriver, activeSchema, fetchAllRows, getAutoRefreshSchedule],
+        [
+            activeCapabilities,
+            activeDriver,
+            activeSchema,
+            fetchAllRows,
+            getAutoRefreshSchedule,
+            isMultiDb,
+            selectedDatabases,
+        ],
     );
 
     const fetchEntryAllRows = useCallback(
@@ -2542,14 +2594,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             return fetchAllRows(
                 entry.query,
                 entry.result,
-                tab.schema ?? activeSchema,
+                resolveTabQuerySchema(tab, isMultiDb, selectedDatabases, activeSchema),
                 entry.activeTable,
                 tab.id,
                 tab.database,
                 entry.pkColumns,
             );
         },
-        [activeSchema, fetchAllRows],
+        [activeSchema, fetchAllRows, isMultiDb, selectedDatabases],
     );
 
     const copyAllRows = useCallback(
@@ -3224,7 +3276,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 throw new Error('No active connection');
             }
             const connectionId = currentTab.connectionId;
-            const schema = currentTab.schema ?? activeSchema;
+            const schema = resolveTabQuerySchema(
+                currentTab,
+                isMultiDb,
+                selectedDatabases,
+                activeSchema,
+            );
             const table = currentTab.activeTable;
             return getAutoRefreshSchedule(currentTab.id).run(async () => {
                 const targetTab = tabsRef.current.find((tab) => tab.id === currentTab.id);
@@ -3234,7 +3291,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     activeConnectionIdRef.current !== connectionId ||
                     targetTab.connectionId !== connectionId ||
                     targetTab.activeTable !== table ||
-                    (targetTab.schema ?? activeSchema) !== schema
+                    resolveTabQuerySchema(targetTab, isMultiDb, selectedDatabases, activeSchema) !==
+                        schema
                 ) {
                     throw new Error('The table changed before the values query could run');
                 }
@@ -3242,7 +3300,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 return task(currentTab, schema);
             });
         },
-        [activeSchema, getAutoRefreshSchedule],
+        [activeSchema, getAutoRefreshSchedule, isMultiDb, selectedDatabases],
     );
 
     // Runs a read-only query on the tab's own session so it sees the same rows
@@ -3314,9 +3372,16 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 sourceType,
             );
 
-            const targetSchema = activeCapabilities?.schemas
-                ? getReferencedSchema(fk, currentTab.schema)
-                : undefined;
+            // In the flat multi-database layout (MySQL) the source tab's
+            // database is its schema: keep it, or the new tab would fall back
+            // to the first selected database (#1674).
+            const sourceSchema = isMultiDb
+                ? resolveTabQuerySchema(currentTab, isMultiDb, selectedDatabases, activeSchema)
+                : currentTab.schema;
+            const targetSchema =
+                activeCapabilities?.schemas || isMultiDb
+                    ? getReferencedSchema(fk, sourceSchema)
+                    : undefined;
 
             const newTabId = addTab({
                 type: 'table',
@@ -3349,7 +3414,17 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 runQuery(undefined, 1, newTabId, undefined, filterClause, '', undefined);
             }, 0);
         },
-        [activeConnectionId, activeDriver, activeCapabilities, addTab, updateTab, runQuery],
+        [
+            activeConnectionId,
+            activeDriver,
+            activeCapabilities,
+            isMultiDb,
+            selectedDatabases,
+            activeSchema,
+            addTab,
+            updateTab,
+            runQuery,
+        ],
     );
 
     // Filtering by a value from the grid (e.g. a top value in the column
@@ -4040,7 +4115,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             // Fetch table columns. Use the tab's own schema (not the connection-level
             // activeSchema) so a nested multi-db tab on a non-default schema fetches
             // columns from the right one.
-            const tabSchema = activeTab?.schema ?? activeSchema;
+            const tabSchema = activeTabQuerySchema;
             const columns = await client.call('get_columns', {
                 connectionId: activeConnectionId,
                 tableName: activeTab.activeTable,
@@ -4159,7 +4234,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         updateTab,
         t,
         settings.resultPageSize,
-        activeSchema,
+        activeTabQuerySchema,
         showAlert,
     ]);
 
@@ -4223,7 +4298,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 // Fetch columns for validation. Use the tab's own schema (not the
                 // connection-level activeSchema) so a nested multi-db tab on a
                 // non-default schema validates against the right columns.
-                const tabSchema = activeTab?.schema ?? activeSchema;
+                const tabSchema = activeTabQuerySchema;
                 const columns = await client.call('get_columns', {
                     connectionId: activeConnectionId,
                     tableName: activeTable,
@@ -4290,7 +4365,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
             const dataChangeScope = getTableDataChangeScope(
                 activeCapabilities,
-                activeTab?.schema,
+                isMultiDb ? activeTabQuerySchema : activeTab?.schema,
                 activeSchema,
                 activeTab?.database,
             );
@@ -4491,6 +4566,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         t,
         applyToAll,
         activeSchema,
+        activeTabQuerySchema,
+        isMultiDb,
         activeCapabilities,
         showAlert,
         rowIdentity,
@@ -4531,7 +4608,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             const targetTab = tabsRef.current.find((tab) => tab.id === targetTabId);
             const connectionId = targetTab?.connectionId ?? activeConnectionId;
             if (!connectionId || !sql.trim()) return;
-            const schema = targetTab?.schema ?? activeSchema ?? undefined;
+            const schema =
+                resolveTabQuerySchema(targetTab, isMultiDb, selectedDatabases, activeSchema) ??
+                undefined;
             const database = targetTab?.database;
             const generation = ++dmlPreviewGenerationRef.current;
             setDmlPreview(null);
@@ -4555,7 +4634,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             }
             setDmlPreviewLoading(false);
         },
-        [activeConnectionId, activeSchema, client],
+        [activeConnectionId, activeSchema, client, isMultiDb, selectedDatabases],
     );
 
     const requestDmlPreview = useCallback(
@@ -4915,13 +4994,13 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     useSqlAutocompleteRegistration(activeConnectionId, {
         monaco: monacoInstance,
-        schema: activeTab?.schema ?? activeSchema,
+        schema: activeTabQuerySchema,
         database: activeTab?.database,
         enabled: !isNotebookTab && !isUsersTab && !isPluginWorkspaceTab,
     });
 
     const sqlDiagnostics = useSqlDiagnosticsOptions(activeConnectionId, {
-        schema: activeTab?.schema ?? activeSchema,
+        schema: activeTabQuerySchema,
         database: activeTab?.database,
         enabled: !isNotebookTab && !isUsersTab,
     });
@@ -4934,7 +5013,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             !activeTab
         )
             return undefined;
-        const schema = activeTab.schema ?? activeSchema;
+        const schema = activeTabQuerySchema;
         const database = activeTab.database ?? activeDatabaseName;
         // Only use already-loaded metadata for this tab's exact namespace.
         const cached = inlineTables(
@@ -4960,6 +5039,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         settings.aiInlineCompletionEnabled,
         activeConnectionId,
         activeTab,
+        activeTabQuerySchema,
         activeSchema,
         activeDatabaseName,
         activeCapabilities,
@@ -5230,7 +5310,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             // schema-based multi-db tab (Postgres) carries its own `database`
             // field instead, since `schema` there is a real Postgres schema, not
             // the database name.
-            const targetDatabase = activeTab?.schema ?? activeSchema ?? undefined;
+            const targetDatabase =
+                resolveTabQuerySchema(activeTab, isMultiDb, selectedDatabases, activeSchema) ??
+                undefined;
             const databaseParam = activeTab?.database
                 ? {database: activeTab.database}
                 : isMultiDatabaseCapable(activeCapabilities) && targetDatabase
@@ -7018,7 +7100,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                         : undefined
                                                 }
                                                 connectionId={activeConnectionId}
-                                                schema={activeTab.schema ?? activeSchema}
+                                                schema={activeTabQuerySchema}
                                                 database={activeTab.database}
                                                 onRefresh={handleRefresh}
                                                 onEditingChange={handleEditingChange}
@@ -7082,7 +7164,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                             connectionId={activeConnectionId}
                                             driver={activeDriver}
                                             capabilities={activeCapabilities}
-                                            schema={activeTab?.schema ?? activeSchema}
+                                            schema={activeTabQuerySchema}
                                             database={
                                                 activeTab?.database ??
                                                 activeDatabaseName ??
@@ -7199,7 +7281,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 isOpen={isAiModalOpen}
                 onClose={() => setIsAiModalOpen(false)}
                 connectionId={activeConnectionId ?? undefined}
-                schema={activeTab?.schema ?? activeSchema ?? undefined}
+                schema={activeTabQuerySchema ?? undefined}
                 database={activeTab?.database}
                 initialPrompt={aiFixPrompt ?? undefined}
                 onInsert={(q) => {
@@ -7223,7 +7305,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 }}
                 query={visualExplainQuery ?? activeTab?.query ?? ''}
                 connectionId={activeConnectionId ?? ''}
-                schema={activeTab?.schema ?? activeSchema ?? undefined}
+                schema={activeTabQuerySchema ?? undefined}
                 database={activeTab?.database}
             />
             <ExplainSelectionModal

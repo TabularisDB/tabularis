@@ -132,16 +132,21 @@ export function isSchemaBasedMultiDb(
  * `database` instead). For a flat multi-db tab the database lives in the tab's
  * `schema` field (reused), so that is preferred over the connection-level active
  * database so a query run on a non-primary database replays against that
- * database, not the primary.
+ * database, not the primary. A flat multi-db tab with neither field runs on
+ * `querySchema` (`resolveTabQuerySchema`, the database the toolbar selector
+ * shows), which can differ from the connection's active database once the
+ * database list is refreshed, so that is recorded before the active database
+ * (#1674).
  */
 export function resolveHistoryDatabase(
     tab: {database?: string | null; schema?: string | null},
     isMultiDb: boolean,
     activeDatabaseName: string | null | undefined,
+    querySchema?: string | null,
 ): string | undefined {
     if (tab.database) return tab.database;
     if (isMultiDb) {
-        return tab.schema ?? activeDatabaseName ?? undefined;
+        return tab.schema || querySchema || activeDatabaseName || undefined;
     }
     return undefined;
 }
@@ -166,6 +171,30 @@ export function resolveFlatMultiDbTabDatabase(
     selectedDatabases: string[],
 ): string | undefined {
     return tab?.schema || tab?.database || selectedDatabases[0] || undefined;
+}
+
+/**
+ * The schema a tab's query runs on (the `schema` sent with `execute_query` and
+ * the other calls that run the tab's SQL).
+ *
+ * In the flat multi-database layout this is the database the toolbar selector
+ * shows (`resolveFlatMultiDbTabDatabase`), so a tab that carries no database
+ * of its own (a console opened from the keyboard shortcut or the empty editor)
+ * runs on the database it displays instead of on none, which made MySQL answer
+ * "No database selected" until the same database was picked again (#1674).
+ * Other layouts keep the tab's schema, falling back to the connection's
+ * active schema.
+ */
+export function resolveTabQuerySchema(
+    tab: TabDatabaseTarget | null | undefined,
+    isMultiDb: boolean,
+    selectedDatabases: string[],
+    activeSchema: string | null | undefined,
+): string | null | undefined {
+    if (isMultiDb) {
+        return resolveFlatMultiDbTabDatabase(tab, selectedDatabases) ?? activeSchema;
+    }
+    return tab?.schema ?? activeSchema;
 }
 
 /**

@@ -13,6 +13,7 @@ import {
     reconcileDatabaseSelection,
     resolveHistoryDatabase,
     resolveFlatMultiDbTabDatabase,
+    resolveTabQuerySchema,
     selectFlatMultiDbTabDatabase,
     toFlatMultiDbTabTarget,
 } from '@/utils/database';
@@ -444,6 +445,22 @@ describe('resolveHistoryDatabase', () => {
         ).toBe('primary');
     });
 
+    it('records the database a flat multi-db tab with neither field ran on (#1674)', () => {
+        // After the database list is refreshed the selector (and the run) can use
+        // a database other than the connection's active one.
+        expect(
+            resolveHistoryDatabase({database: undefined, schema: undefined}, true, 'alpha', 'aaa'),
+        ).toBe('aaa');
+        expect(resolveHistoryDatabase({schema: ''}, true, 'alpha', 'aaa')).toBe('aaa');
+        expect(resolveHistoryDatabase({schema: 'beta'}, true, 'alpha', 'aaa')).toBe('beta');
+        expect(resolveHistoryDatabase({database: 'explicit'}, true, 'alpha', 'aaa')).toBe(
+            'explicit',
+        );
+        expect(resolveHistoryDatabase({}, true, 'alpha', null)).toBe('alpha');
+        // Outside the flat layout the query schema never leaks in.
+        expect(resolveHistoryDatabase({schema: 'public'}, false, null, 'public')).toBeUndefined();
+    });
+
     it('returns undefined for a flat multi-db tab with neither schema nor active database', () => {
         expect(
             resolveHistoryDatabase({database: undefined, schema: undefined}, true, null),
@@ -490,6 +507,47 @@ describe('resolveFlatMultiDbTabDatabase', () => {
     it('handles a missing tab and an empty selection', () => {
         expect(resolveFlatMultiDbTabDatabase(undefined, selected)).toBe('main_db');
         expect(resolveFlatMultiDbTabDatabase(null, [])).toBeUndefined();
+    });
+});
+
+describe('resolveTabQuerySchema', () => {
+    const selected = ['main_db', 'analytics_db'];
+
+    it('runs a flat multi-db tab with no database on the one the selector shows (#1674)', () => {
+        // A console opened before any database was picked carries neither field;
+        // the selector shows "main_db", so the query must run there, not on none.
+        expect(resolveTabQuerySchema({}, true, selected, null)).toBe('main_db');
+        expect(resolveTabQuerySchema({schema: '', database: null}, true, selected, null)).toBe(
+            'main_db',
+        );
+        expect(resolveTabQuerySchema({}, true, selected, null)).toBe(
+            resolveFlatMultiDbTabDatabase({}, selected),
+        );
+    });
+
+    it('follows the selector rather than the connection-level active schema', () => {
+        expect(resolveTabQuerySchema({}, true, selected, 'analytics_db')).toBe('main_db');
+        expect(resolveTabQuerySchema({schema: 'analytics_db'}, true, selected, 'main_db')).toBe(
+            'analytics_db',
+        );
+    });
+
+    it('uses the tab database when it only has `database` (saved query, restored tab)', () => {
+        expect(resolveTabQuerySchema({database: 'analytics_db'}, true, selected, 'main_db')).toBe(
+            'analytics_db',
+        );
+    });
+
+    it('falls back to the active schema when nothing is selected', () => {
+        expect(resolveTabQuerySchema(undefined, true, [], 'main_db')).toBe('main_db');
+        expect(resolveTabQuerySchema(null, true, [], null)).toBeNull();
+    });
+
+    it('keeps the tab schema, then the active schema, outside the flat multi-db layout', () => {
+        expect(resolveTabQuerySchema({schema: 'sales'}, false, [], 'public')).toBe('sales');
+        expect(resolveTabQuerySchema({database: 'other_db'}, false, [], 'public')).toBe('public');
+        expect(resolveTabQuerySchema({}, false, selected, null)).toBeNull();
+        expect(resolveTabQuerySchema(undefined, false, [], undefined)).toBeUndefined();
     });
 });
 
