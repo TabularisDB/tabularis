@@ -420,12 +420,19 @@ pub(crate) fn saved_connection_driver(
 pub(crate) struct SavedConnectionSnapshot {
     driver_id: String,
     params: ConnectionParams,
+    /// The proxy route when the snapshot was taken; it depends on the global
+    /// proxy settings as well as on the connection.
+    route: Option<crate::application::tunnels::ProxyRoute>,
 }
 
 impl SavedConnectionSnapshot {
     /// The connection with its profiles expanded, before any tunnel is opened.
     pub(crate) fn params(&self) -> &ConnectionParams {
         &self.params
+    }
+
+    pub(crate) fn route(&self) -> Option<&crate::application::tunnels::ProxyRoute> {
+        self.route.as_ref()
     }
 
     pub(crate) fn resolve(
@@ -439,6 +446,22 @@ impl SavedConnectionSnapshot {
             session_id,
         )?;
         Ok((self.driver_id.clone(), params))
+    }
+
+    /// Like [`resolve`](Self::resolve), but refuses to connect when the proxy
+    /// route is no longer the one the snapshot was taken with.
+    pub(crate) fn resolve_pinned(
+        &self,
+        runtime: &RuntimeContext,
+        session_id: Option<Uuid>,
+    ) -> Result<(String, ConnectionParams), String> {
+        if crate::application::tunnels::effective_proxy_route(&self.params) != self.route {
+            return Err(
+                "The proxy settings changed while the connection was being opened. Try again."
+                    .to_string(),
+            );
+        }
+        self.resolve(runtime, session_id)
     }
 }
 
@@ -457,7 +480,12 @@ pub(crate) fn snapshot_saved_connection(
     params.extra.extend(plugin_secrets);
     params.connection_id = Some(connection_id.to_string());
     let params = crate::application::tunnels::expand_connection_params(runtime, &params)?;
-    Ok(SavedConnectionSnapshot { driver_id, params })
+    let route = crate::application::tunnels::effective_proxy_route(&params);
+    Ok(SavedConnectionSnapshot {
+        driver_id,
+        params,
+        route,
+    })
 }
 
 pub(crate) fn resolve_saved_connection_params(
@@ -584,8 +612,7 @@ pub fn resolve_icon_asset(data_dir: &Path, relative_path: &str) -> Result<PathBu
 }
 
 fn load_file(runtime: &RuntimeContext) -> Result<ConnectionsFile, String> {
-    let file =
-        crate::persistence::load_connections_file(&runtime.paths.connections_file())?;
+    let file = crate::persistence::load_connections_file(&runtime.paths.connections_file())?;
     #[cfg(test)]
     connections_file_read_hooks::fire_after_connections_read_hook();
     Ok(file)
@@ -2468,7 +2495,9 @@ pub async fn set_selected_databases(
     if databases.iter().any(|db| db.trim().is_empty()) {
         return Err("Database names cannot be empty".to_string());
     }
-    let driver = find_connection(&load_connections_snapshot(runtime)?, connection_id)?.params.driver;
+    let driver = find_connection(&load_connections_snapshot(runtime)?, connection_id)?
+        .params
+        .driver;
     let is_schema_based = crate::drivers::registry::get_driver(&driver)
         .await
         .map(|driver| driver.manifest().capabilities.schemas)

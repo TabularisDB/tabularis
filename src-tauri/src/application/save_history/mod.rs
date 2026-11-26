@@ -29,7 +29,7 @@ pub use plan::{
     build_record, evaluate_plan, evaluate_target_mismatch, prune, restore_columns, target_matches,
 };
 pub use store::remove_for_connection;
-pub use target::target_fingerprint;
+pub use target::{fingerprint_with_route, target_fingerprint};
 
 use crate::application::connections::{snapshot_saved_connection, SavedConnectionSnapshot};
 use crate::application::records;
@@ -149,7 +149,7 @@ struct Target {
 
 fn snapshot_target(runtime: &RuntimeContext, connection_id: &str) -> Result<Target, String> {
     let snapshot = snapshot_saved_connection(runtime, connection_id)?;
-    let fingerprint = target_fingerprint(snapshot.params());
+    let fingerprint = fingerprint_with_route(snapshot.params(), snapshot.route());
     Ok(Target {
         snapshot,
         fingerprint,
@@ -163,7 +163,7 @@ fn snapshot_params(
     snapshot: &SavedConnectionSnapshot,
     database: Option<&str>,
 ) -> Result<ConnectionParams, String> {
-    let (_driver_id, mut params) = snapshot.resolve(runtime, session_id)?;
+    let (_driver_id, mut params) = snapshot.resolve_pinned(runtime, session_id)?;
     if let Some(database) = database {
         params.database = DatabaseSelection::Single(database.to_string());
     }

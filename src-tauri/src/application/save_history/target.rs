@@ -10,8 +10,10 @@
 //! The fingerprint is taken from a `SavedConnectionSnapshot`
 //! (`crate::application::connections`): the saved connection with its SSH and
 //! Kubernetes profiles already expanded, which is also what the connection that
-//! gets opened is resolved from.
+//! gets opened is resolved from. The proxy the traffic goes through is part of
+//! it too, whether it comes from the connection or from the global settings.
 
+use crate::application::tunnels::{effective_proxy_route, ProxyRoute};
 use crate::models::ConnectionParams;
 use sha2::{Digest, Sha256};
 
@@ -37,6 +39,12 @@ fn normalized(value: &Option<String>) -> Option<String> {
 
 /// Stable hex fingerprint of where `params` connects to.
 pub fn target_fingerprint(params: &ConnectionParams) -> String {
+    fingerprint_with_route(params, effective_proxy_route(params).as_ref())
+}
+
+/// The fingerprint for a proxy route that was resolved earlier, so it matches
+/// what a snapshot connects through.
+pub fn fingerprint_with_route(params: &ConnectionParams, route: Option<&ProxyRoute>) -> String {
     let parts = serde_json::json!([
         params.driver.trim().to_lowercase(),
         normalized(&params.host),
@@ -61,6 +69,16 @@ pub fn target_fingerprint(params: &ConnectionParams) -> String {
         params.ssm_target,
         params.ssm_profile,
         params.ssm_region,
+        // A proxy can lead the same host name to a different server.
+        route.map(|route| {
+            serde_json::json!([
+                route.scope,
+                route.protocol,
+                route.host,
+                route.port,
+                route.username.as_deref().map(str::trim),
+            ])
+        }),
     ]);
     let digest = Sha256::digest(parts.to_string().as_bytes());
     digest.iter().map(|byte| format!("{byte:02x}")).collect()

@@ -99,3 +99,50 @@ fn keeps_credentials_in_a_connection_uri_out_of_the_fingerprint() {
     assert_eq!(target_fingerprint(&first), target_fingerprint(&rotated));
     assert_ne!(target_fingerprint(&first), target_fingerprint(&moved));
 }
+
+fn proxied(host: &str, port: u16) -> ConnectionParams {
+    use crate::proxy::{ProxyEndpoint, ProxyMode, ProxyOverride, ProxyProtocol};
+    let mut params = base();
+    params.proxy = Some(ProxyOverride {
+        mode: ProxyMode::Custom,
+        endpoint: Some(ProxyEndpoint {
+            protocol: ProxyProtocol::Socks5,
+            host: host.to_string(),
+            port,
+            username: None,
+            password: None,
+        }),
+    });
+    params
+}
+
+#[test]
+fn changes_when_only_the_database_proxy_changes() {
+    let east = proxied("east-proxy", 1080);
+    let west = proxied("west-proxy", 1080);
+    let other_port = proxied("east-proxy", 1081);
+    assert_ne!(target_fingerprint(&east), target_fingerprint(&west));
+    assert_ne!(target_fingerprint(&east), target_fingerprint(&other_port));
+    assert_ne!(target_fingerprint(&east), target_fingerprint(&base()));
+}
+
+#[test]
+fn ignores_the_proxy_password_and_host_case() {
+    let mut other = proxied("EAST-PROXY ", 1080);
+    if let Some(endpoint) = other.proxy.as_mut().and_then(|p| p.endpoint.as_mut()) {
+        endpoint.password = Some("rotated".to_string());
+    }
+    assert_eq!(
+        target_fingerprint(&proxied("east-proxy", 1080)),
+        target_fingerprint(&other)
+    );
+}
+
+#[test]
+fn a_proxy_that_is_not_used_does_not_change_the_target() {
+    let mut local = proxied("east-proxy", 1080);
+    local.host = Some("localhost".to_string());
+    let mut plain = base();
+    plain.host = Some("localhost".to_string());
+    assert_eq!(target_fingerprint(&local), target_fingerprint(&plain));
+}

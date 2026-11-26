@@ -112,3 +112,78 @@ fn record_on(target: &str) -> super::SaveRecord {
         restored_at: None,
     }
 }
+
+fn proxied(host: &str, proxy_host: &str) -> ConnectionParams {
+    use crate::proxy::{ProxyEndpoint, ProxyMode, ProxyOverride, ProxyProtocol};
+    let mut params = params(host, "app");
+    params.proxy = Some(ProxyOverride {
+        mode: ProxyMode::Custom,
+        endpoint: Some(ProxyEndpoint {
+            protocol: ProxyProtocol::Socks5,
+            host: proxy_host.to_string(),
+            port: 1080,
+            username: None,
+            password: None,
+        }),
+    });
+    params
+}
+
+#[tokio::test]
+async fn a_restore_is_refused_when_only_the_proxy_route_changed() {
+    let temp = tempfile::tempdir().unwrap();
+    let runtime = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            temp.path().to_path_buf(),
+            temp.path().to_path_buf(),
+        )),
+        Arc::new(NoopRuntimeEvents),
+        Arc::new(NoSecrets),
+    );
+    let state = Arc::new(ApplicationState::default());
+    let saved = execute(
+        &runtime,
+        &state,
+        ConnectionCommand::SaveConnection {
+            name: "Prod".to_string(),
+            params: proxied("db.internal", "east-proxy"),
+            plugin_secret_changes: None,
+            detect_json_in_text_columns: None,
+            environment: None,
+        },
+    )
+    .await
+    .unwrap();
+    let id = saved["id"].as_str().unwrap().to_string();
+
+    let mut record = record_on(&snapshot_target(&runtime, &id).unwrap().fingerprint);
+    record.id = "rec".to_string();
+    super::store::append(runtime.paths.data_dir(), &id, record).unwrap();
+
+    // Only the proxy changes: same host, port, database and username.
+    execute(
+        &runtime,
+        &state,
+        ConnectionCommand::UpdateConnection {
+            id: id.clone(),
+            name: "Prod".to_string(),
+            params: proxied("db.internal", "west-proxy"),
+            plugin_secret_changes: None,
+            detect_json_in_text_columns: None,
+            environment: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let plan = super::plan_restore(&runtime, None, &id, "rec")
+        .await
+        .unwrap();
+    assert_eq!(plan.status, super::PlanStatus::TargetChanged);
+    let applied = super::apply_restore(&runtime, None, &id, "rec")
+        .await
+        .unwrap();
+    assert_eq!(applied.status, super::PlanStatus::TargetChanged);
+    let stored = super::store::load(runtime.paths.data_dir(), &id).unwrap();
+    assert_eq!(stored.records[0].restored_at, None);
+}

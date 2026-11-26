@@ -604,6 +604,47 @@ fn resolve_connection_transport(
     Ok(resolved)
 }
 
+/// The proxy the connection's traffic goes through to reach its server, as
+/// `resolve_connection_transport` and the SSH tunnel will use it. The proxy's
+/// password is left out: it does not change where the traffic ends up.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProxyRoute {
+    pub scope: &'static str,
+    pub protocol: crate::proxy::ProxyProtocol,
+    pub host: String,
+    pub port: u16,
+    pub username: Option<String>,
+}
+
+/// `None` when the connection is not proxied: a Kubernetes or SSM tunnel, a
+/// local socket or loopback host, or no proxy configured for its scope.
+pub fn effective_proxy_route(params: &ConnectionParams) -> Option<ProxyRoute> {
+    let scope = if params.k8s_enabled.unwrap_or(false) || params.ssm_enabled.unwrap_or(false) {
+        return None;
+    } else if params.ssh_enabled.unwrap_or(false) {
+        crate::proxy::SCOPE_SSH_TUNNEL
+    } else {
+        if params.local_unix_socket_path().is_some()
+            || is_loopback_host(params.host.as_deref().unwrap_or("localhost"))
+        {
+            return None;
+        }
+        crate::proxy::SCOPE_DATABASE
+    };
+    let endpoint = crate::proxy::resolve_for_connection(
+        scope,
+        params.connection_id.as_deref(),
+        params.proxy.as_ref(),
+    )?;
+    Some(ProxyRoute {
+        scope,
+        protocol: endpoint.protocol,
+        host: endpoint.host.trim().to_lowercase(),
+        port: endpoint.port,
+        username: endpoint.username,
+    })
+}
+
 fn is_loopback_host(host: &str) -> bool {
     let h = host.trim().to_ascii_lowercase();
     h == "localhost" || h == "127.0.0.1" || h == "::1" || h == "[::1]"
