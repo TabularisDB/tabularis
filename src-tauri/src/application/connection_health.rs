@@ -296,13 +296,20 @@ async fn recover_connection(
         .unwrap_or_else(|_| Err("Reconnect timed out".to_string()));
 
     match attempt {
+        // The last holder left during the attempt. Its pool is left open, as
+        // logout leaves the pools of the connections it held: pools close by
+        // connection ID, so closing it here could close the pool of a session
+        // that has just opened the connection again.
         Ok(_)
             if crate::health_check::unregister_connection_if(connection_id, || {
                 owners(state, connection_id).is_empty()
             })
             .await =>
         {
-            close_connection_resources(runtime, &[], connection_id).await;
+            log::info!(
+                "Health check: connection {} reconnected, but no session holds it now",
+                connection_id
+            );
         }
         Ok(released_sessions) => {
             log::info!("Health check: connection {} reconnected", connection_id);

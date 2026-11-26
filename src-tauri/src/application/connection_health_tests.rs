@@ -453,6 +453,66 @@ async fn a_session_reopening_during_orphan_cleanup_keeps_its_health_checks() {
     fixture.finish().await;
 }
 
+/// The last holder can log out while a recovery is running, and a new browser
+/// session can open the connection right after the recovery finds it orphaned.
+/// Pools are closed by connection ID, so closing the pool the recovery opened
+/// would also close the one the new session is using.
+#[tokio::test]
+async fn a_session_reopening_after_recovery_finds_no_holder_keeps_its_pool() {
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    let fixture = Fixture::new().await;
+    let (old_session, new_session) = (Uuid::new_v4(), Uuid::new_v4());
+    fixture.open_in(old_session).await;
+    fixture.close_pool().await;
+
+    // Poll the recovery by hand so the new session can act between two of its
+    // steps, as another request task would.
+    {
+        let recovery = recover_connection(&fixture.runtime, &fixture.state, &fixture.connection_id);
+        let mut recovery = std::pin::pin!(recovery);
+        // The first poll picks the holder to resolve with; that session then logs out.
+        let mut done = futures::poll!(recovery.as_mut()).is_ready();
+        fixture
+            .state
+            .web_active_connections
+            .lock()
+            .unwrap()
+            .remove(&old_session);
+        let mut reopened = false;
+        while !done {
+            tokio::task::yield_now().await;
+            done = futures::poll!(recovery.as_mut()).is_ready();
+            // Once the recovery has found no holder and unregistered the ID, a new
+            // session opens the connection before the recovery's next step runs.
+            if !reopened && !fixture.registered().await {
+                fixture.open_pool().await;
+                fixture.open_in(new_session).await;
+                reopened = true;
+            }
+        }
+        assert!(reopened, "the recovery never found the connection orphaned");
+    }
+
+    assert!(fixture.held_by(new_session));
+    assert!(fixture.registered().await);
+    assert!(
+        fixture.has_pool().await,
+        "the new session's pool was closed by the old recovery"
+    );
+    let (_, params) = crate::application::connections::resolve_saved_connection_params(
+        &fixture.runtime,
+        Some(new_session),
+        &fixture.connection_id,
+    )
+    .unwrap();
+    assert_eq!(
+        ping_resolved(&params, &fixture.connection_id).await,
+        PingOutcome::Ok,
+        "the new session cannot use its pool"
+    );
+    fixture.finish().await;
+}
+
 /// The last holder can log out between the tick's holder check and the
 /// resolve. Resolving then would send an SSH prompt to every session.
 #[tokio::test]
