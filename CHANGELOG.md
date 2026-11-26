@@ -47,7 +47,7 @@
 * **settings:** commit slider drag when released outside the input ([1f25f2e](https://github.com/TabularisDB/tabularis/commit/1f25f2ecbe7b33fe604cb186754214fb0786d6d0))
 * **settings:** keep font size slider steady while dragging ([51977a6](https://github.com/TabularisDB/tabularis/commit/51977a6e7b7b83c31f911c4b9766d83c1011273c)), closes [#1641](https://github.com/TabularisDB/tabularis/issues/1641)
 * **settings:** mark the deprecated built-in driver in the plugins sidebar ([#1602](https://github.com/TabularisDB/tabularis/issues/1602)) ([0df6932](https://github.com/TabularisDB/tabularis/commit/0df69322a9bd087e0c053097b59f6635b909ba70)), closes [#1568](https://github.com/TabularisDB/tabularis/issues/1568)
-* **settings:** take connection color bar colors from the theme ([fd57440](https://github.com/TabularisDB/tabularis/commit/fd574401d8d7dd5a822327626705924038e796fb)), closes [hi#contrast](https://github.com/hi/issues/contrast)
+* **settings:** take connection color bar colors from the theme ([fd57440](https://github.com/TabularisDB/tabularis/commit/fd574401d8d7dd5a822327626705924038e796fb))
 * show referenced schema in related-record header ([#1521](https://github.com/TabularisDB/tabularis/issues/1521)) ([6ba9c26](https://github.com/TabularisDB/tabularis/commit/6ba9c26356b4d3675e902fb7ae92634cee8183c3))
 * **sql-editor:** ask before EXPLAIN ANALYZE runs a DELETE or UPDATE with no WHERE ([#1663](https://github.com/TabularisDB/tabularis/issues/1663)) ([1ed0791](https://github.com/TabularisDB/tabularis/commit/1ed079175b52a86745f892d7f453ce5c0a8394bc))
 * **sql-splitter:** accept dollar-quote tags with any letter or a digit ([ff339ea](https://github.com/TabularisDB/tabularis/commit/ff339eadd7c0aebeae0b4082bfce492123c62ab5))
