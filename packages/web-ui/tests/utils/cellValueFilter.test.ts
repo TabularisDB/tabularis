@@ -189,6 +189,21 @@ describe('cellValueFilter', () => {
             ).toBe(`"path" LIKE '%C:\\tmp%' ESCAPE '!'`);
         });
 
+        it('doubles backslashes in compared values only on MySQL-style dialects', () => {
+            expect(buildCellValueFilterClause('path', '=', 'C:\\tmp\\', 'mysql', 'text')).toBe(
+                "`path` = 'C:\\\\tmp\\\\'",
+            );
+            expect(buildCellValueFilterClause('path', '<>', 'C:\\tmp', 'mysql', 'text')).toBe(
+                "`path` <> 'C:\\\\tmp'",
+            );
+            expect(buildCellValueFilterClause('path', 'IN', ['a\\b', 'c'], 'mysql', 'text')).toBe(
+                "`path` IN ('a\\\\b', 'c')",
+            );
+            expect(buildCellValueFilterClause('path', '=', 'C:\\tmp\\', 'postgres', 'text')).toBe(
+                `"path" = 'C:\\tmp\\'`,
+            );
+        });
+
         it('builds not contains, starts with and ends with as literal LIKE clauses', () => {
             expect(
                 buildCellValueFilterClause('email', 'not contains', '@test.', 'postgres', 'text'),

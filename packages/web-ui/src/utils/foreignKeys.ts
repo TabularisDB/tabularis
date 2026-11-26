@@ -1,7 +1,7 @@
 import type {ForeignKey} from '@/types/schema';
 import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
 import {isMysqlDialect, isPostgresDialect, quoteIdentifier} from './identifiers';
-import {quoteSqlString, sqlBooleanLiteral, stringEscapeStyle} from './sqlLiteral';
+import {quoteSqlString, sqlBooleanLiteral} from './sqlLiteral';
 
 const NUMERIC_TYPE_KEYWORDS = [
     'int',
@@ -133,11 +133,11 @@ export function formatSqlValueForFilter(
     if (isNumericColumnType(columnType) && /^-?\d+(\.\d+)?$/.test(str)) {
         return str;
     }
-    // A backslash-escape syntax (GoogleSQL) has no doubled-quote escape;
-    // every other driver keeps the standard form.
-    return stringEscapeStyle(driver) === 'backslash'
-        ? quoteSqlString(str, driver)
-        : `'${str.replace(/'/g, "''")}'`;
+    // Escaped for the driver's string syntax: MySQL/MariaDB (default sql_mode)
+    // read a backslash as an escape, so it is doubled there (`C:\temp\` would
+    // otherwise become a tab and an unterminated string); GoogleSQL has no
+    // doubled-quote escape; every other driver doubles single quotes only.
+    return quoteSqlString(str, driver);
 }
 
 export function isMysqlFloatColumn(

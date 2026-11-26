@@ -144,6 +144,19 @@ describe('foreignKeys', () => {
             );
         });
 
+        it('doubles backslashes in string values only on MySQL-style dialects', () => {
+            expect(buildForeignKeyFilterClause(orgFk, "C:\\temp\\O'B", 'mysql')).toBe(
+                "`id` = 'C:\\\\temp\\\\O''B'",
+            );
+            expect(buildForeignKeyFilterClause(orgFk, 'a\\nb', 'mysql')).toBe("`id` = 'a\\\\nb'");
+            expect(buildForeignKeyFilterClause(orgFk, 'C:\\temp\\', 'postgres')).toBe(
+                `"id" = 'C:\\temp\\'`,
+            );
+            expect(buildForeignKeyFilterClause(orgFk, 'C:\\temp\\', 'sqlite')).toBe(
+                `"id" = 'C:\\temp\\'`,
+            );
+        });
+
         it('writes booleans in the declared boolean_literals style', () => {
             const numeric = {
                 ...GOOGLESQL_CAPS,
