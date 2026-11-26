@@ -501,6 +501,81 @@ fn test_build_paginated_query_keeps_block_comment_marker_inside_string() {
 }
 
 #[test]
+fn test_build_paginated_query_keeps_locking_clause_last() {
+    // MySQL accepts LIMIT only before FOR UPDATE / LOCK IN SHARE MODE, and a
+    // user LIMIT before the clause used to get a second LIMIT after it.
+    for (q, expected) in [
+        (
+            "SELECT * FROM t FOR UPDATE",
+            "SELECT * FROM t LIMIT 101 OFFSET 0 FOR UPDATE",
+        ),
+        (
+            "SELECT * FROM t LIMIT 5 FOR UPDATE;",
+            "SELECT * FROM t LIMIT 5 OFFSET 0 FOR UPDATE",
+        ),
+        (
+            "SELECT * FROM t ORDER BY id LIMIT 50 OFFSET 10 FOR SHARE SKIP LOCKED",
+            "SELECT * FROM t ORDER BY id LIMIT 50 OFFSET 10 FOR SHARE SKIP LOCKED",
+        ),
+        (
+            "SELECT * FROM a JOIN b ON a.id = b.id FOR UPDATE OF a, b NOWAIT FOR KEY SHARE OF c",
+            "SELECT * FROM a JOIN b ON a.id = b.id LIMIT 101 OFFSET 0 FOR UPDATE OF a, b NOWAIT FOR KEY SHARE OF c",
+        ),
+        (
+            "SELECT * FROM t FOR NO KEY UPDATE -- lock",
+            "SELECT * FROM t LIMIT 101 OFFSET 0 FOR NO KEY UPDATE",
+        ),
+        (
+            "SELECT * FROM t LOCK IN SHARE MODE",
+            "SELECT * FROM t LIMIT 101 OFFSET 0 LOCK IN SHARE MODE",
+        ),
+    ] {
+        assert_eq!(build_paginated_query(q, 100, 1), expected, "{q}");
+    }
+    // A FOR that is not a locking clause is left alone.
+    assert_eq!(
+        build_paginated_query("SELECT 'FOR UPDATE' AS x FROM t", 100, 1),
+        "SELECT 'FOR UPDATE' AS x FROM t LIMIT 101 OFFSET 0"
+    );
+    assert_eq!(
+        build_paginated_query_for(
+            "SELECT * FROM t WHERE x IN (SELECT y FROM u FOR UPDATE)",
+            100,
+            1,
+            false,
+            false
+        ),
+        "SELECT * FROM t WHERE x IN (SELECT y FROM u FOR UPDATE) LIMIT 101 OFFSET 0"
+    );
+}
+
+#[test]
+fn test_build_paginated_query_reads_limit_after_locking_clause() {
+    // PostgreSQL accepts LIMIT/OFFSET after the locking clause. The `OF` table
+    // list used to take `LIMIT 5` as table names, which gave two limits.
+    for (q, expected) in [
+        (
+            "SELECT * FROM orders FOR UPDATE OF orders LIMIT 5",
+            "SELECT * FROM orders FOR UPDATE OF orders LIMIT 5 OFFSET 0",
+        ),
+        (
+            "SELECT * FROM orders FOR SHARE OF orders, items OFFSET 3 LIMIT 5",
+            "SELECT * FROM orders FOR SHARE OF orders, items LIMIT 5 OFFSET 3",
+        ),
+        (
+            "SELECT * FROM orders FOR UPDATE LIMIT 5",
+            "SELECT * FROM orders FOR UPDATE LIMIT 5 OFFSET 0",
+        ),
+    ] {
+        assert_eq!(
+            build_paginated_query_for(q, 100, 1, false, false),
+            expected,
+            "{q}"
+        );
+    }
+}
+
+#[test]
 fn test_build_paginated_query_honors_user_limit_before_trailing_semicolon() {
     let q = "SELECT * FROM t ORDER BY id LIMIT 50;";
     let result = build_paginated_query(q, 100, 1);
