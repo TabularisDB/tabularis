@@ -4,8 +4,20 @@ use super::{
     full_type_if_distinct, i64_to_json, is_explainable_query, is_explainable_query_for,
     is_select_query, is_select_query_for, parse_unsafe_bigint_string, returns_result_set,
     returns_result_set_for, strip_leading_sql_comments, strip_leading_sql_comments_for,
-    strip_limit_offset, transaction_effect, u64_to_json, TransactionEffect, DEFAULT_MAX_BLOB_SIZE,
-    JS_MAX_SAFE_INTEGER, JS_MAX_SAFE_UINT, MAX_BLOB_PREVIEW_SIZE,
+    strip_limit_offset, transaction_effect, u64_to_json, ScanRules, TransactionEffect,
+    DEFAULT_MAX_BLOB_SIZE, JS_MAX_SAFE_INTEGER, JS_MAX_SAFE_UINT, MAX_BLOB_PREVIEW_SIZE,
+};
+
+const MYSQL: ScanRules = ScanRules {
+    hash_comments: true,
+    line_comment_requires_space: true,
+    backslash_escapes: true,
+};
+
+const POSTGRES_SQLITE: ScanRules = ScanRules {
+    hash_comments: false,
+    line_comment_requires_space: false,
+    backslash_escapes: false,
 };
 
 #[test]
@@ -713,23 +725,23 @@ fn test_build_paginated_query_for_skips_comments_by_dialect() {
     // PostgreSQL and SQLite: `--` needs no space after it.
     let q = "SELECT * FROM orders --don't page\nLIMIT 5";
     assert_eq!(
-        build_paginated_query_for(q, 100, 1, false, false),
+        build_paginated_query_for(q, 100, 1, POSTGRES_SQLITE),
         "SELECT * FROM orders --don't page\nLIMIT 5 OFFSET 0"
     );
     let q = "SELECT data #>> '{a}' FROM t -- it's\nLIMIT 5";
     assert_eq!(
-        build_paginated_query_for(q, 100, 1, false, false),
+        build_paginated_query_for(q, 100, 1, POSTGRES_SQLITE),
         "SELECT data #>> '{a}' FROM t -- it's\nLIMIT 5 OFFSET 0"
     );
     // MySQL: `5--3` is arithmetic, and `#` starts a comment.
     let q = "SELECT 5--3 AS x FROM t LIMIT 5";
     assert_eq!(
-        build_paginated_query_for(q, 100, 1, true, true),
+        build_paginated_query_for(q, 100, 1, MYSQL),
         "SELECT 5--3 AS x FROM t LIMIT 5 OFFSET 0"
     );
     let q = "SELECT * FROM t # don't page\nLIMIT 5";
     assert_eq!(
-        build_paginated_query_for(q, 100, 1, true, true),
+        build_paginated_query_for(q, 100, 1, MYSQL),
         "SELECT * FROM t # don't page\nLIMIT 5 OFFSET 0"
     );
 }
@@ -863,13 +875,13 @@ fn test_build_paginated_query_multiline_comments_with_user_limit() {
 fn test_build_paginated_query_for_postgres_keeps_hash_operators_and_strips_semicolon() {
     let with_limit = "SELECT data #>> '{a}' FROM t LIMIT 5";
     assert_eq!(
-        build_paginated_query_for(with_limit, 100, 1, false, false),
+        build_paginated_query_for(with_limit, 100, 1, POSTGRES_SQLITE),
         "SELECT data #>> '{a}' FROM t LIMIT 5 OFFSET 0"
     );
 
     let with_semicolon = "SELECT data #>> '{a}' FROM t;";
     assert_eq!(
-        build_paginated_query_for(with_semicolon, 100, 1, false, false),
+        build_paginated_query_for(with_semicolon, 100, 1, POSTGRES_SQLITE),
         "SELECT data #>> '{a}' FROM t LIMIT 101 OFFSET 0"
     );
 }
@@ -878,31 +890,118 @@ fn test_build_paginated_query_for_postgres_keeps_hash_operators_and_strips_semic
 fn test_build_paginated_query_for_postgres_sqlite_handles_unspaced_dash_comments() {
     let trailing_comment = "SELECT * FROM t --note";
     assert_eq!(
-        build_paginated_query_for(trailing_comment, 100, 1, false, false),
+        build_paginated_query_for(trailing_comment, 100, 1, POSTGRES_SQLITE),
         "SELECT * FROM t --note\nLIMIT 101 OFFSET 0"
     );
 
     let with_limit = "SELECT * FROM t LIMIT 5 --note";
     assert_eq!(
-        build_paginated_query_for(with_limit, 100, 1, false, false),
+        build_paginated_query_for(with_limit, 100, 1, POSTGRES_SQLITE),
         "SELECT * FROM t LIMIT 5 OFFSET 0"
     );
 
     let with_semicolon = "SELECT * FROM t; --note";
     assert_eq!(
-        build_paginated_query_for(with_semicolon, 100, 1, false, false),
+        build_paginated_query_for(with_semicolon, 100, 1, POSTGRES_SQLITE),
         "SELECT * FROM t LIMIT 101 OFFSET 0"
     );
 }
 
 #[test]
+fn test_build_paginated_query_for_postgres_sqlite_string_ending_in_backslash() {
+    let like_escape = r"SELECT id FROM files WHERE name LIKE '%\_%' ESCAPE '\' ORDER BY id LIMIT 3";
+    assert_eq!(
+        build_paginated_query_for(like_escape, 500, 1, POSTGRES_SQLITE),
+        r"SELECT id FROM files WHERE name LIKE '%\_%' ESCAPE '\' ORDER BY id LIMIT 3 OFFSET 0"
+    );
+
+    let path = r"SELECT id FROM files WHERE dir = 'C:\' ORDER BY id LIMIT 2;";
+    assert_eq!(
+        build_paginated_query_for(path, 500, 1, POSTGRES_SQLITE),
+        r"SELECT id FROM files WHERE dir = 'C:\' ORDER BY id LIMIT 2 OFFSET 0"
+    );
+
+    let trailing_comment = r"SELECT id FROM files WHERE dir <> 'C:\' ORDER BY id -- skip the root";
+    assert_eq!(
+        build_paginated_query_for(trailing_comment, 5, 2, POSTGRES_SQLITE),
+        "SELECT id FROM files WHERE dir <> 'C:\\' ORDER BY id -- skip the root\nLIMIT 6 OFFSET 5"
+    );
+
+    let e_string = r"SELECT E'it\'s LIMIT 5' FROM t LIMIT 50 -- cap";
+    assert_eq!(
+        build_paginated_query_for(e_string, 100, 1, POSTGRES_SQLITE),
+        r"SELECT E'it\'s LIMIT 5' FROM t LIMIT 50 OFFSET 0"
+    );
+
+    let comment_after_backslash = "SELECT id FROM files WHERE dir = 'C:\\' -- don't page\nLIMIT 4";
+    assert_eq!(
+        build_paginated_query_for(comment_after_backslash, 100, 1, POSTGRES_SQLITE),
+        "SELECT id FROM files WHERE dir = 'C:\\' -- don't page\nLIMIT 4 OFFSET 0"
+    );
+
+    let continued_e_string = "SELECT E'a'\n'it\\'s' LIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(continued_e_string, 100, 1, POSTGRES_SQLITE),
+        "SELECT E'a'\n'it\\'s' LIMIT 5 OFFSET 0"
+    );
+
+    let continued_e_string_comment = "SELECT E'a'\n'b\\'' -- it's\nLIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(continued_e_string_comment, 100, 1, POSTGRES_SQLITE),
+        "SELECT E'a'\n'b\\'' -- it's\nLIMIT 5 OFFSET 0"
+    );
+
+    let continued_e_string_line_comment =
+        "SELECT id, E'a' -- note\n'b\\'' AS s FROM files ORDER BY id LIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(continued_e_string_line_comment, 100, 1, POSTGRES_SQLITE),
+        "SELECT id, E'a' -- note\n'b\\'' AS s FROM files ORDER BY id LIMIT 5 OFFSET 0"
+    );
+
+    let continued_e_string_cr = "SELECT E'a'\r'it\\'s' LIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(continued_e_string_cr, 100, 1, POSTGRES_SQLITE),
+        "SELECT E'a'\r'it\\'s' LIMIT 5 OFFSET 0"
+    );
+
+    let same_line_is_not_continued = r"SELECT E'a', 'C:\' FROM t LIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(same_line_is_not_continued, 100, 1, POSTGRES_SQLITE),
+        r"SELECT E'a', 'C:\' FROM t LIMIT 5 OFFSET 0"
+    );
+
+    let plain_then_plain = "SELECT 'a'\n'C:\\' FROM t LIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(plain_then_plain, 100, 1, POSTGRES_SQLITE),
+        "SELECT 'a'\n'C:\\' FROM t LIMIT 5 OFFSET 0"
+    );
+}
+
+#[test]
+fn test_is_e_string() {
+    let at_quote = |sql: &str| {
+        let chars: Vec<(usize, char)> = sql.char_indices().collect();
+        let i = chars.iter().position(|&(_, ch)| ch == '\'').unwrap();
+        super::query::is_e_string(&chars, i)
+    };
+    assert!(at_quote(r"E'a\'b'"));
+    assert!(at_quote(r"SELECT e'a\'b'"));
+    assert!(at_quote(r"WHERE x=E'\n'"));
+    assert!(at_quote(r"(E'\t')"));
+    assert!(!at_quote(r"ESCAPE'\'"));
+    assert!(!at_quote(r"name'x'"));
+    assert!(!at_quote(r"col_e'x'"));
+    assert!(!at_quote("'plain'"));
+}
+
+#[test]
 fn test_build_paginated_query_for_mysql_preserves_hash_and_spaced_dash_comments() {
     assert_eq!(
-        build_paginated_query_for("SELECT * FROM t # note", 100, 1, true, true),
+        build_paginated_query_for("SELECT * FROM t # note", 100, 1, MYSQL),
         "SELECT * FROM t # note\nLIMIT 101 OFFSET 0"
     );
     assert_eq!(
-        build_paginated_query_for("SELECT 1--2;", 1, 1, true, true),
+        build_paginated_query_for("SELECT 1--2;", 1, 1, MYSQL),
         "SELECT 1--2 LIMIT 2 OFFSET 0"
     );
 }
