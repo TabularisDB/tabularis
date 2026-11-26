@@ -8,6 +8,11 @@ const runtimeDir = path.resolve(
     process.env.TABULARIS_E2E_RUNTIME_DIR ?? path.join(rootDir, 'e2e/web/.runtime'),
 );
 const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+const chromiumLaunchOptions = chromiumExecutablePath
+    ? {executablePath: chromiumExecutablePath}
+    : undefined;
+// Compact and touch projects run only the responsive specs; the desktop projects run everything.
+const responsiveSpecs = '**/responsive.spec.ts';
 
 export default defineConfig({
     testDir: path.join(rootDir, 'e2e/web/tests'),
@@ -38,12 +43,7 @@ export default defineConfig({
     projects: [
         {
             name: 'chromium',
-            use: {
-                ...devices['Desktop Chrome'],
-                launchOptions: chromiumExecutablePath
-                    ? {executablePath: chromiumExecutablePath}
-                    : undefined,
-            },
+            use: {...devices['Desktop Chrome'], launchOptions: chromiumLaunchOptions},
         },
         {
             name: 'firefox',
@@ -52,6 +52,37 @@ export default defineConfig({
         {
             name: 'webkit',
             use: {...devices['Desktop Safari']},
+        },
+        {
+            name: 'phone-chromium',
+            testMatch: responsiveSpecs,
+            use: {...devices['Pixel 7'], launchOptions: chromiumLaunchOptions},
+        },
+        {
+            name: 'phone-webkit',
+            testMatch: responsiveSpecs,
+            use: {...devices['iPhone 13']},
+        },
+        {
+            name: 'phone-narrow-webkit',
+            testMatch: responsiveSpecs,
+            use: {...devices['iPhone SE']},
+        },
+        {
+            name: 'phone-landscape-chromium',
+            testMatch: responsiveSpecs,
+            use: {...devices['Pixel 7 landscape'], launchOptions: chromiumLaunchOptions},
+        },
+        {
+            name: 'tablet-chromium',
+            testMatch: responsiveSpecs,
+            use: {
+                ...devices['Desktop Chrome'],
+                viewport: {width: 768, height: 1024},
+                hasTouch: true,
+                isMobile: true,
+                launchOptions: chromiumLaunchOptions,
+            },
         },
     ],
 });
