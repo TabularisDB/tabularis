@@ -112,6 +112,31 @@ fn test_strip_leading_sql_comments_for_hash_comments() {
 }
 
 #[test]
+fn test_returns_result_set_for_statements_that_return_rows() {
+    // These return rows, which the execute path used to drop.
+    for query in [
+        "CHECK TABLE orders",
+        "ANALYZE TABLE orders",
+        "ANALYZE SELECT * FROM orders",
+        "OPTIMIZE TABLE orders",
+        "REPAIR TABLE orders",
+        "CHECKSUM TABLE orders",
+        "HELP 'contents'",
+    ] {
+        assert!(returns_result_set(query), "{query}");
+    }
+    // A cursor FETCH would be cut at the editor's row limit after the cursor
+    // moved past every row, so it is left out on purpose.
+    for query in [
+        "FETCH 10 FROM orders_cursor",
+        "MOVE 10 IN orders_cursor",
+        "CLOSE orders_cursor",
+    ] {
+        assert!(!returns_result_set(query), "{query}");
+    }
+}
+
+#[test]
 fn test_returns_result_set_for_hash_comments() {
     assert!(returns_result_set_for("# note\nSELECT 1", true));
     assert!(returns_result_set_for("#a\n# b\nSHOW TABLES", true));
