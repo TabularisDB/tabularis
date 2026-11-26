@@ -2336,7 +2336,8 @@
           "number": "数字",
           "boolean": "布尔值",
           "date": "日期",
-          "select": "列表"
+          "select": "列表",
+          "unknown": "未知"
         },
         "issues": {
           "invalidNumber": "请输入数字，例如 42 或 -0.5",
@@ -2346,7 +2347,8 @@
           "noOptions": "请至少添加一个选项",
           "required": "必须提供值",
           "emptyNeedsNull": "请输入值或勾选 NULL",
-          "cellReference": "带类型的值不能包含单元格引用"
+          "cellReference": "带类型的值不能包含单元格引用",
+          "unknownType": "此版本的 Tabularis 无法识别该类型"
         },
         "errors": {
           "invalid": "无法发送参数 @{{name}}：{{reason}}",

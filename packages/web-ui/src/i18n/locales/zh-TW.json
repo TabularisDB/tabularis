@@ -2414,7 +2414,8 @@
                     "number": "數字",
                     "boolean": "布林值",
                     "date": "日期",
-                    "select": "清單"
+                    "select": "清單",
+                    "unknown": "未知"
                 },
                 "issues": {
                     "invalidNumber": "請輸入數字，例如 42 或 -0.5",
@@ -2424,7 +2425,8 @@
                     "noOptions": "請至少新增一個選項",
                     "required": "必須提供值",
                     "emptyNeedsNull": "請輸入值或勾選 NULL",
-                    "cellReference": "帶類型的值不能包含儲存格引用"
+                    "cellReference": "帶類型的值不能包含儲存格引用",
+                    "unknownType": "此版本的 Tabularis 無法辨識此類型"
                 },
                 "errors": {
                     "invalid": "無法傳送引數 @{{name}}：{{reason}}",

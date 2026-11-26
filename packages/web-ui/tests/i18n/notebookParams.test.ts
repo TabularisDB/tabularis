@@ -36,6 +36,7 @@ const sentences = [
     'errors.invalid',
     'errors.quoted',
     'errors.unsupported',
+    'issues.unknownType',
 ];
 
 describe('notebook parameter translations', () => {
@@ -55,6 +56,7 @@ describe('notebook parameter translations', () => {
                 'issues.invalidOption',
                 'issues.noOptions',
                 'issues.required',
+                'issues.unknownType',
                 'null',
                 'options',
                 'rawHint',
@@ -67,6 +69,7 @@ describe('notebook parameter translations', () => {
                 'types.raw',
                 'types.select',
                 'types.text',
+                'types.unknown',
                 'unapplied',
                 'unsupportedDriver',
                 'value',
