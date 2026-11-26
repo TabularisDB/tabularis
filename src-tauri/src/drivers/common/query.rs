@@ -203,10 +203,51 @@ fn comment_end(chars: &[(usize, char)], i: usize, rules: CommentRules) -> Option
     }
 }
 
+/// If a PostgreSQL dollar-quoted string (`$$...$$`, `$tag$...$tag$`) starts
+/// at `chars[i]`, the index just past its closing delimiter (or the end of the
+/// input when it is not closed). A `$` right after an identifier character is
+/// part of that identifier, and `$1` is a parameter, so neither opens one.
+fn dollar_quote_end(chars: &[(usize, char)], i: usize) -> Option<usize> {
+    if chars.get(i).map(|&(_, ch)| ch) != Some('$') {
+        return None;
+    }
+    if i > 0 {
+        let prev = chars[i - 1].1;
+        if prev.is_alphanumeric() || prev == '_' || prev == '$' {
+            return None;
+        }
+    }
+    let mut j = i + 1;
+    while j < chars.len() && (chars[j].1.is_alphanumeric() || chars[j].1 == '_') {
+        if j == i + 1 && chars[j].1.is_ascii_digit() {
+            return None;
+        }
+        j += 1;
+    }
+    if j >= chars.len() || chars[j].1 != '$' {
+        return None;
+    }
+    let delimiter: Vec<char> = chars[i..=j].iter().map(|&(_, ch)| ch).collect();
+    let mut k = j + 1;
+    while k + delimiter.len() <= chars.len() {
+        if chars[k..k + delimiter.len()]
+            .iter()
+            .map(|&(_, ch)| ch)
+            .eq(delimiter.iter().copied())
+        {
+            return Some(k + delimiter.len());
+        }
+        k += 1;
+    }
+    Some(chars.len())
+}
+
 /// Simple SQL tokenizer that respects:
 /// - Single-quoted strings ('...')
 /// - Double-quoted identifiers ("...")
 /// - Backtick-quoted identifiers (`...`)
+/// - PostgreSQL dollar-quoted strings (`$$...$$`) for drivers without `#`
+///   comments
 /// - Parenthesized groups (treated as single tokens)
 /// - Whitespace as delimiter
 ///
@@ -241,6 +282,19 @@ fn tokenize_sql_with_pos(sql: &str, rules: CommentRules) -> Vec<(String, usize)>
             continue;
         }
 
+        // In MySQL `$` is an identifier character, so only the other drivers
+        // read dollar quotes.
+        if !rules.hash_comments {
+            if let Some(end) = dollar_quote_end(&chars, i) {
+                tokens.push((
+                    chars[i..end].iter().map(|&(_, ch)| ch).collect(),
+                    start_byte,
+                ));
+                i = end;
+                continue;
+            }
+        }
+
         if c == '(' {
             let mut token = String::new();
             let mut depth = 0;
@@ -249,6 +303,15 @@ fn tokenize_sql_with_pos(sql: &str, rules: CommentRules) -> Vec<(String, usize)>
                     token.extend(chars[i..end].iter().map(|&(_, ch)| ch));
                     i = end;
                     continue;
+                }
+                // A quote or parenthesis inside a dollar-quoted string
+                // (`length($$a"b$$)`) is data.
+                if !rules.hash_comments {
+                    if let Some(end) = dollar_quote_end(&chars, i) {
+                        token.extend(chars[i..end].iter().map(|&(_, ch)| ch));
+                        i = end;
+                        continue;
+                    }
                 }
                 let ch = chars[i].1;
                 token.push(ch);

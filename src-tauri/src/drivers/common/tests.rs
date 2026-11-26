@@ -512,6 +512,46 @@ fn test_build_paginated_query_reads_backslash_escapes_in_parens_by_dialect() {
 }
 
 #[test]
+fn test_build_paginated_query_skips_postgres_dollar_quotes() {
+    // A quote, parenthesis or LIMIT inside a dollar-quoted string is data, so
+    // the user's own LIMIT is still found and no second LIMIT is appended.
+    for q in [
+        r#"SELECT length($$a"b$$) LIMIT 5"#,
+        "SELECT length($$a)b$$) LIMIT 5",
+        r#"SELECT length($fn$a"b$fn$) LIMIT 5"#,
+        "SELECT $$ LIMIT 1 $$ AS s LIMIT 5",
+        "SELECT ($tag$ $$ ) $tag$) LIMIT 5",
+    ] {
+        let expected = q.replace(" LIMIT 5", " LIMIT 5 OFFSET 0");
+        assert_eq!(
+            build_paginated_query_for(q, 100, 1, false, false),
+            expected,
+            "{q}"
+        );
+    }
+    // `$1` is a parameter and `a$b` an identifier, not dollar quotes.
+    assert_eq!(
+        build_paginated_query_for(
+            "SELECT * FROM t WHERE id = $1 LIMIT 5",
+            100,
+            1,
+            false,
+            false
+        ),
+        "SELECT * FROM t WHERE id = $1 LIMIT 5 OFFSET 0"
+    );
+    assert_eq!(
+        build_paginated_query_for("SELECT a$b$ FROM t LIMIT 5", 100, 1, false, false),
+        "SELECT a$b$ FROM t LIMIT 5 OFFSET 0"
+    );
+    // In MySQL `$` belongs to identifiers: `$$` is no quote there.
+    assert_eq!(
+        build_paginated_query_for("SELECT a$$b FROM t LIMIT 5", 100, 1, true, true),
+        "SELECT a$$b FROM t LIMIT 5 OFFSET 0"
+    );
+}
+
+#[test]
 fn test_build_paginated_query_keeps_mysql_minus_expression() {
     let q = "SELECT 1--2;";
     let result = build_paginated_query(q, 1, 1);
