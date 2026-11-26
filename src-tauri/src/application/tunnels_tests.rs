@@ -845,3 +845,72 @@ fn discard_stops_only_the_leased_generation() {
     assert!(fresh.is_alive());
     assert_eq!(cached, Some(41012));
 }
+
+fn proxy_endpoint(host: &str) -> crate::proxy::ProxyEndpoint {
+    crate::proxy::ProxyEndpoint {
+        protocol: crate::proxy::ProxyProtocol::Socks5,
+        host: host.to_string(),
+        port: 1080,
+        username: None,
+        password: None,
+    }
+}
+
+fn overridden(host: &str) -> Option<crate::proxy::ProxyOverride> {
+    Some(crate::proxy::ProxyOverride {
+        mode: crate::proxy::ProxyMode::Custom,
+        endpoint: Some(proxy_endpoint(host)),
+    })
+}
+
+#[test]
+fn a_pinned_proxy_is_used_even_when_a_fresh_lookup_would_pick_another() {
+    // The connection's own override says west; the checked choice was east.
+    // A fresh lookup would return west, so the forward the transport opens
+    // shows which of the two it used.
+    let params = ConnectionParams {
+        host: Some("pinned-db.internal".to_string()),
+        port: Some(5432),
+        proxy: overridden("west-proxy"),
+        ssh_enabled: None,
+        ssh_host: None,
+        ssh_user: None,
+        ..base_params()
+    };
+    let east = proxy_endpoint("east-proxy");
+    let west = proxy_endpoint("west-proxy");
+
+    let resolved =
+        resolve_connection_transport_with(&params, None, Some(&Some(east.clone()))).unwrap();
+
+    let east_port = crate::proxy::ensure_forward(&east, "pinned-db.internal", 5432).unwrap();
+    let west_port = crate::proxy::ensure_forward(&west, "pinned-db.internal", 5432).unwrap();
+    assert_ne!(east_port, west_port);
+    assert_eq!(resolved.host.as_deref(), Some("127.0.0.1"));
+    assert_eq!(resolved.port, Some(east_port));
+
+    let direct = resolve_connection_transport_with(&params, None, Some(&None)).unwrap();
+    assert_eq!(direct.host.as_deref(), Some("pinned-db.internal"));
+    assert_eq!(direct.port, Some(5432));
+    crate::proxy::stop_all_forwards();
+}
+
+#[test]
+fn a_pinned_proxy_selects_the_ssh_tunnel_route() {
+    let params = ConnectionParams {
+        proxy: overridden("west-proxy"),
+        ..ssh_params("postgres", "bastion.internal", SRV_URI)
+    };
+    let east = proxy_endpoint("east-proxy");
+
+    let (_, proxy, key) = ssh_tunnel_route_with(&params, Some(&Some(east.clone()))).unwrap();
+    assert_eq!(proxy, Some(east));
+    assert!(key.contains("px:socks5:east-proxy:1080"), "{key}");
+
+    let (_, proxy, key) = ssh_tunnel_route_with(&params, Some(&None)).unwrap();
+    assert_eq!(proxy, None);
+    assert!(!key.contains("px:"), "{key}");
+
+    let (_, proxy, _) = ssh_tunnel_route(&params).unwrap();
+    assert_eq!(proxy.map(|p| p.host), Some("west-proxy".to_string()));
+}

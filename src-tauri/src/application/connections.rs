@@ -420,9 +420,10 @@ pub(crate) fn saved_connection_driver(
 pub(crate) struct SavedConnectionSnapshot {
     driver_id: String,
     params: ConnectionParams,
-    /// The proxy route when the snapshot was taken; it depends on the global
-    /// proxy settings as well as on the connection.
-    route: Option<crate::application::tunnels::ProxyRoute>,
+    /// The proxy chosen when the snapshot was taken. It depends on the global
+    /// proxy settings as well as on the connection, so it is looked up once and
+    /// handed to the transport rather than looked up again.
+    proxy: crate::application::tunnels::ResolvedProxy,
 }
 
 impl SavedConnectionSnapshot {
@@ -432,7 +433,7 @@ impl SavedConnectionSnapshot {
     }
 
     pub(crate) fn route(&self) -> Option<&crate::application::tunnels::ProxyRoute> {
-        self.route.as_ref()
+        self.proxy.route.as_ref()
     }
 
     pub(crate) fn resolve(
@@ -448,20 +449,20 @@ impl SavedConnectionSnapshot {
         Ok((self.driver_id.clone(), params))
     }
 
-    /// Like [`resolve`](Self::resolve), but refuses to connect when the proxy
-    /// route is no longer the one the snapshot was taken with.
+    /// Like [`resolve`](Self::resolve), but the transport uses the proxy the
+    /// snapshot was taken with instead of looking it up again.
     pub(crate) fn resolve_pinned(
         &self,
         runtime: &RuntimeContext,
         session_id: Option<Uuid>,
     ) -> Result<(String, ConnectionParams), String> {
-        if crate::application::tunnels::effective_proxy_route(&self.params) != self.route {
-            return Err(
-                "The proxy settings changed while the connection was being opened. Try again."
-                    .to_string(),
-            );
-        }
-        self.resolve(runtime, session_id)
+        let params = crate::application::tunnels::resolve_expanded_params_via(
+            runtime,
+            &self.params,
+            session_id,
+            &self.proxy,
+        )?;
+        Ok((self.driver_id.clone(), params))
     }
 }
 
@@ -480,11 +481,11 @@ pub(crate) fn snapshot_saved_connection(
     params.extra.extend(plugin_secrets);
     params.connection_id = Some(connection_id.to_string());
     let params = crate::application::tunnels::expand_connection_params(runtime, &params)?;
-    let route = crate::application::tunnels::effective_proxy_route(&params);
+    let proxy = crate::application::tunnels::resolve_proxy_once(&params);
     Ok(SavedConnectionSnapshot {
         driver_id,
         params,
-        route,
+        proxy,
     })
 }
 
