@@ -546,7 +546,7 @@ fn trailing_row_limit_of(query: &str, rules: ScanRules) -> Option<TrailingRowLim
 /// [NOWAIT | SKIP LOCKED]`, possibly repeated, or MySQL's
 /// `LOCK IN SHARE MODE`. MySQL accepts LIMIT only before them, and
 /// PostgreSQL rejects a second LIMIT after them.
-fn trailing_locking_clause_start(query: &str, rules: CommentRules) -> Option<usize> {
+fn trailing_locking_clause_start(query: &str, rules: ScanRules) -> Option<usize> {
     let tokens = tokenize_sql_with_pos(query, rules);
     let is = |index: usize, keyword: &str| {
         tokens
