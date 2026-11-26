@@ -41,6 +41,12 @@ export interface RunAllResult {
 /** How a typed parameter's value is validated and written into SQL. */
 export type NotebookParamType = 'text' | 'number' | 'boolean' | 'date' | 'select';
 
+/**
+ * A type name this build does not know, as the notebook file holds it: a later
+ * build may have written it. Only the file loader produces one.
+ */
+export type UnknownParamType = string & {readonly __unknownParamType: true};
+
 export interface NotebookParam {
     name: string;
     /**
@@ -49,8 +55,12 @@ export interface NotebookParam {
      * its digits), never a JavaScript number.
      */
     value: string;
-    /** Absent: raw mode, as every parameter was before types existed. */
-    type?: NotebookParamType;
+    /**
+     * Absent: raw mode, as every parameter was before types existed. A type
+     * this build does not know is kept, so the file does not lose it, but
+     * such a parameter cannot be sent.
+     */
+    type?: NotebookParamType | UnknownParamType;
     /** Typed only: send NULL instead of the value. */
     isNull?: boolean;
     /** Typed only: NULL and an empty text are rejected. */

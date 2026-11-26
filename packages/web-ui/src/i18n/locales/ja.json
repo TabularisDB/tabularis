@@ -1562,6 +1562,8 @@
     "save": "保存",
     "failSave": "接続の保存に失敗しました",
     "selectSshConnection": "SSH 接続を選択",
+    "sshUserOverride": "SSH ユーザーの上書き (任意)",
+    "sshUserOverrideHint": "空欄のままにすると、選択した SSH 接続のデフォルトユーザーがそのまま使われます。",
     "useSshConnection": "既存の SSH 接続を使用",
     "createInlineSsh": "SSH をインラインで設定",
     "manageSshConnections": "SSH 接続を管理",
@@ -2378,7 +2380,8 @@
           "number": "数値",
           "boolean": "真偽値",
           "date": "日付",
-          "select": "リスト"
+          "select": "リスト",
+          "unknown": "不明"
         },
         "issues": {
           "invalidNumber": "42 や -0.5 のような数値を入力してください",
@@ -2388,7 +2391,8 @@
           "noOptions": "選択肢を1つ以上追加してください",
           "required": "値が必要です",
           "emptyNeedsNull": "値を入力するか、NULL にチェックを入れてください",
-          "cellReference": "タイプ付きの値にセル参照を含めることはできません"
+          "cellReference": "タイプ付きの値にセル参照を含めることはできません",
+          "unknownType": "このバージョンの Tabularis では認識できないタイプです"
         },
         "errors": {
           "invalid": "パラメータ @{{name}} を送信できません: {{reason}}",

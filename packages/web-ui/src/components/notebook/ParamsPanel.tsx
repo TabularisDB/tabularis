@@ -44,6 +44,8 @@ const FIELD_CLASS =
 const CHECK_LABEL_CLASS = 'flex items-center gap-1 text-[10px] text-secondary cursor-pointer';
 const CHECKBOX_CLASS =
     'rounded border-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+/** The selector value of a row whose type this build does not know. */
+const UNKNOWN_TYPE_OPTION = 'unknown';
 const ACTION_CLASS =
     'px-1.5 py-0.5 text-[10px] font-medium rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50 disabled:cursor-not-allowed';
 
@@ -62,6 +64,21 @@ function ParamValueControl({
     const {t} = useTranslation();
     const label = t('editor.notebook.params.value');
 
+    if (row.type && !isParamType(row.type)) {
+        // Shown as the file holds it: this build cannot edit a value of a
+        // type it does not know, NULL included.
+        return (
+            <input
+                type="text"
+                value={row.value}
+                readOnly
+                aria-label={label}
+                aria-invalid={invalid || undefined}
+                aria-describedby={describedBy}
+                className={`${FIELD_CLASS} flex-1 min-w-0`}
+            />
+        );
+    }
     if (row.isNull) {
         return (
             <input
@@ -78,7 +95,11 @@ function ParamValueControl({
             <span className="flex-1 min-w-0 text-[11px] text-primary font-mono">
                 <BooleanInput
                     name={label}
-                    value={row.value === 'true'}
+                    // A value that is neither is shown as it is, undetermined.
+                    value={row.value === 'true' ? true : row.value === 'false' ? false : null}
+                    nullLabel={row.value}
+                    ariaInvalid={invalid}
+                    ariaDescribedBy={describedBy}
                     onChange={(value) => onValueChange(value ? 'true' : 'false')}
                 />
             </span>
@@ -153,6 +174,7 @@ function ParamRow({
     const {t} = useTranslation();
     const messageId = useId();
     const row = draft ?? param;
+    const hasKnownType = isParamType(row.type);
     const issue = validateParam(row);
     const unsupported = !!row.type && !typedSupported;
     const message = unsupported
@@ -174,14 +196,20 @@ function ParamRow({
     };
 
     return (
-        <div role="group" aria-label={`@${param.name}`} className="space-y-1">
+        <div
+            role="group"
+            aria-label={`@${param.name}`}
+            // The row names its message, so it is read whichever control takes focus.
+            aria-describedby={message ? messageId : undefined}
+            className="space-y-1"
+        >
             <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[11px] text-accent-success font-mono shrink-0">
                     @{param.name}
                 </span>
                 <CompactSelect
                     aria-label={t('editor.notebook.params.type')}
-                    value={row.type ?? 'raw'}
+                    value={!row.type ? 'raw' : hasKnownType ? row.type : UNKNOWN_TYPE_OPTION}
                     onChange={(e) => changeType(e.target.value)}
                     disabled={!typedSupported && !row.type}
                 >
@@ -195,6 +223,11 @@ function ParamRow({
                             {t(`editor.notebook.params.types.${type}`)}
                         </option>
                     ))}
+                    {row.type && !hasKnownType && (
+                        <option value={UNKNOWN_TYPE_OPTION} disabled>
+                            {`${t('editor.notebook.params.types.unknown')} (${row.type})`}
+                        </option>
+                    )}
                 </CompactSelect>
                 <span className="text-[10px] text-muted">=</span>
                 <ParamValueControl
@@ -203,7 +236,7 @@ function ParamRow({
                     describedBy={message ? messageId : undefined}
                     onValueChange={changeValue}
                 />
-                {row.type && !row.required && (
+                {hasKnownType && !row.required && (
                     <label className={CHECK_LABEL_CLASS}>
                         <input
                             type="checkbox"
@@ -214,7 +247,7 @@ function ParamRow({
                         {t('editor.notebook.params.null')}
                     </label>
                 )}
-                {row.type && (
+                {hasKnownType && (
                     <label className={CHECK_LABEL_CLASS}>
                         <input
                             type="checkbox"
@@ -259,7 +292,7 @@ function ParamRow({
                 </label>
             )}
             {message && (
-                <p id={messageId} role="alert" className="text-[10px] text-accent-error">
+                <p id={messageId} className="text-[10px] text-accent-error">
                     {message}
                 </p>
             )}

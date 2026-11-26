@@ -114,7 +114,8 @@ export type ParamIssue =
     | 'noOptions'
     | 'required'
     | 'emptyNeedsNull'
-    | 'cellReference';
+    | 'cellReference'
+    | 'unknownType';
 
 /**
  * A number as it is stored and sent: digits with an optional sign and
@@ -164,6 +165,8 @@ export function normalizeParam(param: NotebookParam): NotebookParam {
  */
 export function validateParam(param: NotebookParam): ParamIssue | null {
     if (!param.type) return null;
+    // Checked before NULL: this build cannot tell what NULL means for the type.
+    if (!isParamType(param.type)) return 'unknownType';
     if (param.isNull) return param.required ? 'required' : null;
     const {value} = param;
     const whenEmpty: ParamIssue = param.required ? 'required' : 'emptyNeedsNull';
@@ -309,9 +312,9 @@ function unquoteSqlString(value: string): string | null {
 
 /**
  * The parameter under another type (`undefined`: raw), carrying its value
- * over where that is unambiguous: a raw quoted string loses its quotes for
- * text, date and list, and `true` / `false` / `1` / `0` become a boolean.
- * Anything else is kept as typed, for validation to flag.
+ * over where that is unambiguous: a raw quoted string loses its quotes, and
+ * `true` / `false` / `1` / `0` become a boolean. Anything else is kept as
+ * typed, for validation to flag.
  */
 export function changeParamType(
     param: NotebookParam,
@@ -321,21 +324,27 @@ export function changeParamType(
     const {name, value} = param;
     if (!type) return {name, value};
     const text = param.type ? value : (unquoteSqlString(value) ?? value);
+    // Compared with `true`: an entry of an unknown type is kept as the file
+    // holds it, so its flags were not checked on load.
     const flags = {
-        ...(param.isNull ? {isNull: true} : {}),
-        ...(param.required ? {required: true} : {}),
+        ...(param.isNull === true ? {isNull: true} : {}),
+        ...(param.required === true ? {required: true} : {}),
     };
     switch (type) {
         case 'number':
             return {name, value: value.trim(), type, ...flags};
-        case 'boolean':
-            // A checkbox has no third state to show an unreadable value in.
+        case 'boolean': {
+            // An empty value is an unticked box; any other text is kept.
+            const word = text.trim().toLowerCase();
+            const isTrue = word === 'true' || word === '1';
+            const isFalse = word === 'false' || word === '0' || word === '';
             return {
                 name,
-                value: /^(true|1)$/i.test(value.trim()) ? 'true' : 'false',
+                value: isTrue ? 'true' : isFalse ? 'false' : text,
                 type,
                 ...flags,
             };
+        }
         case 'select':
             return {name, value: text, type, ...flags, options: text === '' ? [] : [text]};
         default:

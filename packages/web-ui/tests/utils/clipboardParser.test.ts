@@ -56,6 +56,33 @@ describe('JSON parsing', () => {
         expect(result.hasHeaderRow).toBe(false);
     });
 
+    it('takes headers from every object, not only the first', () => {
+        // A key missing from the first object (often a null left out by the
+        // export) used to drop that column for every row.
+        const json = '[{"id":1},{"id":2,"email":"c@d.com"},{"note":"x","id":3}]';
+        const result = parseClipboardText(json);
+        expect(result.headers).toEqual(['id', 'email', 'note']);
+        expect(result.rows).toEqual([
+            ['1', '', ''],
+            ['2', 'c@d.com', ''],
+            ['3', '', 'x'],
+        ]);
+        expect(reParseWithHeaderOption(json, true, result).headers).toEqual([
+            'id',
+            'email',
+            'note',
+        ]);
+    });
+
+    it('leaves a cell empty when an object lacks a key named like an Object method', () => {
+        const result = parseClipboardText('[{"id":1},{"id":2,"constructor":"A","toString":"B"}]');
+        expect(result.headers).toEqual(['id', 'constructor', 'tostring']);
+        expect(result.rows).toEqual([
+            ['1', '', ''],
+            ['2', 'A', 'B'],
+        ]);
+    });
+
     it('handles single JSON object', () => {
         const result = parseClipboardText('{"name":"Alice","age":30}');
         expect(result.headers).toEqual(['name', 'age']);
@@ -101,6 +128,39 @@ describe('CSV parsing', () => {
         const result = parseClipboardText('name,age\nAlice,30\nBob,25');
         expect(result.headers).toEqual(['name', 'age']);
         expect(result.rows).toHaveLength(2);
+    });
+
+    it('keeps a quote inside a field as text', () => {
+        // Only a quote at the start of a field opens a quoted field. One in the
+        // middle used to swallow the separators and line breaks after it.
+        expect(parseClipboardText('name,size\nTV,55" screen\nPhone,6"', 'csv').rows).toEqual([
+            ['TV', '55" screen'],
+            ['Phone', '6"'],
+        ]);
+        expect(parseClipboardText('id;note\n1;say "hi" now\n2;x', 'csv').rows).toEqual([
+            ['1', 'say "hi" now'],
+            ['2', 'x'],
+        ]);
+    });
+
+    it('reads a quoted first field after a UTF-8 BOM', () => {
+        const text = '\uFEFF"Last, first, middle";id\n"Brown, Alice, M";4';
+        const result = parseClipboardText(text, 'csv');
+        expect(result.headers).toHaveLength(2);
+        expect(result.rows).toEqual([['Brown, Alice, M', '4']]);
+        expect(parseClipboardText(text).rows).toEqual([['Brown, Alice, M', '4']]);
+    });
+
+    it('still opens a quoted field after blanks', () => {
+        expect(parseClipboardText('id,place\n1, "Rome, Italy"', 'csv').rows).toEqual([
+            ['1', 'Rome, Italy'],
+        ]);
+    });
+
+    it('chooses the delimiter past a quote inside a header field', () => {
+        expect(parseClipboardText('size 5";note,x;y\n1;a,b;c', 'csv').rows).toEqual([
+            ['1', 'a,b', 'c'],
+        ]);
     });
 
     it('handles quoted fields with commas', () => {

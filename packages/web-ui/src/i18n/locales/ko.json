@@ -1512,6 +1512,8 @@
     "save": "저장",
     "failSave": "연결 저장에 실패했습니다",
     "selectSshConnection": "SSH 연결 선택",
+    "sshUserOverride": "SSH 사용자 재정의 (선택 사항)",
+    "sshUserOverrideHint": "비워 두면 선택한 SSH 연결의 기본 사용자를 사용합니다.",
     "useSshConnection": "기존 SSH 연결 사용",
     "createInlineSsh": "SSH 인라인 설정",
     "manageSshConnections": "SSH 연결 관리",
@@ -2331,7 +2333,8 @@
           "number": "숫자",
           "boolean": "불리언",
           "date": "날짜",
-          "select": "목록"
+          "select": "목록",
+          "unknown": "알 수 없음"
         },
         "issues": {
           "invalidNumber": "42 또는 -0.5와 같은 숫자를 입력하세요",
@@ -2341,7 +2344,8 @@
           "noOptions": "옵션을 하나 이상 추가하세요",
           "required": "값이 필요합니다",
           "emptyNeedsNull": "값을 입력하거나 NULL을 선택하세요",
-          "cellReference": "타입이 지정된 값에는 셀 참조를 포함할 수 없습니다"
+          "cellReference": "타입이 지정된 값에는 셀 참조를 포함할 수 없습니다",
+          "unknownType": "이 버전의 Tabularis에서 인식할 수 없는 타입입니다"
         },
         "errors": {
           "invalid": "매개변수 @{{name}}을(를) 보낼 수 없습니다: {{reason}}",
