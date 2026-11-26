@@ -1601,6 +1601,8 @@
     "save": "Lưu",
     "failSave": "Không lưu được kết nối",
     "selectSshConnection": "Chọn kết nối SSH",
+    "sshUserOverride": "Ghi đè người dùng SSH (tùy chọn)",
+    "sshUserOverrideHint": "Để trống để dùng người dùng mặc định của kết nối SSH đã chọn.",
     "useSshConnection": "Dùng kết nối SSH có sẵn",
     "createInlineSsh": "Cấu hình SSH tại đây",
     "manageSshConnections": "Quản lý kết nối SSH",
@@ -2409,7 +2411,8 @@
           "number": "Số",
           "boolean": "Boolean",
           "date": "Ngày",
-          "select": "Danh sách"
+          "select": "Danh sách",
+          "unknown": "Không xác định"
         },
         "issues": {
           "invalidNumber": "Nhập một số như 42 hoặc -0.5",
@@ -2419,7 +2422,8 @@
           "noOptions": "Thêm ít nhất một tùy chọn",
           "required": "Cần có giá trị",
           "emptyNeedsNull": "Nhập giá trị hoặc chọn NULL",
-          "cellReference": "Giá trị có kiểu không được chứa tham chiếu ô"
+          "cellReference": "Giá trị có kiểu không được chứa tham chiếu ô",
+          "unknownType": "Phiên bản Tabularis này không nhận biết được kiểu này"
         },
         "errors": {
           "invalid": "Không thể gửi tham số @{{name}}: {{reason}}",

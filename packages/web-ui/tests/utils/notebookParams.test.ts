@@ -261,6 +261,10 @@ describe('notebookParams', () => {
             ).toBe("SELECT id FROM orders WHERE customer = ''");
         });
 
+        /** An entry as the loader keeps it when it does not know the type. */
+        const fromFile = (entry: {name: string; value: string; type: string}): NotebookParam =>
+            entry as NotebookParam;
+
         describe('supportsTypedParams', () => {
             it.each([
                 ['postgres', postgres],
@@ -390,6 +394,65 @@ describe('notebookParams', () => {
                     validateParam(typed('c', 'a', 'select', {options: ['a', '{{cell_2}}']})),
                 ).toBe('cellReference');
                 expect(validateParam(typed('t', '{{cell}} {cell_1}', 'text'))).toBeNull();
+            });
+        });
+
+        describe('a type this build does not know', () => {
+            const since = fromFile({name: 'since', value: '2026-01-01 10:00', type: 'datetime'});
+
+            it('should be invalid, and NULL is no way around it', () => {
+                expect(validateParam(since)).toBe('unknownType');
+                expect(validateParam({...since, isNull: true})).toBe('unknownType');
+                expect(validateParam(fromFile({name: 'p', value: '1', type: 'raw'}))).toBe(
+                    'unknownType',
+                );
+            });
+
+            it('should leave its reference in place and report it', () => {
+                expect(
+                    resolveParams(
+                        'SELECT * FROM t WHERE d >= @since',
+                        [{...since, isNull: true}],
+                        mysql,
+                    ),
+                ).toEqual({
+                    sql: 'SELECT * FROM t WHERE d >= @since',
+                    unresolvedParams: [],
+                    errors: [
+                        {name: 'since', reference: '@since', kind: 'invalid', issue: 'unknownType'},
+                    ],
+                });
+            });
+
+            it('should convert like any typed parameter, carrying only real flags', () => {
+                const found = {
+                    ...fromFile({name: 'p', value: "'x'", type: 'datetime'}),
+                    isNull: 'no',
+                    required: true,
+                    options: ['a'],
+                    timezone: 'UTC',
+                } as unknown as NotebookParam;
+                expect(changeParamType(found, 'text')).toEqual(
+                    typed('p', "'x'", 'text', {required: true}),
+                );
+                expect(changeParamType(found, 'select')).toEqual(
+                    typed('p', "'x'", 'select', {required: true, options: ["'x'"]}),
+                );
+                expect(changeParamType(found, undefined)).toEqual({name: 'p', value: "'x'"});
+            });
+
+            it('should keep Apply blocked until it is converted or removed', () => {
+                const limit = typed('limit', '10', 'number');
+                const edited = withParamDraft({}, {...limit, value: '50'});
+                expect(canApplyParamDrafts([limit, since], edited)).toBe(false);
+
+                const converted = withParamDraft(edited, changeParamType(since, 'text'));
+                expect(canApplyParamDrafts([limit, since], converted)).toBe(true);
+                expect(applyParamDrafts([limit, since], converted)).toEqual([
+                    typed('limit', '50', 'number'),
+                    typed('since', '2026-01-01 10:00', 'text'),
+                ]);
+                expect(canApplyParamDrafts([limit], edited)).toBe(true);
             });
         });
 
@@ -686,7 +749,25 @@ describe('notebookParams', () => {
                 expect(changeParamType(raw('TRUE'), 'boolean').value).toBe('true');
                 expect(changeParamType(raw('1'), 'boolean').value).toBe('true');
                 expect(changeParamType(raw('0'), 'boolean').value).toBe('false');
-                expect(changeParamType(raw('abc'), 'boolean').value).toBe('false');
+                expect(changeParamType(raw(''), 'boolean').value).toBe('false');
+            });
+
+            it('should read a quoted true or false as a boolean, as it reads a quoted string', () => {
+                expect(changeParamType(raw("'true'"), 'boolean').value).toBe('true');
+                expect(changeParamType(raw("'1'"), 'boolean').value).toBe('true');
+                expect(changeParamType(raw("'FALSE'"), 'boolean').value).toBe('false');
+            });
+
+            it('should keep a value it cannot read as a boolean, for validation to flag', () => {
+                expect(changeParamType(raw('abc'), 'boolean')).toEqual(
+                    typed('p', 'abc', 'boolean'),
+                );
+                expect(changeParamType(raw("'maybe'"), 'boolean')).toEqual(
+                    typed('p', 'maybe', 'boolean'),
+                );
+                expect(validateParam(changeParamType(raw('abc'), 'boolean'))).toBe(
+                    'invalidBoolean',
+                );
             });
 
             it('should not unquote a value that is already typed', () => {

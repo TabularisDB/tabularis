@@ -391,7 +391,7 @@ A parameter marked Required accepts neither NULL nor an empty text. A date is a 
 
 A typed reference is replaced only in SQL code. `${name}` inside a string or a quoted identifier stops the cell with an error naming the parameter (remove the quotes, or keep that parameter raw); inside a comment it is left as written. `@name` inside a string or a comment stays text, as it does for a raw parameter.
 
-In the notebook file a typed parameter adds `type` (`text`, `number`, `boolean`, `date` or `select`) and, where set, `isNull`, `required` and `options` to its `name` and `value`. A parameter without `type` is raw. A host that predates typed parameters ignores the new fields and pastes the value as raw text.
+In the notebook file a typed parameter adds `type` (`text`, `number`, `boolean`, `date` or `select`) and, where set, `isNull`, `required` and `options` to its `name` and `value`. A parameter without `type` is raw. A host that predates typed parameters ignores the new fields and pastes the value as raw text. A `type` the host does not know (a later version may add one) is kept in the file as written: the parameter is shown as unknown, and a cell that references it stops with an error instead of running.
 
 ### Data Types
 
