@@ -1512,8 +1512,17 @@ async fn exec_on_mysql_conn(
     if is_select && limit.is_some() {
         let l = limit.unwrap();
 
-        final_query =
-            crate::drivers::common::build_paginated_query_for(query, l, page, *HASH_COMMENTS, true);
+        final_query = crate::drivers::common::build_paginated_query_for(
+            query,
+            l,
+            page,
+            crate::drivers::common::ScanRules {
+                hash_comments: *HASH_COMMENTS,
+                line_comment_requires_space: true,
+                backslash_escapes: true,
+                negative_limit_unbounded: false,
+            },
+        );
 
         pagination = Some(Pagination {
             page,

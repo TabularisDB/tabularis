@@ -862,6 +862,11 @@
       "horizontal": "Horizontal",
       "vertical": "Vertical"
     },
+    "connectionColor": {
+      "title": "Cor da conexão",
+      "bottomBar": "Barra de cor na parte inferior",
+      "bottomBarDesc": "Mostra uma barra grossa com a cor da conexão na parte inferior da janela, para facilitar a distinção entre conexões."
+    },
     "dataGrid": {
       "title": "Grade de Dados",
       "stickyHeaders": "Cabeçalhos de coluna fixos",
@@ -1609,6 +1614,8 @@
     "save": "Salvar",
     "failSave": "Falha ao salvar conexão",
     "selectSshConnection": "Selecionar Conexão SSH",
+    "sshUserOverride": "Substituir usuário SSH (opcional)",
+    "sshUserOverrideHint": "Deixe em branco para usar o usuário padrão da conexão SSH selecionada.",
     "useSshConnection": "Usar Conexão SSH Existente",
     "createInlineSsh": "Configurar SSH em Linha",
     "manageSshConnections": "Gerenciar Conexões SSH",
@@ -2435,7 +2442,8 @@
           "number": "Número",
           "boolean": "Booleano",
           "date": "Data",
-          "select": "Lista"
+          "select": "Lista",
+          "unknown": "Desconhecido"
         },
         "issues": {
           "invalidNumber": "Digite um número como 42 ou -0.5",
@@ -2445,7 +2453,8 @@
           "noOptions": "Adicione pelo menos uma opção",
           "required": "Um valor é obrigatório",
           "emptyNeedsNull": "Digite um valor ou marque NULL",
-          "cellReference": "Um valor tipado não pode conter uma referência a uma célula"
+          "cellReference": "Um valor tipado não pode conter uma referência a uma célula",
+          "unknownType": "Esta versão do Tabularis não conhece este tipo"
         },
         "errors": {
           "invalid": "O parâmetro @{{name}} não pode ser enviado: {{reason}}",

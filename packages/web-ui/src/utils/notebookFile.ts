@@ -7,10 +7,15 @@ import {sanitizeKpiConfig} from './notebookKpi';
  * A well-formed param from an untrusted notebook file, or null. The name must
  * be a valid identifier (`\w+`) and the value a string. An entry without a
  * `type` is a raw parameter, as every parameter was before types existed, and
- * is kept as found. A typed entry must name a known type and carry booleans
- * and string options where it has them; it is stored in normalized form. Its
+ * is kept as found. A typed entry of a known type must carry booleans and
+ * string options where it has them; it is stored in normalized form. Its
  * value is not validated here: a typed parameter with an invalid value is kept,
  * so the panel can show what is wrong and the cell does not run with it.
+ *
+ * A type named by a non-empty string this build does not know (a later build
+ * may have added it) is kept as found too. Dropping the entry would leave its
+ * `@name` in the SQL for the engine to read, and the next save would remove it
+ * from the file; kept, it is shown as invalid and stops the cells that use it.
  */
 function sanitizeParam(raw: unknown): NotebookParam | null {
     if (typeof raw !== 'object' || raw === null) return null;
@@ -19,7 +24,9 @@ function sanitizeParam(raw: unknown): NotebookParam | null {
         return null;
     }
     if (type === undefined) return raw as NotebookParam;
-    if (!isParamType(type)) return null;
+    if (!isParamType(type)) {
+        return typeof type === 'string' && type !== '' ? (raw as NotebookParam) : null;
+    }
     if (isNull !== undefined && typeof isNull !== 'boolean') return null;
     if (required !== undefined && typeof required !== 'boolean') return null;
     const optionList = options ?? [];

@@ -874,6 +874,11 @@
       "horizontal": "Orizzontale",
       "vertical": "Verticale"
     },
+    "connectionColor": {
+      "title": "Colore della connessione",
+      "bottomBar": "Barra colorata in basso",
+      "bottomBarDesc": "Mostra una barra spessa con il colore della connessione lungo il bordo inferiore della finestra, per distinguere più facilmente le connessioni."
+    },
     "dataGrid": {
       "title": "Griglia dati",
       "stickyHeaders": "Intestazioni colonne fisse",
@@ -1609,6 +1614,8 @@
     "save": "Salva",
     "failSave": "Salvataggio connessione fallito",
     "selectSshConnection": "Seleziona Connessione SSH",
+    "sshUserOverride": "Utente SSH personalizzato (opzionale)",
+    "sshUserOverrideHint": "Lascia vuoto per usare l’utente predefinito della connessione SSH selezionata.",
     "useSshConnection": "Usa Connessione SSH Esistente",
     "createInlineSsh": "Configura SSH Inline",
     "manageSshConnections": "Gestisci Connessioni SSH",
@@ -2426,7 +2433,8 @@
           "number": "Numero",
           "boolean": "Booleano",
           "date": "Data",
-          "select": "Elenco"
+          "select": "Elenco",
+          "unknown": "Sconosciuto"
         },
         "issues": {
           "invalidNumber": "Inserisci un numero come 42 o -0.5",
@@ -2436,7 +2444,8 @@
           "noOptions": "Aggiungi almeno un'opzione",
           "required": "È richiesto un valore",
           "emptyNeedsNull": "Inserisci un valore o seleziona NULL",
-          "cellReference": "Un valore tipizzato non può contenere un riferimento a una cella"
+          "cellReference": "Un valore tipizzato non può contenere un riferimento a una cella",
+          "unknownType": "Questa versione di Tabularis non conosce questo tipo"
         },
         "errors": {
           "invalid": "Il parametro @{{name}} non può essere inviato: {{reason}}",

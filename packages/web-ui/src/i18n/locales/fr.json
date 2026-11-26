@@ -869,6 +869,11 @@
       "horizontal": "Horizontale",
       "vertical": "Verticale"
     },
+    "connectionColor": {
+      "title": "Couleur de la connexion",
+      "bottomBar": "Barre de couleur en bas",
+      "bottomBarDesc": "Affiche une barre épaisse de la couleur de la connexion en bas de la fenêtre pour mieux distinguer les connexions."
+    },
     "dataGrid": {
       "zebraStripes": "Arrière-plan alterné des lignes",
       "zebraStripesDesc": "Ombrage une ligne sur deux pour suivre plus facilement une ligne dans les tableaux larges.",
@@ -1580,6 +1585,8 @@
     "save": "Enregistrer",
     "failSave": "Échec de l’enregistrement de la connexion",
     "selectSshConnection": "Sélectionner une connexion SSH",
+    "sshUserOverride": "Utilisateur SSH personnalisé (optionnel)",
+    "sshUserOverrideHint": "Laissez vide pour utiliser l’utilisateur par défaut de la connexion SSH sélectionnée.",
     "useSshConnection": "Utiliser une connexion SSH existante",
     "createInlineSsh": "Configurer SSH en ligne",
     "manageSshConnections": "Gérer les connexions SSH",
@@ -2402,7 +2409,8 @@
           "number": "Nombre",
           "boolean": "Booléen",
           "date": "Date",
-          "select": "Liste"
+          "select": "Liste",
+          "unknown": "Inconnu"
         },
         "issues": {
           "invalidNumber": "Saisissez un nombre tel que 42 ou -0.5",
@@ -2412,7 +2420,8 @@
           "noOptions": "Ajoutez au moins une option",
           "required": "Une valeur est requise",
           "emptyNeedsNull": "Saisissez une valeur ou cochez NULL",
-          "cellReference": "Une valeur typée ne peut pas contenir de référence à une cellule"
+          "cellReference": "Une valeur typée ne peut pas contenir de référence à une cellule",
+          "unknownType": "Cette version de Tabularis ne connaît pas ce type"
         },
         "errors": {
           "invalid": "Le paramètre @{{name}} ne peut pas être envoyé : {{reason}}",

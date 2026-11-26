@@ -5,11 +5,25 @@
 use std::time::Duration;
 
 use sqlx::pool::PoolConnection;
-use sqlx::{Connection as _, Executor as _, MySql, MySqlConnection, Pool, Row as _};
+use sqlx::{
+    Column as _, Connection as _, Executor as _, MySql, MySqlConnection, Pool, Row as _, Type,
+};
 
 use crate::models::{ConnectionParams, QueryResult};
 
 use super::{exec_on_mysql_conn, TextProto};
+
+#[cfg(test)]
+mod tests;
+
+fn parse_text_connection_id(value: &str) -> Result<u64, String> {
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err("MySQL connection ID must contain only decimal digits".to_string());
+    }
+    value
+        .parse()
+        .map_err(|_| "MySQL connection ID exceeds the unsigned 64-bit range".to_string())
+}
 
 /// How long a stopped statement gets to end after `KILL QUERY`, and how long
 /// the second connection that sends it may take.
@@ -31,11 +45,17 @@ impl InFlight {
         mut conn: PoolConnection<MySql>,
         pool: &Pool<MySql>,
     ) -> Result<Self, String> {
-        let id: u64 = conn
+        let row = conn
             .fetch_one(sqlx::raw_sql("SELECT CAST(CONNECTION_ID() AS UNSIGNED)"))
             .await
-            .and_then(|row| row.try_get(0))
             .map_err(|e| e.to_string())?;
+        let column = row.try_column(0).map_err(|e| e.to_string())?;
+        // Some MySQL-compatible servers return the cast connection ID as text.
+        let id = if <&str as Type<MySql>>::compatible(column.type_info()) {
+            parse_text_connection_id(row.try_get(0).map_err(|e| e.to_string())?)?
+        } else {
+            row.try_get(0).map_err(|e| e.to_string())?
+        };
         Ok(Self {
             conn: Some(conn),
             killer: Killer {

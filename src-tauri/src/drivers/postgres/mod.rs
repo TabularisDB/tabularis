@@ -1157,8 +1157,26 @@ async fn exec_on_pg_client(
 
     let (final_query, pagination_meta) = if is_select && limit.is_some() {
         let l = limit.unwrap();
-        let data_query =
-            crate::drivers::common::build_paginated_query_for(query, l, page, false, false);
+        // A failed probe fails the run: a cancel stops only the running
+        // command, so the user's query must not run after a cancelled probe.
+        let backslash_escapes = query.contains('\\')
+            && client
+                .query_one("SHOW standard_conforming_strings", &[])
+                .await
+                .map_err(|e| format_pg_error(&e))?
+                .try_get::<_, String>(0)
+                .is_ok_and(|value| value.eq_ignore_ascii_case("off"));
+        let data_query = crate::drivers::common::build_paginated_query_for(
+            query,
+            l,
+            page,
+            crate::drivers::common::ScanRules {
+                hash_comments: false,
+                line_comment_requires_space: false,
+                backslash_escapes,
+                negative_limit_unbounded: false,
+            },
+        );
         manual_limit = None;
         (data_query, Some((l, page)))
     } else {

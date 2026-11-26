@@ -414,6 +414,61 @@ WHERE id = 1`;
             expect(classifyDangerousQuery('SELECT 1 -- DROP TABLE users')).toBe(null);
         });
 
+        it('classifies the statement that EXPLAIN ANALYZE runs', () => {
+            expect(classifyDangerousQuery('EXPLAIN ANALYZE DELETE FROM orders')).toBe('no-where');
+            expect(classifyDangerousQuery('explain analyse delete from orders')).toBe('no-where');
+            expect(classifyDangerousQuery('EXPLAIN (ANALYZE) DELETE FROM orders')).toBe('no-where');
+            expect(
+                classifyDangerousQuery('EXPLAIN (ANALYZE true, BUFFERS) DELETE FROM orders'),
+            ).toBe('no-where');
+            expect(classifyDangerousQuery("EXPLAIN ANALYZE UPDATE orders SET note = 'x'")).toBe(
+                'no-where',
+            );
+            expect(classifyDangerousQuery('EXPLAIN ANALYZE VERBOSE DELETE FROM orders')).toBe(
+                'no-where',
+            );
+            expect(classifyDangerousQuery('EXPLAIN ANALYZE FORMAT=TREE DELETE FROM orders')).toBe(
+                'no-where',
+            );
+            expect(
+                classifyDangerousQuery(
+                    'EXPLAIN ANALYZE WITH gone AS (DELETE FROM orders RETURNING *) SELECT * FROM gone',
+                ),
+            ).toBe('no-where');
+            expect(classifyDangerousQuery('EXPLAIN ANALYZE DELETE FROM orders WHERE id = 1')).toBe(
+                null,
+            );
+        });
+
+        it("classifies the statement that MariaDB's ANALYZE runs", () => {
+            expect(classifyDangerousQuery('ANALYZE DELETE FROM orders')).toBe('no-where');
+            expect(classifyDangerousQuery('ANALYZE FORMAT=JSON UPDATE orders SET note = 1')).toBe(
+                'no-where',
+            );
+            expect(classifyDangerousQuery('ANALYZE orders')).toBe(null);
+            expect(classifyDangerousQuery('ANALYZE TABLE orders')).toBe(null);
+        });
+
+        it('sees an executing prefix behind a leading # comment (MySQL)', () => {
+            expect(classifyDangerousQuery('ANALYZE DELETE FROM orders')).toBe('no-where');
+            expect(classifyDangerousQuery('# nightly\nANALYZE DELETE FROM orders')).toBe(
+                'no-where',
+            );
+            expect(
+                classifyDangerousQuery('# a\n  # b\nEXPLAIN ANALYZE UPDATE orders SET note = 1'),
+            ).toBe('no-where');
+            expect(classifyDangerousQuery('# plan only\nEXPLAIN DELETE FROM orders')).toBe(null);
+        });
+
+        it('leaves EXPLAIN without ANALYZE alone, since it only plans', () => {
+            expect(classifyDangerousQuery('EXPLAIN DELETE FROM orders')).toBe(null);
+            expect(classifyDangerousQuery('EXPLAIN (ANALYZE false) DELETE FROM orders')).toBe(null);
+            expect(classifyDangerousQuery('EXPLAIN (ANALYZE off, COSTS) DELETE FROM orders')).toBe(
+                null,
+            );
+            expect(classifyDangerousQuery('EXPLAIN (COSTS) UPDATE orders SET note = 1')).toBe(null);
+        });
+
         it('exposes isDangerousQuery as a boolean shortcut', () => {
             expect(isDangerousQuery('DROP TABLE users')).toBe(true);
             expect(isDangerousQuery('DELETE FROM users')).toBe(true);

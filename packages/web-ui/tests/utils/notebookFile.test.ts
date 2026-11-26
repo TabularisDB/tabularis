@@ -702,7 +702,7 @@ describe('notebookFile typed parameters', () => {
     it('drops a typed parameter that is structurally malformed', () => {
         expect(
             load([
-                {name: 'a', value: '1', type: 'integer'},
+                {name: 'a', value: '1', type: ''},
                 {name: 'b', value: '1', type: null},
                 {name: 'c', value: '1', type: 'number', isNull: 'yes'},
                 {name: 'd', value: '1', type: 'number', required: 1},
@@ -712,6 +712,45 @@ describe('notebookFile typed parameters', () => {
                 {name: 'ok', value: '1', type: 'number'},
             ]),
         ).toEqual([{name: 'ok', value: '1', type: 'number'}]);
+    });
+
+    // A later build can add a type. This build cannot write its value, but
+    // dropping the entry would leave `@since` in the SQL for the engine to read.
+    it('keeps a parameter whose type this build does not know, as found', () => {
+        const since = {
+            name: 'since',
+            value: '2026-01-01 10:00',
+            type: 'datetime',
+            isNull: 'no',
+            timezone: 'UTC',
+        };
+        expect(load([since, {name: 'limit', value: ' 10 ', type: 'number'}])).toEqual([
+            since,
+            {name: 'limit', value: '10', type: 'number'},
+        ]);
+    });
+
+    it('reads any name other than the five it writes as a type it does not know', () => {
+        const entries = ['Number', ' date ', '  ', 'raw'].map((type, index) => ({
+            name: `p${index}`,
+            value: '1',
+            type,
+        }));
+        expect(load(entries)).toEqual(entries);
+    });
+
+    it('writes a parameter of an unknown type back unchanged when the notebook is saved again', () => {
+        const since = {name: 'since', value: '2026-01-01 10:00', type: 'datetime', timezone: 'UTC'};
+        const {title, cells, params} = deserializeNotebook(
+            JSON.stringify({
+                version: 2,
+                title: 'x',
+                createdAt: '2026-01-01',
+                cells: [],
+                params: [since],
+            }),
+        );
+        expect(serializeNotebook(title, cells, params).params).toEqual([since]);
     });
 
     it('keeps a well-formed typed parameter whose value is invalid', () => {

@@ -1416,8 +1416,13 @@ export const NewConnectionModal = ({
                     setSshTabError(true);
                     return;
                 }
-                await testSshConnection(selected, {progressId}, client);
-                target = `${selected.user}@${selected.host}:${selected.port}`;
+                const effectiveUser = formData.ssh_user?.trim() || selected.user;
+                await testSshConnection(
+                    effectiveUser !== selected.user ? {...selected, user: effectiveUser} : selected,
+                    {progressId},
+                    client,
+                );
+                target = `${effectiveUser}@${selected.host}:${selected.port}`;
             } else {
                 const port = formData.ssh_port || 22;
                 await testSshConnection(
@@ -4440,6 +4445,23 @@ export const NewConnectionModal = ({
                                     searchable={false}
                                 />
                             </div>
+                            {formData.ssh_connection_id && (
+                                <div className="space-y-1">
+                                    <FieldInput
+                                        label={t('newConnection.sshUserOverride')}
+                                        value={formData.ssh_user}
+                                        onChange={(v) => updateSshField('ssh_user', v || undefined)}
+                                        placeholder={
+                                            sshConnections.find(
+                                                (conn) => conn.id === formData.ssh_connection_id,
+                                            )?.user || 'user'
+                                        }
+                                    />
+                                    <p className="text-[11px] text-muted">
+                                        {t('newConnection.sshUserOverrideHint')}
+                                    </p>
+                                </div>
+                            )}
                             <button
                                 type="button"
                                 onClick={() => setIsSshModalOpen(true)}

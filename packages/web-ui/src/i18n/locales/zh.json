@@ -837,6 +837,11 @@
       "horizontal": "水平",
       "vertical": "垂直"
     },
+    "connectionColor": {
+      "title": "连接颜色",
+      "bottomBar": "底部颜色栏",
+      "bottomBarDesc": "在窗口底部显示一条使用连接颜色的粗颜色栏，使连接更容易区分。"
+    },
     "dataGrid": {
       "zebraStripes": "交替行背景",
       "zebraStripesDesc": "为每隔一行添加底色，便于在宽表中横向追踪某一行。",
@@ -1514,6 +1519,8 @@
     "save": "保存",
     "failSave": "保存连接失败",
     "selectSshConnection": "选择 SSH 连接",
+    "sshUserOverride": "覆盖 SSH 用户名（可选）",
+    "sshUserOverrideHint": "留空则使用所选 SSH 连接的默认用户。",
     "useSshConnection": "使用现有 SSH 连接",
     "createInlineSsh": "配置内联 SSH",
     "manageSshConnections": "管理 SSH 连接",
@@ -2331,7 +2338,8 @@
           "number": "数字",
           "boolean": "布尔值",
           "date": "日期",
-          "select": "列表"
+          "select": "列表",
+          "unknown": "未知"
         },
         "issues": {
           "invalidNumber": "请输入数字，例如 42 或 -0.5",
@@ -2341,7 +2349,8 @@
           "noOptions": "请至少添加一个选项",
           "required": "必须提供值",
           "emptyNeedsNull": "请输入值或勾选 NULL",
-          "cellReference": "带类型的值不能包含单元格引用"
+          "cellReference": "带类型的值不能包含单元格引用",
+          "unknownType": "此版本的 Tabularis 无法识别该类型"
         },
         "errors": {
           "invalid": "无法发送参数 @{{name}}：{{reason}}",

@@ -862,6 +862,11 @@
             "description": "將開啟的分頁顯示在編輯器上方，或以清單形式顯示在左側。",
             "horizontal": "水平",
             "vertical": "垂直"
+    },
+        "connectionColor": {
+            "title": "連線顏色",
+            "bottomBar": "底部色彩列",
+            "bottomBarDesc": "在視窗底部顯示一條以連線顏色呈現的粗色彩列，讓連線更容易區分。"
         },
         "dataGrid": {
             "title": "資料表格",
@@ -1602,6 +1607,8 @@
         "save": "儲存",
         "failSave": "儲存連線失敗",
         "selectSshConnection": "選擇 SSH 連線",
+        "sshUserOverride": "覆寫 SSH 使用者（選填）",
+        "sshUserOverrideHint": "留空以使用所選 SSH 連線的預設使用者。",
         "useSshConnection": "使用現有 SSH 連線",
         "createInlineSsh": "設定內嵌 SSH",
         "manageSshConnections": "管理 SSH 連線",
@@ -2409,7 +2416,8 @@
                     "number": "數字",
                     "boolean": "布林值",
                     "date": "日期",
-                    "select": "清單"
+                    "select": "清單",
+                    "unknown": "未知"
                 },
                 "issues": {
                     "invalidNumber": "請輸入數字，例如 42 或 -0.5",
@@ -2419,7 +2427,8 @@
                     "noOptions": "請至少新增一個選項",
                     "required": "必須提供值",
                     "emptyNeedsNull": "請輸入值或勾選 NULL",
-                    "cellReference": "帶類型的值不能包含儲存格引用"
+                    "cellReference": "帶類型的值不能包含儲存格引用",
+                    "unknownType": "此版本的 Tabularis 無法辨識此類型"
                 },
                 "errors": {
                     "invalid": "無法傳送引數 @{{name}}：{{reason}}",

@@ -835,6 +835,11 @@
       "horizontal": "Horizontal",
       "vertical": "Vertikal"
     },
+    "connectionColor": {
+      "title": "Verbindungsfarbe",
+      "bottomBar": "Farbleiste am unteren Rand",
+      "bottomBarDesc": "Zeigt am unteren Fensterrand eine dicke Leiste in der Farbe der Verbindung an, damit sich Verbindungen leichter unterscheiden lassen."
+    },
     "dataGrid": {
       "zebraStripes": "Abwechselnder Zeilenhintergrund",
       "zebraStripesDesc": "Hebt jede zweite Zeile hervor, damit Sie eine Zeile auch in breiten Tabellen leichter verfolgen können.",
@@ -1542,6 +1547,8 @@
     "save": "Speichern",
     "failSave": "Speichern der Verbindung fehlgeschlagen",
     "selectSshConnection": "SSH-Verbindung auswählen",
+    "sshUserOverride": "SSH-Benutzer überschreiben (optional)",
+    "sshUserOverrideHint": "Leer lassen, um den Standardbenutzer der ausgewählten SSH-Verbindung zu verwenden.",
     "useSshConnection": "Vorhandene SSH-Verbindung verwenden",
     "createInlineSsh": "SSH inline konfigurieren",
     "manageSshConnections": "SSH-Verbindungen verwalten",
@@ -2365,7 +2372,8 @@
           "number": "Zahl",
           "boolean": "Boolesch",
           "date": "Datum",
-          "select": "Liste"
+          "select": "Liste",
+          "unknown": "Unbekannt"
         },
         "issues": {
           "invalidNumber": "Gib eine Zahl wie 42 oder -0.5 ein",
@@ -2375,7 +2383,8 @@
           "noOptions": "Füge mindestens eine Option hinzu",
           "required": "Ein Wert ist erforderlich",
           "emptyNeedsNull": "Gib einen Wert ein oder aktiviere NULL",
-          "cellReference": "Ein typisierter Wert darf keinen Zellverweis enthalten"
+          "cellReference": "Ein typisierter Wert darf keinen Zellverweis enthalten",
+          "unknownType": "Diese Version von Tabularis kennt diesen Typ nicht"
         },
         "errors": {
           "invalid": "Parameter @{{name}} kann nicht gesendet werden: {{reason}}",

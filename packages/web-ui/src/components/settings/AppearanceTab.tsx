@@ -162,6 +162,18 @@ export function AppearanceTab() {
                         </SettingRow>
                     </SettingSection>
 
+                    <SettingSection title={t('settings.connectionColor.title')}>
+                        <SettingRow
+                            label={t('settings.connectionColor.bottomBar')}
+                            description={t('settings.connectionColor.bottomBarDesc')}
+                        >
+                            <SettingToggle
+                                checked={settings.connectionColorBar ?? false}
+                                onChange={(v) => updateSetting('connectionColorBar', v)}
+                            />
+                        </SettingRow>
+                    </SettingSection>
+
                     <SettingSection title={t('settings.dataGrid.title')}>
                         <SettingRow
                             label={t('settings.dataGrid.stickyHeaders')}

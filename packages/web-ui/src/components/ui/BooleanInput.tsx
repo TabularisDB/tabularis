@@ -9,6 +9,10 @@ interface BooleanInputProps {
     autoFocus?: boolean;
     /** Grid display cells: stay out of the tab order and keep focus on the grid. */
     display?: boolean;
+    /** The current value is not an accepted one. */
+    ariaInvalid?: boolean;
+    /** Id of extra text that describes the checkbox, such as an error message. */
+    ariaDescribedBy?: string;
     onBlur?: () => void;
     onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
     onChange: (value: boolean | null) => void;
@@ -22,6 +26,8 @@ export function BooleanInput({
     disabled,
     autoFocus,
     display,
+    ariaInvalid,
+    ariaDescribedBy,
     onBlur,
     onKeyDown,
     onChange,
@@ -31,6 +37,8 @@ export function BooleanInput({
             <input
                 type="checkbox"
                 aria-label={name}
+                aria-invalid={ariaInvalid || undefined}
+                aria-describedby={ariaDescribedBy}
                 checked={value === true}
                 tabIndex={display ? -1 : undefined}
                 ref={(element) => {
