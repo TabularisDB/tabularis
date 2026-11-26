@@ -647,6 +647,38 @@ describe('NewConnectionModal layout', () => {
         });
     });
 
+    it('tests a saved SSH profile with the user override, or its own user', async () => {
+        sshMocks.loadSshConnections.mockResolvedValue([
+            {id: 'ssh-1', name: 'Shared host', host: 'bastion', port: 22, user: 'profile-user'},
+        ]);
+        renderModal(
+            createInitialConnection({
+                host: 'db.internal',
+                ssh_enabled: true,
+                ssh_connection_id: 'ssh-1',
+            }),
+        );
+
+        fireEvent.click(screen.getByRole('button', {name: 'SSH'}));
+        const user = await screen.findByPlaceholderText('profile-user');
+        fireEvent.click(screen.getByText('newConnection.testSsh'));
+        await waitFor(() =>
+            expect(sshMocks.testSshConnection).toHaveBeenLastCalledWith(
+                expect.objectContaining({id: 'ssh-1', user: 'profile-user'}),
+                expect.anything(),
+            ),
+        );
+
+        fireEvent.change(user, {target: {value: 'site-b'}});
+        fireEvent.click(screen.getByText('newConnection.testSsh'));
+        await waitFor(() =>
+            expect(sshMocks.testSshConnection).toHaveBeenLastCalledWith(
+                expect.objectContaining({id: 'ssh-1', user: 'site-b'}),
+                expect.anything(),
+            ),
+        );
+    });
+
     it('saves a passthrough connection whose URI only lives in the keychain', async () => {
         // The browser receives a redacted connection: the URI stays on the server.
         driverState.uriPassthrough = true;

@@ -1525,6 +1525,7 @@
     "sshHost": "SSH-хост",
     "sshPort": "SSH-порт",
     "sshUser": "SSH-пользователь",
+    "sshUserOverrideHint": "Необязательно. Оставьте пустым, чтобы использовать пользователя выбранного SSH-подключения.",
     "sshPassword": "SSH-пароль",
     "sshPasswordMissing": "SSH-пароль отсутствует. Введите заново.",
     "sshPasswordPlaceholder": "Введите SSH-пароль",

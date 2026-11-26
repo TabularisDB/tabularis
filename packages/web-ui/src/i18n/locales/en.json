@@ -1597,6 +1597,7 @@
     "sshHost": "SSH Host",
     "sshPort": "SSH Port",
     "sshUser": "SSH User",
+    "sshUserOverrideHint": "Optional. Leave empty to use the user of the selected SSH connection.",
     "sshPassword": "SSH Password",
     "sshPasswordMissing": "SSH Password missing. Please re-enter.",
     "sshPasswordPlaceholder": "Enter SSH password",

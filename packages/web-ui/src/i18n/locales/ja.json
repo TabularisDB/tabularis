@@ -1541,6 +1541,7 @@
     "sshHost": "SSH ホスト",
     "sshPort": "SSH ポート",
     "sshUser": "SSH ユーザー",
+    "sshUserOverrideHint": "任意。空欄の場合は、選択した SSH 接続のユーザーを使用します。",
     "sshPassword": "SSH パスワード",
     "sshPasswordMissing": "SSH パスワードが未入力です。再入力してください。",
     "sshPasswordPlaceholder": "SSH パスワードを入力",

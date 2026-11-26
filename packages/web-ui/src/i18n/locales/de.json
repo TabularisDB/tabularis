@@ -1526,6 +1526,7 @@
     "sshHost": "SSH-Host",
     "sshPort": "SSH-Port",
     "sshUser": "SSH-Benutzer",
+    "sshUserOverrideHint": "Optional. Leer lassen, um den Benutzer der ausgewählten SSH-Verbindung zu verwenden.",
     "sshPassword": "SSH-Passwort",
     "sshPasswordMissing": "SSH-Passwort fehlt. Bitte erneut eingeben.",
     "sshPasswordPlaceholder": "SSH-Passwort eingeben",

@@ -1498,6 +1498,7 @@
     "sshHost": "SSH 主机",
     "sshPort": "SSH 端口",
     "sshUser": "SSH 用户",
+    "sshUserOverrideHint": "可选。留空则使用所选 SSH 连接的用户。",
     "sshPassword": "SSH 密码",
     "sshPasswordMissing": "SSH 密码缺失。请重新输入。",
     "sshPasswordPlaceholder": "输入 SSH 密码",

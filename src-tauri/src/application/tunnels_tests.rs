@@ -143,6 +143,31 @@ fn saved_tunnel_profiles_expand_without_exposing_secrets() {
 }
 
 #[test]
+fn a_connection_can_override_the_saved_ssh_profile_user() {
+    let (_temp, runtime) = fixture();
+    let ssh = save_ssh_connection(&runtime, "Shared host".to_string(), ssh_input(), false).unwrap();
+    let expand = |user: Option<&str>| {
+        expand_connection_params(
+            &runtime,
+            &ConnectionParams {
+                driver: "postgres".to_string(),
+                ssh_enabled: Some(true),
+                ssh_connection_id: Some(ssh.id.clone()),
+                ssh_user: user.map(str::to_string),
+                ..ConnectionParams::default()
+            },
+        )
+        .unwrap()
+    };
+
+    let overridden = expand(Some(" site-b "));
+    assert_eq!(overridden.ssh_user.as_deref(), Some("site-b"));
+    assert_eq!(overridden.ssh_host.as_deref(), Some("bastion.example.com"));
+    assert_eq!(expand(None).ssh_user.as_deref(), Some("browser-user"));
+    assert_eq!(expand(Some("  ")).ssh_user.as_deref(), Some("browser-user"));
+}
+
+#[test]
 fn ssh_tests_restore_inline_plaintext_secrets_from_saved_database_connections() {
     let (_temp, runtime) = fixture();
     let file = crate::models::ConnectionsFile {
