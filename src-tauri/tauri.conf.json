@@ -35,9 +35,7 @@
         "base-uri": "'self'",
         "form-action": "'none'"
       },
-      "dangerousDisableAssetCspModification": [
-        "style-src"
-      ],
+      "dangerousDisableAssetCspModification": ["style-src"],
       "assetProtocol": {
         "enable": true,
         "scope": [
