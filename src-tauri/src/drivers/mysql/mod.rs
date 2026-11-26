@@ -282,8 +282,11 @@ pub async fn get_schemas(_params: &ConnectionParams) -> Result<Vec<String>, Stri
 
 pub async fn get_databases(params: &ConnectionParams) -> Result<Vec<String>, String> {
     let pool = get_mysql_pool(params).await?;
-    let text = resolve_text_proto(&pool, params).await?;
-    let rows = fetch_all_rows(&pool, text, "SHOW DATABASES", &[]).await?;
+    // Some MySQL-compatible servers reject SHOW DATABASES as a prepared statement.
+    let rows = sqlx::raw_sql("SHOW DATABASES")
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(rows.iter().map(|r| mysql_row_str(r, 0)).collect())
 }
 
