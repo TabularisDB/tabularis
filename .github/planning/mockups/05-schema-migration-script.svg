@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" font-family="JetBrains Mono, monospace">
+  <!-- Background -->
+  <rect width="900" height="400" fill="#1a1b26"/>
+
+  <!-- Header -->
+  <rect x="0" y="0" width="900" height="44" fill="#24283b"/>
+  <text x="20" y="28" font-size="13" fill="#c0caf5" font-weight="bold">Migration Script Preview</text>
+  <text x="650" y="28" font-size="11" fill="#565f89">Direction: LEFT → RIGHT (staging → prod)</text>
+
+  <!-- Script Content -->
+  <rect x="20" y="56" width="860" height="290" rx="6" fill="#1e2030" stroke="#3b4261"/>
+
+  <!-- Line numbers -->
+  <rect x="20" y="56" width="40" height="290" rx="6" fill="#1a1b26"/>
+  <text x="35" y="80" font-size="11" fill="#565f89" text-anchor="end">1</text>
+  <text x="35" y="98" font-size="11" fill="#565f89" text-anchor="end">2</text>
+  <text x="35" y="116" font-size="11" fill="#565f89" text-anchor="end">3</text>
+  <text x="35" y="134" font-size="11" fill="#565f89" text-anchor="end">4</text>
+  <text x="35" y="152" font-size="11" fill="#565f89" text-anchor="end">5</text>
+  <text x="35" y="170" font-size="11" fill="#565f89" text-anchor="end">6</text>
+  <text x="35" y="188" font-size="11" fill="#565f89" text-anchor="end">7</text>
+  <text x="35" y="206" font-size="11" fill="#565f89" text-anchor="end">8</text>
+  <text x="35" y="224" font-size="11" fill="#565f89" text-anchor="end">9</text>
+  <text x="35" y="242" font-size="11" fill="#565f89" text-anchor="end">10</text>
+  <text x="35" y="260" font-size="11" fill="#565f89" text-anchor="end">11</text>
+  <text x="35" y="278" font-size="11" fill="#565f89" text-anchor="end">12</text>
+  <text x="35" y="296" font-size="11" fill="#565f89" text-anchor="end">13</text>
+  <text x="35" y="314" font-size="11" fill="#565f89" text-anchor="end">14</text>
+  <text x="35" y="332" font-size="11" fill="#565f89" text-anchor="end">15</text>
+
+  <!-- SQL content -->
+  <text x="68" y="80" font-size="11" fill="#565f89">-- Migration: staging.users → production.users</text>
+  <text x="68" y="98" font-size="11" fill="#565f89">-- Generated: 2026-07-24 14:30:00</text>
+  <text x="68" y="116" font-size="11" fill="#c0caf5"> </text>
+  <text x="68" y="134" font-size="11" fill="#565f89">-- Add new columns</text>
+  <text x="68" y="152" font-size="11" fill="#c0caf5"><tspan fill="#7aa2f7">ALTER TABLE</tspan> users <tspan fill="#7aa2f7">ADD COLUMN</tspan> avatar_url <tspan fill="#bb9af7">VARCHAR</tspan>(<tspan fill="#ff9e64">512</tspan>) <tspan fill="#7aa2f7">NULL</tspan>;</text>
+  <text x="68" y="170" font-size="11" fill="#c0caf5"><tspan fill="#7aa2f7">ALTER TABLE</tspan> users <tspan fill="#7aa2f7">ADD COLUMN</tspan> last_login_at <tspan fill="#bb9af7">TIMESTAMP</tspan> <tspan fill="#7aa2f7">NULL</tspan>;</text>
+  <text x="68" y="188" font-size="11" fill="#c0caf5"> </text>
+  <text x="68" y="206" font-size="11" fill="#565f89">-- Modify columns</text>
+  <text x="68" y="224" font-size="11" fill="#c0caf5"><tspan fill="#7aa2f7">ALTER TABLE</tspan> users <tspan fill="#7aa2f7">ALTER COLUMN</tspan> email <tspan fill="#7aa2f7">TYPE</tspan> <tspan fill="#bb9af7">VARCHAR</tspan>(<tspan fill="#ff9e64">320</tspan>);</text>
+  <text x="68" y="242" font-size="11" fill="#c0caf5"><tspan fill="#7aa2f7">ALTER TABLE</tspan> users <tspan fill="#7aa2f7">ALTER COLUMN</tspan> status <tspan fill="#7aa2f7">DROP NOT NULL</tspan>;</text>
+  <text x="68" y="260" font-size="11" fill="#c0caf5"> </text>
+  <text x="68" y="278" font-size="11" fill="#565f89">-- Remove deprecated columns</text>
+  <text x="68" y="296" font-size="11" fill="#c0caf5"><tspan fill="#7aa2f7">ALTER TABLE</tspan> users <tspan fill="#7aa2f7">DROP COLUMN</tspan> legacy_id;</text>
+  <text x="68" y="314" font-size="11" fill="#c0caf5"> </text>
+  <text x="68" y="332" font-size="11" fill="#565f89">-- Add indexes</text>
+
+  <!-- Action Bar -->
+  <rect x="0" y="356" width="900" height="44" fill="#24283b"/>
+  <rect x="20" y="366" width="180" height="30" rx="4" fill="#22c55e"/>
+  <text x="45" y="386" font-size="11" fill="#1a1b26" font-weight="bold">Execute on Target ▶</text>
+  <rect x="210" y="366" width="140" height="30" rx="4" fill="#24283b" stroke="#3b4261" stroke-width="1"/>
+  <text x="230" y="386" font-size="11" fill="#a9b1d6">Copy to Clipboard</text>
+  <rect x="360" y="366" width="120" height="30" rx="4" fill="#24283b" stroke="#3b4261" stroke-width="1"/>
+  <text x="380" y="386" font-size="11" fill="#a9b1d6">Save to File</text>
+
+  <!-- Warning badge -->
+  <rect x="550" y="366" width="230" height="30" rx="4" fill="#ff9e6420" stroke="#ff9e64" stroke-width="1"/>
+  <text x="570" y="386" font-size="11" fill="#ff9e64">⚠ Destructive: 1 DROP COLUMN</text>
+</svg>
