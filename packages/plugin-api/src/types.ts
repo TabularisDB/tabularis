@@ -151,7 +151,10 @@ export interface TabularisHostApi {
     usePluginEvent: (pluginId: string, name: string, listener: (detail: unknown) => void) => void;
     PluginSelect: ComponentType<PluginSelectProps>;
     copyText: (text: string) => Promise<void>;
-    /** Save data through the host's save dialog (desktop) or a download (web); `true` when saved. */
+    /**
+     * Save data through the host's save dialog (desktop) or a confirmed download (web).
+     * `true` when the desktop dialog saved the file or the browser download started.
+     */
     saveFile: (options: PluginSaveFileOptions) => Promise<boolean>;
     PluginResourceList: ComponentType<PluginResourceListProps>;
     PluginCodeEditor: ComponentType<PluginCodeEditorProps>;

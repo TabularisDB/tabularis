@@ -2581,7 +2581,10 @@ handler, because the host refuses a save without a recent user interaction in
 the plugin frame, and only one save per frame can be open at a time. The host
 keeps only the base name of `suggestedName`, without folders or control
 characters, shortened to 255 UTF-8 bytes. The promise resolves
-to `true` when the file was saved and `false` when the user cancelled either dialog.
+to `true` when the desktop save dialog saved the file or the browser started the
+download, and `false` when the user cancelled the host's confirmation or the
+desktop save dialog. The browser host can't tell whether the browser kept the
+download.
 
 ```tsx
 import { saveFile } from "@tabularis/plugin-api";

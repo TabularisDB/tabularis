@@ -890,6 +890,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                 })}
                 confirmLabel={t('settings.plugins.saveFileConfirm')}
                 variant="info"
+                initialFocus="cancel"
                 // Above an expanded plugin frame, which uses the highest z-index.
                 overlayClassName="fixed inset-0 bg-black/50 flex items-center justify-center z-[2147483647] backdrop-blur-sm"
             />

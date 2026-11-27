@@ -1,4 +1,4 @@
-import {useEffect, useId, useState, type ReactNode} from 'react';
+import {useEffect, useId, useRef, useState, type ReactNode} from 'react';
 import {useTranslation} from 'react-i18next';
 import {AlertTriangle, Loader2, X} from 'lucide-react';
 import {Modal} from '@/components/ui/Modal';
@@ -27,6 +27,12 @@ interface ConfirmModalProps {
     confirmDelaySeconds?: number;
     /** Forwarded to the underlying Modal, e.g. to raise z-index above another modal. */
     overlayClassName?: string;
+    /**
+     * Moves focus to this button when the modal opens, keeps Tab inside the
+     * dialog while it is open, and returns focus to the previous element when it
+     * closes. Without it, focus stays where it was.
+     */
+    initialFocus?: 'cancel' | 'confirm';
 }
 
 export const ConfirmModal = ({
@@ -45,6 +51,7 @@ export const ConfirmModal = ({
     variant = 'danger',
     confirmDelaySeconds,
     overlayClassName,
+    initialFocus,
 }: ConfirmModalProps) => {
     const {t} = useTranslation();
     const titleId = useId();
@@ -66,6 +73,48 @@ export const ConfirmModal = ({
         }, 1000);
         return () => clearInterval(interval);
     }, [isOpen, confirmDelaySeconds]);
+
+    const dialogRef = useRef<HTMLDivElement>(null);
+    const cancelRef = useRef<HTMLButtonElement>(null);
+    const confirmRef = useRef<HTMLButtonElement>(null);
+
+    useEffect(() => {
+        if (!isOpen || !initialFocus) return;
+        const previous = document.activeElement;
+        const target = initialFocus === 'confirm' ? confirmRef.current : cancelRef.current;
+        // A disabled confirm button (countdown, busy) can't take focus.
+        (target && !target.disabled ? target : cancelRef.current)?.focus();
+
+        const trapTab = (event: KeyboardEvent) => {
+            const dialog = dialogRef.current;
+            if (event.key !== 'Tab' || !dialog) return;
+            const focusable = Array.from(
+                dialog.querySelectorAll<HTMLElement>(
+                    'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+                ),
+            );
+            const first = focusable[0];
+            const last = focusable.at(-1);
+            if (!first || !last) return;
+            const active = document.activeElement;
+            if (!dialog.contains(active)) {
+                event.preventDefault();
+                first.focus();
+            } else if (event.shiftKey && active === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && active === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        };
+        document.addEventListener('keydown', trapTab, true);
+
+        return () => {
+            document.removeEventListener('keydown', trapTab, true);
+            if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
+        };
+    }, [isOpen, initialFocus]);
 
     const isCountingDown = remaining > 0;
 
@@ -98,6 +147,7 @@ export const ConfirmModal = ({
             overlayClassName={overlayClassName}
         >
             <div
+                ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={titleId}
@@ -137,6 +187,7 @@ export const ConfirmModal = ({
                 {/* Footer */}
                 <div className="p-4 border-t border-default bg-base/50 flex justify-end gap-3">
                     <button
+                        ref={cancelRef}
                         onClick={onClose}
                         disabled={busy}
                         className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -144,6 +195,7 @@ export const ConfirmModal = ({
                         {cancelLabel ?? t('common.cancel')}
                     </button>
                     <button
+                        ref={confirmRef}
                         onClick={onConfirm}
                         disabled={isCountingDown || busy || confirmDisabled}
                         aria-busy={busy || undefined}

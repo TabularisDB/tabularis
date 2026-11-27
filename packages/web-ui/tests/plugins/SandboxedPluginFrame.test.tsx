@@ -507,4 +507,37 @@ describe('SandboxedPluginFrame lifecycle', () => {
         await expect(pending).resolves.toBe(false);
         expect(downloadFile).toHaveBeenCalledOnce();
     });
+
+    it('moves keyboard focus into the save confirmation and back to the frame', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(true);
+        registerActivePlatformCapabilities({
+            negotiation: {environment: 'browser'},
+            downloadFile,
+        } as unknown as PlatformCapabilities);
+        render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        const iframe = screen.getByTitle('Plugin google-sheets');
+        iframe.focus();
+        const request = {data: new Uint8Array([1]), suggestedName: 'a.txt'};
+
+        const cancelled = handlers['api.saveFile'](request);
+        await screen.findByRole('dialog');
+        const cancel = screen.getByRole('button', {name: 'common.cancel'});
+        const download = screen.getByRole('button', {name: 'settings.plugins.saveFileConfirm'});
+        const close = screen.getByRole('button', {name: 'common.close'});
+        expect(cancel).toHaveFocus();
+
+        // Tab and Shift+Tab stay inside the dialog.
+        download.focus();
+        fireEvent.keyDown(download, {key: 'Tab'});
+        expect(close).toHaveFocus();
+        fireEvent.keyDown(close, {key: 'Tab', shiftKey: true});
+        expect(download).toHaveFocus();
+
+        fireEvent.keyDown(download, {key: 'Escape'});
+        await expect(cancelled).resolves.toBe(false);
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(iframe).toHaveFocus();
+        expect(downloadFile).not.toHaveBeenCalled();
+    });
 });
