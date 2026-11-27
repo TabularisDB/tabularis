@@ -3,10 +3,14 @@ import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const rootDir = join(dirname(fileURLToPath(import.meta.url)), '..');
-const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+const pnpmCommand = process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : 'pnpm';
+const buildArguments =
+    process.platform === 'win32'
+        ? ['/d', '/s', '/c', 'pnpm --filter @tabularis/web-ui build']
+        : ['--filter', '@tabularis/web-ui', 'build'];
 const forwardedArguments = process.argv.slice(2);
 
-const build = spawnSync(pnpmCommand, ['--filter', '@tabularis/web-ui', 'build'], {
+const build = spawnSync(pnpmCommand, buildArguments, {
     cwd: rootDir,
     stdio: 'inherit',
 });
