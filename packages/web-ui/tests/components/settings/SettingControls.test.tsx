@@ -1,5 +1,5 @@
 import {describe, it, expect, vi} from 'vitest';
-import {render, screen, fireEvent} from '@testing-library/react';
+import {render, screen, fireEvent, act} from '@testing-library/react';
 import {
     SettingSection,
     SettingRow,
@@ -193,6 +193,69 @@ describe('SettingButtonGroup', () => {
         render(<SettingButtonGroup value="a" onChange={() => {}} options={options} mono />);
         const btn = screen.getByText('Alpha');
         expect(btn.className).toContain('font-mono');
+    });
+});
+
+describe('SettingSlider drag drafts', () => {
+    const setup = () => {
+        const onChange = vi.fn();
+        const onDraftChange = vi.fn();
+        render(
+            <SettingSlider
+                value={14}
+                onChange={onChange}
+                onDraftChange={onDraftChange}
+                min={10}
+                max={20}
+                step={1}
+                formatValue={(v) => `${v}px`}
+            />,
+        );
+        return {onChange, onDraftChange, slider: screen.getByRole('slider')};
+    };
+
+    it('shows a draft value while dragging without committing', () => {
+        const {onChange, onDraftChange, slider} = setup();
+        fireEvent.pointerDown(slider);
+        fireEvent.change(slider, {target: {value: '18'}});
+        expect(onChange).not.toHaveBeenCalled();
+        expect(onDraftChange).toHaveBeenLastCalledWith(18);
+        expect(screen.getByText('18px')).toBeInTheDocument();
+    });
+
+    it('commits once when the pointer is released over the slider', () => {
+        const {onChange, onDraftChange, slider} = setup();
+        fireEvent.pointerDown(slider);
+        fireEvent.change(slider, {target: {value: '18'}});
+        fireEvent.pointerUp(slider);
+        expect(onChange).toHaveBeenCalledTimes(1);
+        expect(onChange).toHaveBeenCalledWith(18);
+        expect(onDraftChange).toHaveBeenLastCalledWith(null);
+    });
+
+    it('commits when the pointer is released outside the slider', () => {
+        const {onChange, slider} = setup();
+        fireEvent.pointerDown(slider);
+        fireEvent.change(slider, {target: {value: '12'}});
+        act(() => {
+            window.dispatchEvent(new Event('pointerup'));
+        });
+        expect(onChange).toHaveBeenCalledWith(12);
+    });
+
+    it('applies keyboard changes immediately', () => {
+        const {onChange, slider} = setup();
+        fireEvent.change(slider, {target: {value: '15'}});
+        expect(onChange).toHaveBeenCalledWith(15);
+    });
+
+    it('does not commit when dragged back to the original value', () => {
+        const {onChange, slider} = setup();
+        fireEvent.pointerDown(slider);
+        fireEvent.change(slider, {target: {value: '18'}});
+        fireEvent.change(slider, {target: {value: '14'}});
+        fireEvent.pointerUp(slider);
+        expect(onChange).not.toHaveBeenCalled();
     });
 });
 

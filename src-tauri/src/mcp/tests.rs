@@ -472,3 +472,82 @@ async fn database_scope_is_enforced_before_driver_access() {
         }
     }
 }
+
+#[tokio::test]
+async fn expand_ssh_params_for_mcp_honors_ssh_user_override() {
+    const CHILD_ENV: &str = "TABULARIS_MCP_SSH_OVERRIDE_TEST_CHILD";
+    if std::env::var_os(CHILD_ENV).is_none() {
+        let fixture = tempfile::tempdir().unwrap();
+        let config_dir = fixture.path().join("config");
+        std::fs::create_dir(&config_dir).unwrap();
+        let ssh_connections = json!([{
+            "id": "ssh-1",
+            "name": "Bastion",
+            "host": "bastion.example.com",
+            "port": 2222,
+            "user": "profile-user",
+            "auth_type": "key",
+            "key_file": "/tmp/id_ed25519",
+            "save_in_keychain": false
+        }]);
+        std::fs::write(
+            config_dir.join("ssh_connections.json"),
+            serde_json::to_vec(&ssh_connections).unwrap(),
+        )
+        .unwrap();
+
+        let output = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            tokio::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "mcp::tests::expand_ssh_params_for_mcp_honors_ssh_user_override",
+                    "--nocapture",
+                ])
+                .env(CHILD_ENV, "1")
+                .env(crate::storage_location::ENV_VAR, &config_dir)
+                .current_dir(&config_dir)
+                .kill_on_drop(true)
+                .output(),
+        )
+        .await
+        .expect("isolated MCP SSH override test must finish promptly")
+        .unwrap();
+        assert!(
+            output.status.success(),
+            "isolated MCP SSH override failed:\n{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        return;
+    }
+
+    let with_override = ConnectionParams {
+        driver: "postgres".to_string(),
+        ssh_enabled: Some(true),
+        ssh_connection_id: Some("ssh-1".to_string()),
+        ssh_user: Some("  override-user  ".to_string()),
+        ..Default::default()
+    };
+    let expanded_override = expand_ssh_params_for_mcp(&with_override).await.unwrap();
+    assert_eq!(expanded_override.ssh_user.as_deref(), Some("override-user"));
+    assert_eq!(
+        expanded_override.ssh_host.as_deref(),
+        Some("bastion.example.com")
+    );
+    assert_eq!(expanded_override.ssh_port, Some(2222));
+
+    let with_blank = ConnectionParams {
+        ssh_user: Some("   ".to_string()),
+        ..with_override.clone()
+    };
+    let expanded_blank = expand_ssh_params_for_mcp(&with_blank).await.unwrap();
+    assert_eq!(expanded_blank.ssh_user.as_deref(), Some("profile-user"));
+
+    let without_override = ConnectionParams {
+        ssh_user: None,
+        ..with_override
+    };
+    let expanded_default = expand_ssh_params_for_mcp(&without_override).await.unwrap();
+    assert_eq!(expanded_default.ssh_user.as_deref(), Some("profile-user"));
+}

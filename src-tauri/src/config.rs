@@ -113,6 +113,12 @@ pub struct AppConfig {
     pub sticky_column_headers: Option<bool>,
     /// Alternate the background of data grid rows. Default: false.
     pub result_zebra_stripes: Option<bool>,
+    /// Where the editor's open tabs sit: `"horizontal"` (along the top) or
+    /// `"vertical"` (down the left). Default: `"horizontal"`.
+    pub tab_layout: Option<String>,
+    /// Show a thick bar in the active connection's color along the bottom of the
+    /// window, to tell connections apart at a glance. Default: false.
+    pub connection_color_bar: Option<bool>,
     /// Default sort direction on data grid header click: `"asc"` or `"desc"`.
     pub default_sort_direction: Option<String>,
     /// Keep the row editor sidebar in sync with the selected grid row. Default: true.
