@@ -16,6 +16,9 @@ import {
 import {parsePluginNativeComponent, parsePluginNativeRect} from '@/utils/pluginNative';
 import {publishPluginEvent, subscribePluginEvent} from '@/utils/pluginEvents';
 import {fitFrameHeight, frameScrollports} from '@/utils/pluginFrameFit';
+import {parsePluginSaveFile} from '@/utils/pluginSaveFile';
+import {formatBytes} from '@/utils/taskManager';
+import {ConfirmModal} from '@/components/modals/ConfirmModal';
 import type {PluginNativeComponent} from '@/types/pluginNative';
 import {NativePluginComponent} from './NativePluginComponent';
 import {isReadOnlyQuery} from '@/utils/sqlAnalysis';
@@ -25,6 +28,14 @@ import type {SlotContext} from '@/types/pluginSlots';
 import {connectFrame, pluginFrameUrl} from './connectFrame';
 import {serializePluginSlotContext} from './slotContext';
 import type {RpcPort} from './rpc';
+import type {DownloadFileRequest} from '@/platform/capabilities';
+
+/** A browser download a plugin asked for, waiting for the user to confirm it in the host. */
+interface PendingSave {
+    request: DownloadFileRequest;
+    resolve: (saved: boolean) => void;
+    reject: (error: unknown) => void;
+}
 
 interface Props {
     pluginId: string;
@@ -122,6 +133,8 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
     const [height, setHeight] = useState(0);
     const [intrinsicWidth, setIntrinsicWidth] = useState(0);
     const [modalOpen, setModalOpen] = useState(false);
+    const [pendingSave, setPendingSave] = useState<PendingSave | null>(null);
+    const pendingSaveRef = useRef<PendingSave | null>(null);
     const [openPopovers, setOpenPopovers] = useState<ReadonlySet<string>>(() => new Set());
     const workspace = context.__tabularisSlot === 'editor.workspace.content';
     const frameVisible = context.workspaceActive !== false;
@@ -301,6 +314,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
         const controller = new AbortController();
         let disposed = false;
         const eventSubscriptions = new Map<string, () => void>();
+        let saveFileOpen = false;
         const handlers = {
             'api.event.publish': (name: unknown, detail: unknown) =>
                 publishPluginEvent(pluginId, providerString(name, 'plugin event name', 64), detail),
@@ -382,6 +396,36 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                     throw new Error('Invalid clipboard text');
                 await getActivePlatformCapabilities().writeClipboard(value);
                 return null;
+            },
+            'api.saveFile': async (value: unknown) => {
+                if (contextRef.current.workspaceActive === false)
+                    throw new Error('Inactive workspaces cannot save files');
+                // Only a recent interaction can open a save dialog or start a download. A click
+                // anywhere in the app activates the host window, so the frame must also have focus,
+                // which it takes when the user clicks or types in it.
+                if (!navigator.userActivation?.isActive)
+                    throw new Error('Saving a file requires a user interaction');
+                if (document.activeElement !== frame)
+                    throw new Error('Saving a file requires a user interaction in the plugin');
+                if (saveFileOpen) throw new Error('Another file from this plugin is being saved');
+                saveFileOpen = true;
+                try {
+                    const request = await parsePluginSaveFile(value);
+                    const platform = getActivePlatformCapabilities();
+                    // The desktop save dialog is the user's confirmation. A browser download starts
+                    // at once, and focus can move to the frame without an interaction in it, so the
+                    // user confirms this file in a host dialog first.
+                    if (platform.negotiation?.environment !== 'browser')
+                        return await platform.downloadFile(request);
+                    if (disposed) return false;
+                    return await new Promise<boolean>((resolve, reject) => {
+                        const pending = {request, resolve, reject};
+                        pendingSaveRef.current = pending;
+                        setPendingSave(pending);
+                    });
+                } finally {
+                    saveFileOpen = false;
+                }
             },
             'ui.native.set': (value: unknown) => {
                 const component = parsePluginNativeComponent(
@@ -695,6 +739,9 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
 
         return () => {
             disposed = true;
+            pendingSaveRef.current?.resolve(false);
+            pendingSaveRef.current = null;
+            setPendingSave(null);
             for (const unsubscribe of eventSubscriptions.values()) unsubscribe();
             eventSubscriptions.clear();
             controller.abort();
@@ -720,7 +767,9 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
     useEffect(() => {
         if (!modalOpen) return;
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
+            // A host dialog above the overlay (the save confirmation) handles
+            // Escape first and marks it handled; leave the plugin open then.
+            if (event.key === 'Escape' && !event.defaultPrevented) {
                 setModalOpen(false);
                 void rpcRef.current?.call('ui.closeModal').catch(() => undefined);
             }
@@ -728,6 +777,22 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [modalOpen]);
+
+    const settleSave = (save: boolean) => {
+        const pending = pendingSaveRef.current;
+        pendingSaveRef.current = null;
+        setPendingSave(null);
+        if (!pending) return;
+        if (!save) {
+            pending.resolve(false);
+            return;
+        }
+        // Runs in the click handler of the host's own button, so the download
+        // follows an interaction the host has seen for this file.
+        getActivePlatformCapabilities()
+            .downloadFile(pending.request)
+            .then(pending.resolve, pending.reject);
+    };
 
     const iframe = frameUrl && (
         <div
@@ -815,6 +880,22 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                 }}
             />
             {createPortal(iframe, portalRoot)}
+            <ConfirmModal
+                isOpen={pendingSave !== null}
+                onClose={() => settleSave(false)}
+                onConfirm={() => settleSave(true)}
+                title={t('settings.plugins.saveFileTitle')}
+                message={t('settings.plugins.saveFileMessage', {
+                    plugin: pluginId,
+                    fileName: pendingSave?.request.fileName ?? '',
+                    size: formatBytes(pendingSave?.request.contents.byteLength ?? 0),
+                })}
+                confirmLabel={t('settings.plugins.saveFileConfirm')}
+                variant="info"
+                initialFocus="cancel"
+                // Above an expanded plugin frame, which uses the highest z-index.
+                overlayClassName="fixed inset-0 bg-black/50 flex items-center justify-center z-[2147483647] backdrop-blur-sm"
+            />
             {expanded &&
                 createPortal(
                     <button

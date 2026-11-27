@@ -1196,6 +1196,9 @@
             "enabled": "已啟用",
             "disabled": "已停用",
             "openFolder": "開啟外掛資料夾",
+            "saveFileTitle": "從外掛儲存檔案",
+            "saveFileMessage": "「{{plugin}}」想要下載「{{fileName}}」({{size}})。",
+            "saveFileConfirm": "下載",
             "installError": {
                 "title": "安裝失敗",
                 "subtitle": "安裝外掛時發生錯誤。請參閱下面的詳細資訊。",

@@ -1,5 +1,6 @@
 import {useState, useCallback, useContext, useMemo} from 'react';
 import {getActivePlatformCapabilities} from '@/platform/activeCapabilities';
+import {parsePluginSaveFile} from '@/utils/pluginSaveFile';
 import {usePlatformCapabilities} from './usePlatformCapabilities';
 import {useTranslation} from 'react-i18next';
 
@@ -174,6 +175,11 @@ export async function openUrl(url: string): Promise<void> {
 /** Copy provider commands or diagnostics through the active host's clipboard capability. */
 export async function copyText(text: string): Promise<void> {
     await getActivePlatformCapabilities().writeClipboard(text);
+}
+
+/** Save plugin data through the active host's save dialog or browser download. */
+export async function saveFile(options: unknown): Promise<boolean> {
+    return getActivePlatformCapabilities().downloadFile(await parsePluginSaveFile(options));
 }
 
 /**

@@ -4,6 +4,8 @@ import {DEFAULT_SETTINGS} from '@/contexts/SettingsContext';
 import {SandboxedPluginFrame} from '@/plugins/sandbox/SandboxedPluginFrame';
 import type {PluginHostHandler} from '@/plugins/sandbox/connectFrame';
 import {publishPluginEvent} from '@/utils/pluginEvents';
+import {registerActivePlatformCapabilities} from '@/platform/activeCapabilities';
+import type {PlatformCapabilities} from '@/platform/capabilities';
 
 const mocks = vi.hoisted(() => ({
     connect: vi.fn(),
@@ -394,5 +396,178 @@ describe('SandboxedPluginFrame lifecycle', () => {
         unmount();
         await publishPluginEvent('google-sheets', 'branch-changed', {branch: 'later'});
         expect(mocks.call).not.toHaveBeenCalledWith('api.event', expect.anything());
+    });
+
+    it('saves plugin data through the platform download after a user interaction', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(true);
+        registerActivePlatformCapabilities({downloadFile} as unknown as PlatformCapabilities);
+        render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        screen.getByTitle('Plugin google-sheets').focus();
+
+        await expect(
+            handlers['api.saveFile']({
+                data: new Uint8Array([1, 2, 3]),
+                suggestedName: '../photo.jpg',
+                mimeType: 'image/jpeg',
+            }),
+        ).resolves.toBe(true);
+        expect(downloadFile).toHaveBeenCalledWith({
+            fileName: 'photo.jpg',
+            contents: new Uint8Array([1, 2, 3]),
+            mimeType: 'image/jpeg',
+        });
+
+        downloadFile.mockResolvedValueOnce(false);
+        await expect(
+            handlers['api.saveFile']({data: new Uint8Array([1]), suggestedName: 'a.bin'}),
+        ).resolves.toBe(false);
+    });
+
+    it('refuses a save without a user interaction or while another save is open', async () => {
+        let finish: (saved: boolean) => void = () => undefined;
+        const downloadFile = vi.fn(() => new Promise<boolean>((resolve) => (finish = resolve)));
+        registerActivePlatformCapabilities({downloadFile} as unknown as PlatformCapabilities);
+        render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        screen.getByTitle('Plugin google-sheets').focus();
+        const request = {data: new Uint8Array([1]), suggestedName: 'a.bin'};
+
+        const first = handlers['api.saveFile'](request);
+        await waitFor(() => expect(downloadFile).toHaveBeenCalledOnce());
+        await expect(handlers['api.saveFile'](request)).rejects.toThrow(
+            'Another file from this plugin is being saved',
+        );
+        finish(true);
+        await expect(first).resolves.toBe(true);
+
+        Object.defineProperty(navigator, 'userActivation', {
+            configurable: true,
+            value: {isActive: false},
+        });
+        await expect(handlers['api.saveFile'](request)).rejects.toThrow(
+            'Saving a file requires a user interaction',
+        );
+        expect(downloadFile).toHaveBeenCalledOnce();
+    });
+
+    it('refuses a save when the interaction was outside the plugin frame', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(true);
+        registerActivePlatformCapabilities({downloadFile} as unknown as PlatformCapabilities);
+        render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        // The host window is activated by a click on a host button, not in the plugin.
+        const button = document.createElement('button');
+        document.body.append(button);
+        button.focus();
+
+        await expect(
+            handlers['api.saveFile']({data: new Uint8Array([1]), suggestedName: 'a.bin'}),
+        ).rejects.toThrow('Saving a file requires a user interaction in the plugin');
+        expect(downloadFile).not.toHaveBeenCalled();
+        button.remove();
+    });
+
+    it('asks the user in a host dialog before a browser download starts', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(true);
+        registerActivePlatformCapabilities({
+            negotiation: {environment: 'browser'},
+            downloadFile,
+        } as unknown as PlatformCapabilities);
+        const view = render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        screen.getByTitle('Plugin google-sheets').focus();
+        const request = {data: new Uint8Array([1, 2]), suggestedName: 'report.csv'};
+
+        // Cancelling resolves false and downloads nothing.
+        const cancelled = handlers['api.saveFile'](request);
+        const dialog = await screen.findByRole('dialog');
+        expect(dialog).toHaveTextContent('settings.plugins.saveFileTitle');
+        expect(downloadFile).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', {name: 'common.cancel'}));
+        await expect(cancelled).resolves.toBe(false);
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(downloadFile).not.toHaveBeenCalled();
+
+        // The download starts from the click on the host's button.
+        const confirmed = handlers['api.saveFile'](request);
+        fireEvent.click(
+            await screen.findByRole('button', {name: 'settings.plugins.saveFileConfirm'}),
+        );
+        await expect(confirmed).resolves.toBe(true);
+        expect(downloadFile).toHaveBeenCalledWith({
+            fileName: 'report.csv',
+            contents: new Uint8Array([1, 2]),
+        });
+
+        // A dialog still open when the frame goes away resolves false.
+        const pending = handlers['api.saveFile'](request);
+        await screen.findByRole('dialog');
+        view.unmount();
+        await expect(pending).resolves.toBe(false);
+        expect(downloadFile).toHaveBeenCalledOnce();
+    });
+
+    it('keeps the plugin overlay open when Escape only cancels a save confirmation', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(true);
+        registerActivePlatformCapabilities({
+            negotiation: {environment: 'browser'},
+            downloadFile,
+        } as unknown as PlatformCapabilities);
+        render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        act(() => {
+            handlers['ui.modal'](true);
+        });
+        const iframe = screen.getByTitle('Plugin google-sheets');
+        iframe.focus();
+        mocks.call.mockClear();
+
+        const cancelled = handlers['api.saveFile']({
+            data: new Uint8Array([1]),
+            suggestedName: 'a.txt',
+        });
+        await screen.findByRole('dialog');
+        fireEvent.keyDown(screen.getByRole('button', {name: 'common.cancel'}), {key: 'Escape'});
+        await expect(cancelled).resolves.toBe(false);
+
+        expect(mocks.call).not.toHaveBeenCalledWith('ui.closeModal');
+        expect(
+            screen.getByRole('button', {name: 'settings.plugins.closePluginOverlay'}),
+        ).toBeInTheDocument();
+        expect(downloadFile).not.toHaveBeenCalled();
+    });
+
+    it('moves keyboard focus into the save confirmation and back to the frame', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(true);
+        registerActivePlatformCapabilities({
+            negotiation: {environment: 'browser'},
+            downloadFile,
+        } as unknown as PlatformCapabilities);
+        render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        const iframe = screen.getByTitle('Plugin google-sheets');
+        iframe.focus();
+        const request = {data: new Uint8Array([1]), suggestedName: 'a.txt'};
+
+        const cancelled = handlers['api.saveFile'](request);
+        await screen.findByRole('dialog');
+        const cancel = screen.getByRole('button', {name: 'common.cancel'});
+        const download = screen.getByRole('button', {name: 'settings.plugins.saveFileConfirm'});
+        const close = screen.getByRole('button', {name: 'common.close'});
+        expect(cancel).toHaveFocus();
+
+        // Tab and Shift+Tab stay inside the dialog.
+        download.focus();
+        fireEvent.keyDown(download, {key: 'Tab'});
+        expect(close).toHaveFocus();
+        fireEvent.keyDown(close, {key: 'Tab', shiftKey: true});
+        expect(download).toHaveFocus();
+
+        fireEvent.keyDown(download, {key: 'Escape'});
+        await expect(cancelled).resolves.toBe(false);
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(iframe).toHaveFocus();
+        expect(downloadFile).not.toHaveBeenCalled();
     });
 });

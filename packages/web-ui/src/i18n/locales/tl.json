@@ -1172,6 +1172,9 @@
       "openFolder": "Buksan ang folder ng mga plugin",
       "legacyGoogleSheetsOAuthHint": "I-update ang Google Sheets plugin upang maibalik ang Google sign-in sa bersyong ito ng Tabularis.",
       "closePluginOverlay": "Close plugin window",
+      "saveFileTitle": "I-save ang file mula sa plugin",
+      "saveFileMessage": "Gustong i-download ng “{{plugin}}” ang “{{fileName}}” ({{size}}).",
+      "saveFileConfirm": "I-download",
       "installError": {
         "title": "Nabigo ang Pag-install",
         "subtitle": "May error habang ini-install ang plugin. Tingnan ang mga detalye sa ibaba.",

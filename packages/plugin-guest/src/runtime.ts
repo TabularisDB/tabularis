@@ -23,6 +23,8 @@ function pluginModuleUrl(): string {
     return new URL(modulePath.replace(/^\.\//, '').replace(/^\//, ''), location.href).href;
 }
 const QUERY_RPC_TIMEOUT_MS = 5 * 60_000;
+// The host answers when the user closes the save dialog.
+const SAVE_FILE_RPC_TIMEOUT_MS = 60 * 60_000;
 let currentContext: Record<string, unknown> = {};
 let renderPlugin: (() => void) | undefined;
 let explainModulePromise: Promise<Record<string, unknown>[]> | undefined;
@@ -110,6 +112,10 @@ const guestApi = Object.freeze({
         };
     },
     openUrl: (url: string) => callHost('api.openUrl', url),
+    saveFile: async (options: unknown) => {
+        if (!rpcPort) throw new Error('Plugin host connection is unavailable');
+        return (await rpcPort.call('api.saveFile', [options], SAVE_FILE_RPC_TIMEOUT_MS)) === true;
+    },
     exchangeGoogleOAuthToken: (request: unknown) =>
         callHostResult('api.oauth.googleToken', request),
 });
@@ -296,7 +302,7 @@ Object.assign(guestWindow, {
     ReactJSXRuntime,
     __TABULARIS_EXPLAIN__: explainApi,
     __TABULARIS_API__: guestApi,
-    __TABULARIS_API_VERSION__: '0.4.1',
+    __TABULARIS_API_VERSION__: '0.4.2',
 });
 
 function loadExplainModule(): Promise<Record<string, unknown>[]> {

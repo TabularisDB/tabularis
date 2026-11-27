@@ -1094,6 +1094,9 @@
       "openFolder": "打开插件文件夹",
       "legacyGoogleSheetsOAuthHint": "请更新 Google Sheets 插件，以在此 Tabularis 版本中恢复 Google 登录。",
       "closePluginOverlay": "Close plugin window",
+      "saveFileTitle": "从插件保存文件",
+      "saveFileMessage": "“{{plugin}}”想要下载“{{fileName}}”({{size}})。",
+      "saveFileConfirm": "下载",
       "installError": {
         "title": "安装失败",
         "subtitle": "安装插件时发生错误。请参阅下面的详细信息。",

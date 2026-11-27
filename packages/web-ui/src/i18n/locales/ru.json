@@ -1134,6 +1134,9 @@
       "openFolder": "Открыть папку плагинов",
       "legacyGoogleSheetsOAuthHint": "Обновите плагин Google Sheets, чтобы восстановить вход через Google в этой версии Tabularis.",
       "closePluginOverlay": "Close plugin window",
+      "saveFileTitle": "Сохранить файл из плагина",
+      "saveFileMessage": "«{{plugin}}» хочет скачать «{{fileName}}» ({{size}}).",
+      "saveFileConfirm": "Скачать",
       "installError": {
         "title": "Ошибка установки",
         "subtitle": "Ошибка при установке плагина. Подробности ниже.",

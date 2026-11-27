@@ -88,6 +88,7 @@ describe('plugin isolation acceptance contract', () => {
             'api.toast',
             'api.setting.set',
             'api.openUrl',
+            'api.saveFile',
             'api.oauth.googleToken',
             'slot.onDatabaseChange',
             'slot.setExtraField',
@@ -138,6 +139,7 @@ describe('plugin isolation acceptance contract', () => {
             'usePluginModal',
             'usePluginTheme',
             'openUrl',
+            'saveFile',
         ]) {
             expect(
                 guest + projectFile('packages/web-ui/src/plugins/sandbox/guestHooks.ts'),
@@ -173,6 +175,7 @@ describe('plugin isolation acceptance contract', () => {
         expect(slots).toContain('SandboxedPluginFrame');
         expect(slots).not.toMatch(/new Function\s*\(/);
         expect(uiFrame).toContain('sandbox="allow-scripts"');
+        expect(uiFrame).not.toContain('allow-downloads');
         expect(explain).toMatch(/pluginFrameUrl\(pluginId, modulePath, ["']explain["']\)/);
         expect(explain).not.toMatch(/new Function\s*\(/);
         expect(explain).not.toContain('evaluateBundle');
@@ -191,8 +194,8 @@ describe('plugin isolation acceptance contract', () => {
         expect(explainDesign).toContain('migration');
         expect(guide).toContain('UI_SANDBOX_DESIGN.md');
         expect(apiReadme).toContain('has no direct Tauri `invoke` access');
-        expect(apiVersion).toMatch(/API_VERSION = ["']0\.4\.1["']/);
-        expect(apiVersion).toMatch(/MIN_HOST_VERSION = ["']0\.4\.1["']/);
+        expect(apiVersion).toMatch(/API_VERSION = ["']0\.4\.2["']/);
+        expect(apiVersion).toMatch(/MIN_HOST_VERSION = ["']0\.4\.2["']/);
         expect(uiDesign).toContain('database-enforced read-only context');
         expect(uiDesign).toContain('Related connection-export hardening');
         expect(uiDesign).toContain('exchangeGoogleOAuthToken');
