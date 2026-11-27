@@ -1184,10 +1184,9 @@ async fn apply_export_payload_renames_imported_profile_name_collisions() {
         name: "PR993".to_string(),
         username: "deploy".to_string(),
     }];
-    payload.credential_profile_secrets.insert(
-        "profile-b".to_string(),
-        "imported-password".to_string(),
-    );
+    payload
+        .credential_profile_secrets
+        .insert("profile-b".to_string(), "imported-password".to_string());
     payload.connections[0].params.credential_profile_id = Some("profile-b".to_string());
 
     apply_export_payload(

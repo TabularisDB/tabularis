@@ -16,11 +16,10 @@ async fn driver_for(
 ) -> Result<std::sync::Arc<dyn crate::drivers::driver_trait::DatabaseDriver>, String> {
     crate::drivers::registry::get_driver(id)
         .await
-        .ok_or_else(|| format!("Unsupported driver: {}", id))
+        .ok_or_else(|| crate::drivers::registry::unsupported_driver_message(id))
 }
 
 const DEFAULT_MYSQL_PORT: u16 = 3306;
-const DEFAULT_POSTGRES_PORT: u16 = 5432;
 
 /// Per-slot collection of abort handles for in-flight cancellable tasks.
 /// Used by `QueryCancellationState`, `ExportCancellationState`, and
@@ -439,20 +438,6 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn test_postgres_url_basic() {
-            let params = create_params(
-                "postgres",
-                "localhost",
-                Some(5432),
-                "postgres",
-                Some("secret"),
-                "testdb",
-            );
-            let url = build_connection_url(&params).await.unwrap();
-            assert_eq!(url, "postgres://postgres:secret@localhost:5432/testdb");
-        }
-
-        #[tokio::test]
         async fn test_sqlite_url() {
             let params = create_params("sqlite", "", None, "", None, "/path/to/db.sqlite");
             let url = build_connection_url(&params).await.unwrap();
@@ -477,14 +462,8 @@ mod tests {
         #[tokio::test]
         async fn test_default_ports() {
             let mysql_params = create_params("mysql", "localhost", None, "root", None, "testdb");
-            let pg_params =
-                create_params("postgres", "localhost", None, "postgres", None, "testdb");
-
             let mysql_url = build_connection_url(&mysql_params).await.unwrap();
-            let pg_url = build_connection_url(&pg_params).await.unwrap();
-
             assert!(mysql_url.contains(":3306/"));
-            assert!(pg_url.contains(":5432/"));
         }
 
         #[tokio::test]
@@ -505,9 +484,9 @@ mod tests {
         #[tokio::test]
         async fn test_remote_host() {
             let params = create_params(
-                "postgres",
+                "mysql",
                 "db.example.com",
-                Some(5432),
+                Some(3306),
                 "admin",
                 Some("pass"),
                 "production",
@@ -1593,6 +1572,48 @@ pub(crate) async fn read_in_open_transaction(
     }
 }
 
+/// Run a statement that may write on the connection pinned to `session_id`,
+/// inside its open transaction. Unlike [`read_in_open_transaction`] the
+/// savepoint is released on success, so the statement's effect stays in the
+/// user's transaction; only a failed statement is rolled back to it, which
+/// keeps the failure from aborting that transaction.
+pub(crate) async fn write_in_open_transaction(
+    drv: &dyn crate::drivers::driver_trait::DatabaseDriver,
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+    session_id: &str,
+) -> Result<QueryResult, String> {
+    let batch = [
+        "SAVEPOINT tabularis_write".to_string(),
+        query.to_string(),
+        "RELEASE SAVEPOINT tabularis_write".to_string(),
+    ];
+    let (results, _) = drv
+        .execute_batch_in_session(params, &batch, limit, page, schema, Some(session_id), None)
+        .await?;
+    match results.into_iter().nth(1) {
+        Some(BatchStatementResult {
+            result: Some(result),
+            ..
+        }) => Ok(result),
+        Some(BatchStatementResult { error: Some(e), .. }) => {
+            // The failed statement left the transaction aborted: undo to the savepoint.
+            let undo = [
+                "ROLLBACK TO SAVEPOINT tabularis_write".to_string(),
+                "RELEASE SAVEPOINT tabularis_write".to_string(),
+            ];
+            let _ = drv
+                .execute_batch_in_session(params, &undo, None, 1, schema, Some(session_id), None)
+                .await;
+            Err(e)
+        }
+        _ => Err("The statement produced no result".to_string()),
+    }
+}
+
 // --- Count Query ---
 
 // --- Window Title Management ---
@@ -1610,13 +1631,6 @@ pub async fn build_connection_url(params: &ConnectionParams) -> Result<String, S
 
     match params.driver.as_str() {
         "sqlite" => Ok(format!("sqlite://{}", params.database)),
-        "postgres" => Ok(format!(
-            "postgres://{}@{}:{}/{}",
-            credentials,
-            host,
-            params.port.unwrap_or(DEFAULT_POSTGRES_PORT),
-            params.database
-        )),
         "mysql" => Ok(format!(
             "mysql://{}@{}:{}/{}",
             credentials,

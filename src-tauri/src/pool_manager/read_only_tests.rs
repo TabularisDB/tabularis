@@ -24,26 +24,6 @@ fn protected_pool_keys_are_isolated_and_disconnect_collects_both_policies() {
     assert_eq!(pools.len(), 1);
 }
 
-#[test]
-fn postgres_read_only_is_installed_before_the_first_query() {
-    let params = ConnectionParams {
-        driver: "postgres".into(),
-        read_only: true,
-        ..Default::default()
-    };
-    let config = build_postgres_configurations(&params).unwrap();
-    assert_eq!(
-        config.get_options(),
-        Some("-c default_transaction_read_only=on")
-    );
-    let config = build_postgres_configurations(&ConnectionParams {
-        read_only: false,
-        ..params
-    })
-    .unwrap();
-    assert_eq!(config.get_options(), None);
-}
-
 #[tokio::test]
 async fn sqlite_read_only_pool_protects_internal_reads_and_never_contaminates_writable_pools() {
     let temp = tempfile::NamedTempFile::new().unwrap();

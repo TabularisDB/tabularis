@@ -1,6 +1,6 @@
 use super::RuntimeContext;
 use crate::config::AppConfig;
-use crate::drivers::{mysql, postgres, registry, sqlite};
+use crate::drivers::{mysql, registry, sqlite};
 use crate::logger::{create_log_buffer, init_logger, SharedLogBuffer};
 use std::fs;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -110,14 +110,57 @@ pub async fn bootstrap_application(
     }
 
     if options.run_connection_migrations {
-        crate::connection_migrations::migrate_postgres_ssl_mode_spelling_at_path(
+        // Driver-id migration runs first so connections are on the plugin id
+        // ("postgresql") before the ssl-mode migration tries to resolve their
+        // dialect — otherwise the removed "postgres" driver can't resolve and
+        // stale ssl_mode spellings are skipped for one launch cycle.
+        match crate::connection_migrations::migrate_builtin_driver_ids_at_path(
             &context.paths.connections_file(),
         )
         .await
-        .ok();
+        {
+            Ok(true) => {}
+            Ok(false) => {
+                log::info!("Driver-id migration: nothing to migrate or skipped (file changed concurrently)");
+            }
+            Err(e) => {
+                log::warn!("Driver-id migration failed: {e}. Connections on \"postgres\" will be retried next launch.");
+            }
+        }
+        if let Err(e) = crate::connection_migrations::migrate_postgres_ssl_mode_spelling_at_path(
+            &context.paths.connections_file(),
+        )
+        .await
+        {
+            log::warn!("SSL-mode spelling migration failed: {e}");
+        }
+        // Headless processes (web, `--mcp`) have no desktop setup step, so
+        // install the replacement plugin here for the connections just
+        // migrated onto it. Spawned so a slow or failed registry fetch never
+        // delays startup, and retried on every launch. Skipped without
+        // external plugins (nothing could register it), and for operators who
+        // set `TABULARIS_DISABLE_PLUGIN_AUTO_INSTALL`.
+        if should_auto_install_plugins(
+            &options,
+            crate::plugins::force_install::auto_install_disabled(),
+        ) {
+            let runtime = context.clone();
+            tokio::spawn(async move {
+                crate::plugins::force_install::ensure_replacement_plugins(&runtime).await;
+            });
+        }
     }
 
     Ok(BootstrappedApplication { context, config })
+}
+
+/// Whether bootstrap should spawn the replacement-plugin install. Only a
+/// process that runs the connection migration itself (web, `--mcp`) installs
+/// here; desktop migrates lazily and installs from its own setup. Needs external
+/// plugins loaded (nothing could register the driver otherwise) and the
+/// operator's opt-out not set.
+pub(crate) fn should_auto_install_plugins(options: &BootstrapOptions, disabled: bool) -> bool {
+    options.run_connection_migrations && options.load_external_plugins && !disabled
 }
 
 fn load_config(config_dir: &std::path::Path) -> AppConfig {
@@ -133,6 +176,5 @@ fn load_config(config_dir: &std::path::Path) -> AppConfig {
 
 async fn register_builtin_drivers() {
     registry::register_driver(mysql::MysqlDriver::new()).await;
-    registry::register_driver(postgres::PostgresDriver::new()).await;
     registry::register_driver(sqlite::SqliteDriver::new()).await;
 }

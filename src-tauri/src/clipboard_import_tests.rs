@@ -23,10 +23,6 @@ fn import_uses_the_identifier_quote_each_builtin_driver_declares() {
         "`tabularis_demo`.`new_arrivals`"
     );
     assert_eq!(
-        import_identifier_quote(&crate::drivers::postgres::PostgresDriver::new()),
-        "\""
-    );
-    assert_eq!(
         import_identifier_quote(&crate::drivers::sqlite::SqliteDriver::new()),
         "\""
     );
@@ -135,7 +131,7 @@ fn import_keeps_quoted_values_for_columns_it_did_not_create() {
     );
     assert_eq!(added, [false, false, false, true, false]);
     // Other drivers keep today's quoted values (PostgreSQL casts them to boolean).
-    for driver in ["postgres", "sqlite"] {
+    for driver in ["postgresql", "sqlite"] {
         assert_eq!(
             boolean_literal_columns(
                 &new_arrivals_import(Vec::new()),
@@ -179,7 +175,7 @@ fn mysql_appends_send_booleans_into_existing_tinyint_columns_as_literals() {
     assert_eq!(
         boolean_literal_columns(
             &new_arrivals_import(Vec::new()),
-            "postgres",
+            "postgresql",
             false,
             &existing
         ),
@@ -205,12 +201,12 @@ fn existing_tinyint_columns_are_found_by_type() {
 fn string_literals_follow_the_resolved_literal_style() {
     let value = "O'Brien \\ a\nb";
     let style_of = |caps: &DriverCapabilities| SqlSyntax::resolve(caps).string_escape;
-    let postgres = crate::drivers::postgres::PostgresDriver::new();
     let mysql = crate::drivers::mysql::MysqlDriver::new();
+    let sqlite = crate::drivers::sqlite::SqliteDriver::new();
     // Built-in drivers keep the doubled quote, MySQL included.
     for caps in [
         DriverCapabilities::default(),
-        postgres.manifest().capabilities.clone(),
+        sqlite.manifest().capabilities.clone(),
         mysql.manifest().capabilities.clone(),
     ] {
         assert_eq!(

@@ -38,8 +38,6 @@ const TOKEN: &str = "machine-secret-for-integration-tests-123456";
 
 #[tokio::test]
 async fn machine_crud_retries_secrets_and_browser_separation() {
-    crate::drivers::registry::register_driver(crate::drivers::postgres::PostgresDriver::new())
-        .await;
     crate::drivers::registry::register_driver(crate::drivers::mysql::MysqlDriver::new()).await;
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("index.html"), "app").unwrap();
@@ -117,7 +115,7 @@ async fn machine_crud_retries_secrets_and_browser_separation() {
             .status(),
         401
     );
-    for driver in ["postgres", "mysql"] {
+    for driver in ["mysql"] {
         let url = format!("{collection}/{driver}-database");
         let mut body = json!({"name":"Managed database","params":{"driver":driver,"database":"app","host":"127.0.0.1","username":"reader","password":"first-credential","read_only":true},"plugin_secret_changes":{"token":"plugin-credential"}});
         let first: Value = client
@@ -264,8 +262,7 @@ fn provisioning_token_validation_and_reference_contract() {
 async fn provisioning_validation_and_body_limits_preserve_error_statuses() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-    crate::drivers::registry::register_driver(crate::drivers::postgres::PostgresDriver::new())
-        .await;
+    crate::drivers::registry::register_driver(crate::drivers::mysql::MysqlDriver::new()).await;
     let temp = tempfile::tempdir().unwrap();
     let runtime = RuntimeContext::new(
         Arc::new(FixedRuntimePaths::new(
@@ -294,7 +291,7 @@ async fn provisioning_validation_and_body_limits_preserve_error_statuses() {
     let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
     let client = reqwest::Client::new();
     let collection = format!("{base}/api/v1/provisioning/connections");
-    let baseline = json!({"name":"Original", "params":{"driver":"postgres", "database":"app", "password":"original-secret"}});
+    let baseline = json!({"name":"Original", "params":{"driver":"mysql", "database":"app", "password":"original-secret"}});
     assert_eq!(
         client
             .put(format!("{collection}/existing"))
@@ -389,8 +386,7 @@ async fn provisioning_delete_waits_for_in_flight_saved_connection_open() {
     };
     use std::time::{Duration, Instant};
 
-    crate::drivers::registry::register_driver(crate::drivers::postgres::PostgresDriver::new())
-        .await;
+    crate::drivers::registry::register_driver(crate::drivers::mysql::MysqlDriver::new()).await;
     let temp = tempfile::tempdir().unwrap();
     let runtime = RuntimeContext::new(
         Arc::new(FixedRuntimePaths::new(
@@ -406,7 +402,7 @@ async fn provisioning_delete_waits_for_in_flight_saved_connection_open() {
     let database = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = database.local_addr().unwrap().port();
     let input = serde_json::from_value(json!({"name":"Blocked handshake", "params":{
-        "driver":"postgres", "host":"127.0.0.1", "port":port,
+        "driver":"mysql", "host":"127.0.0.1", "port":port,
         "database":"app", "username":"user", "password":"private-secret", "ssl_mode":"disable"
     }}))
     .unwrap();
@@ -477,8 +473,6 @@ async fn provisioned_mysql_and_postgres_reach_real_databases() {
         provisioning::{ProvisionCommand, ProvisionConnection},
         ApplicationApi, ApplicationRequestContext, AuthorizationLevel,
     };
-    crate::drivers::registry::register_driver(crate::drivers::postgres::PostgresDriver::new())
-        .await;
     crate::drivers::registry::register_driver(crate::drivers::mysql::MysqlDriver::new()).await;
     let temp = tempfile::tempdir().unwrap();
     let runtime = RuntimeContext::new(
@@ -490,7 +484,7 @@ async fn provisioned_mysql_and_postgres_reach_real_databases() {
         Arc::new(MemorySecrets::default()),
     );
     let application = RuntimeApplicationApi::new(runtime, Arc::new(ApplicationState::default()));
-    for (driver, port, user) in [("postgres", 25432, "postgres"), ("mysql", 23306, "root")] {
+    for (driver, port, user) in [("mysql", 23306, "root")] {
         let params = json!({"name": "Live lab", "params": {"driver":driver,"host":"127.0.0.1","port":port,
             "database":"example","username":user,"password":"lab-provision-secret","ssl_mode":"disable"}});
         let input: ProvisionConnection = serde_json::from_value(params).unwrap();

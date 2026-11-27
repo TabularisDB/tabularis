@@ -13,7 +13,6 @@ use crate::drivers::driver_trait::SqlDialect;
 use crate::drivers::registry as driver_registry;
 use crate::models::SavedConnection;
 use crate::persistence;
-
 /// The SSL mode dropdown used to branch on `driver === "postgres"` literally
 /// (issue #614), so a postgres-dialect driver with a different id (e.g. the
 /// standalone PostgreSQL plugin, id `"postgresql"`) offered MySQL-style
@@ -41,23 +40,18 @@ pub(crate) fn stale_postgres_ssl_mode_replacement(value: &str) -> Option<&'stati
 
 /// Rewrites `conn.params.ssl_mode` in place if `conn`'s driver resolves (via
 /// `dialects`) to the postgres SQL dialect and its stored value is a stale
-/// MySQL-style spelling. Builtin `"postgres"` connections are excluded —
-/// their own dropdown was always correct, so nothing there needs migrating.
-/// A driver whose manifest doesn't declare `sql_dialect` (`None`, or absent
-/// from the map because it never resolved) is treated as NOT postgres —
-/// deliberately not defaulted, unlike the splitter's own historical
-/// postgres-default, because this migration must distinguish "explicitly
-/// postgres" from "unspecified" to avoid rewriting a driver's SSL value
-/// based on a guess.
+/// MySQL-style spelling. A driver whose manifest doesn't declare
+/// `sql_dialect` (`None`, or absent from the map because it never resolved)
+/// is treated as NOT postgres — deliberately not defaulted, unlike the
+/// splitter's own historical postgres-default, because this migration must
+/// distinguish "explicitly postgres" from "unspecified" to avoid rewriting a
+/// driver's SSL value based on a guess.
 /// Pure and synchronous so it can be exercised directly in tests without a
 /// live driver registry. Returns whether a rewrite happened.
 pub(crate) fn migrate_connection_ssl_mode_in_place(
     conn: &mut SavedConnection,
     dialects: &HashMap<String, Option<SqlDialect>>,
 ) -> bool {
-    if conn.params.driver == "postgres" {
-        return false;
-    }
     let is_postgres_dialect = dialects
         .get(&conn.params.driver)
         .copied()
@@ -93,10 +87,9 @@ pub(crate) fn connections_file_changed_concurrently(
 }
 
 /// Migrates already-persisted `ssl_mode` values on postgres-dialect
-/// connections (driver id other than the builtin `"postgres"`) from the
-/// stale MySQL-style spelling to the Postgres-style spelling the plugin
-/// actually understands. Idempotent — a no-op once every affected
-/// connection has been rewritten.
+/// connections from the stale MySQL-style spelling to the Postgres-style
+/// spelling the plugin actually understands. Idempotent — a no-op once
+/// every affected connection has been rewritten.
 ///
 /// Path-based, no `AppHandle` — callable from both the GUI process (wrapped
 /// by `commands::migrate_postgres_ssl_mode_spelling`, which additionally
@@ -139,8 +132,8 @@ pub async fn migrate_postgres_ssl_mode_spelling_at_path(conn_path: &Path) -> Res
     let mut dialects: HashMap<String, Option<SqlDialect>> = HashMap::new();
     for conn in &conn_file.connections {
         let driver_id = &conn.params.driver;
-        if driver_id == "postgres" || dialects.contains_key(driver_id) {
-            continue; // builtin driver's own dropdown was always correct
+        if dialects.contains_key(driver_id) {
+            continue;
         }
         if let Some(driver) = driver_registry::get_driver(driver_id).await {
             dialects.insert(
@@ -176,4 +169,97 @@ pub async fn migrate_postgres_ssl_mode_spelling_at_path(conn_path: &Path) -> Res
         persistence::write_connections_file(conn_path, &conn_file)?;
         Ok(true)
     })
+}
+
+/// The built-in driver id being removed and the plugin id that replaces it.
+/// Once the built-in driver is deleted from the codebase, any saved
+/// connection still on `"postgres"` can no longer open (`registry::get_driver`
+/// returns `None`), so every such connection is force-flipped to
+/// `"postgresql"` at launch — no dismissible nudge, no `undoMigration`, no
+/// live fallback. This is the one-directional rewrite that makes removal safe.
+const FORCE_MIGRATABLE_PAIRS: &[(&str, &str)] = &[("postgres", "postgresql")];
+
+/// Rewrites `conn.params.driver` in place from a built-in id slated for
+/// removal to its replacement plugin id. Pure and synchronous so it can be
+/// exercised directly in tests without a live driver registry. Returns
+/// whether a rewrite happened.
+pub(crate) fn migrate_connection_driver_id_in_place(
+    conn: &mut SavedConnection,
+    pairs: &[(&str, &str)],
+) -> bool {
+    for &(from, to) in pairs {
+        if conn.params.driver == from {
+            conn.params.driver = to.to_string();
+            return true;
+        }
+    }
+    false
+}
+
+/// Force-migrates already-persisted `driver` ids on saved connections from a
+/// built-in driver that is being removed to its replacement plugin. Unlike
+/// the opt-in `useBuiltinDriverMigration` flow, this runs automatically at
+/// launch (no user click, no dismissible banner). There is no
+/// `undoMigration` — the built-in driver is gone, so flipping back is not
+/// possible.
+///
+/// Path-based, no `AppHandle` — callable from both the GUI process (wrapped
+/// by `commands::migrate_builtin_driver_ids`, which invalidates the
+/// connection cache) and the standalone `--mcp` server process. Idempotent —
+/// a no-op once every affected connection has been rewritten. Uses the same
+/// concurrency guard as [`migrate_postgres_ssl_mode_spelling_at_path`].
+///
+/// Returns `Ok(true)` only once the rewrite has been committed to disk;
+/// `Ok(false)` covers "nothing needed migrating" and "skipped because the
+/// file changed concurrently" (see the concurrency note on
+/// [`migrate_postgres_ssl_mode_spelling_at_path`]).
+///
+/// # Known limitation
+///
+/// The concurrent-edit check narrows the race with another writer but does not
+/// close it. The read, the re-read that compares against it, and the save are
+/// three separate steps. The in-process file lock covers only the save, and it
+/// cannot reach a second process (the GUI and `--mcp` do not share it). An edit
+/// that another process commits between the re-read and the save is replaced
+/// by the migrated snapshot. The window is short (the `eprintln!` between the
+/// check and the save is its main cost), only opens on a launch where a
+/// `postgres` connection still needs rewriting, and needs a simultaneous edit
+/// from another process, so it is accepted rather than closed. Closing it
+/// would take a cross-process file lock (or a compare-and-swap commit) held by
+/// every `connections.json` writer.
+pub async fn migrate_builtin_driver_ids_at_path(conn_path: &Path) -> Result<bool, String> {
+    if !conn_path.exists() {
+        return Ok(false); // Nothing to migrate
+    }
+
+    let content_before = fs::read_to_string(conn_path).map_err(|e| e.to_string())?;
+    let mut conn_file = persistence::parse_connections_file(&content_before)?;
+
+    let mut migrated_count = 0usize;
+    for conn in conn_file.connections.iter_mut() {
+        if migrate_connection_driver_id_in_place(conn, FORCE_MIGRATABLE_PAIRS) {
+            migrated_count += 1;
+        }
+    }
+
+    if migrated_count == 0 {
+        return Ok(false); // No migration needed
+    }
+
+    // Bail if another process (e.g. the GUI) saved a concurrent edit while
+    // we were computing the migration above — don't blindly overwrite it.
+    let content_now = fs::read_to_string(conn_path).map_err(|e| e.to_string())?;
+    if connections_file_changed_concurrently(&content_before, &content_now) {
+        eprintln!(
+            "[Migration] connections.json changed concurrently — skipping this run, will retry next launch"
+        );
+        return Ok(false);
+    }
+
+    eprintln!(
+        "[Migration] Force-migrating {} connection(s) from built-in postgres driver to postgresql plugin",
+        migrated_count
+    );
+    persistence::save_connections_file(conn_path, &conn_file)?;
+    Ok(true)
 }

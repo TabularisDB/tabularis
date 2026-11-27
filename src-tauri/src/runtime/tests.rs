@@ -95,7 +95,7 @@ async fn bootstraps_application_services_without_a_webview() {
         .filter(|manifest| manifest.is_builtin)
         .map(|manifest| manifest.id)
         .collect();
-    assert_eq!(driver_ids, vec!["mysql", "postgres", "sqlite"]);
+    assert_eq!(driver_ids, vec!["mysql", "sqlite"]);
     assert!(bootstrapped.context.paths.data_dir().ends_with("data"));
 }
 
@@ -217,4 +217,27 @@ async fn stopping_one_approval_host_preserves_liveness_for_another() {
     web.stop();
     assert!(crate::heartbeat::is_alive_in(root.path()));
     drop(desktop);
+}
+
+#[test]
+fn only_a_migrating_process_with_plugins_and_no_opt_out_installs_the_replacement() {
+    use super::bootstrap::should_auto_install_plugins;
+    let opts = |plugins, migrate| BootstrapOptions {
+        load_external_plugins: plugins,
+        run_connection_migrations: migrate,
+    };
+    // Web and --mcp: default options.
+    assert!(should_auto_install_plugins(
+        &BootstrapOptions::default(),
+        false
+    ));
+    // Desktop bootstraps with migrations off and installs from its own setup.
+    assert!(!should_auto_install_plugins(&opts(true, false), false));
+    // Without external plugins nothing could register the driver.
+    assert!(!should_auto_install_plugins(&opts(false, true), false));
+    // The operator's opt-out wins.
+    assert!(!should_auto_install_plugins(
+        &BootstrapOptions::default(),
+        true
+    ));
 }

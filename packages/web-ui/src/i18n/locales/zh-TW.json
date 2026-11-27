@@ -1256,12 +1256,6 @@
                             "label": "時區",
                             "description": "連線建立後傳送給 MySQL 的工作階段時區。"
                         }
-                    },
-                    "postgres": {
-                        "poolMaxSize": {
-                            "label": "連線池最大大小",
-                            "description": "連線池中保留的 PostgreSQL 連線最大數量。"
-                        }
                     }
                 }
             },
@@ -3447,55 +3441,6 @@
         "mismatchBody": "你設定的登錄庫是 {{configured}}。連結指向其他位置 — 請先確認再繼續。",
         "updateConfirm": "更新到 v{{version}}",
         "alreadyInstalled": "版本 {{version}} 已安裝。"
-    },
-    "migration": {
-        "banner": {
-            "nudge": "試試新的 PostgreSQL 外掛 —內建 PostgreSQL 驅動程式正在退役。外掛功能相同且更新更快。",
-            "nudgeWithDate": "試試新的 PostgreSQL 外掛 —內建 PostgreSQL 驅動程式正在退役（暫定 {{date}}）。外掛功能相同且更新更快。",
-            "offline": "PostgreSQL 外掛無法下載 —下次啟動時會重試。如果持續出現，請檢查您的連線或網路。",
-            "reviewConnections": "檢視連線"
-        },
-        "switchToPlugin": "切換到外掛",
-        "switchToBuiltin": "切回內建驅動程式",
-        "confirm": {
-            "title": "切換到外掛？",
-            "message": "將 {{name}} 切換到 PostgreSQL 外掛？如果目前已連線，將斷開連線並使用外掛重新開啟。",
-            "uriMessage": "將 {{name}} 切換到 PostgreSQL 外掛？儲存在鑰匙圈中的連線字串不會被帶過來 —您需要重新輸入才能重新連線。",
-            "confirmLabel": "切換",
-            "confirmLabelUri": "切換並稍後重新輸入",
-            "undoTitle": "切回內建驅動程式？",
-            "undoMessage": "將 {{name}} 切回內建 PostgreSQL 驅動程式？如果目前已連線，將斷開連線並使用內建驅動程式重新開啟。",
-            "undoConfirmLabel": "切回"
-        },
-        "toast": {
-            "success": "已將 {{name}} 切換到 PostgreSQL 外掛。",
-            "connectionFailure": "無法使用外掛連線到 {{name}}：{{error}}",
-            "connectionFailurePreexisting": "無法使用任一驅動程式連線到 {{name}}：{{error}}。這不是外掛的問題——切換到外掛的操作已保留。",
-            "processFailureWithError": "PostgreSQL 外掛未啟動：{{error}}。這與 {{name}} 無關 —未嘗試連線。",
-            "processFailure": "PostgreSQL 外掛未啟動。這與 {{name}} 無關 —未嘗試連線。",
-            "failed": "無法將 {{name}} 切換到外掛：{{error}}",
-            "undo": "復原",
-            "undoFailed": "無法將 {{name}} 切換回內建驅動程式：{{error}}",
-            "reportIssue": "報告問題"
-        },
-        "checklist": {
-            "title": "檢視連線",
-            "subtitle_one": "還有 {{count}} 個連線使用內建驅動程式",
-            "subtitle_other": "還有 {{count}} 個連線使用內建驅動程式",
-            "migrateSelected_one": "遷移已選的 {{count}} 個",
-            "migrateSelected_other": "遷移已選的 {{count}} 個",
-            "reportThisGap": "報告此問題",
-            "alreadyReported": "已報告",
-            "testing": "正在測試連線…",
-            "uriWarning": "儲存在鑰匙圈中的連線字串不會被帶過來 —遷移後需要重新輸入。",
-            "noGaps": "沒有需要檢視的連線。",
-            "close": "關閉",
-            "migratingNotice": "即使關閉此視窗，遷移仍會繼續。",
-            "gap": {
-                "ssl": "使用 SSL/TLS，外掛尚不支援",
-                "connection_uri": "使用連線字串，外掛尚不支援"
-            }
-        }
     },
     "connectionCatalogue": {
         "searchPlaceholder": "搜尋資料庫…",

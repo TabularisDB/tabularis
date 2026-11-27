@@ -1,8 +1,7 @@
 import {useTranslation} from 'react-i18next';
-import {Power, Edit, Copy, Trash2, ArrowLeftRight} from 'lucide-react';
+import {Power, Edit, Copy, Trash2} from 'lucide-react';
 import clsx from 'clsx';
 import type {SavedConnection} from '@/contexts/DatabaseContext';
-import type {MigrationDirection} from '@/utils/connections';
 import {useConnectionCapabilities} from '@/hooks/useConnectionCapabilities';
 
 export interface ActionButtonsProps {
@@ -14,10 +13,6 @@ export interface ActionButtonsProps {
     onEdit: () => void;
     onDuplicate: () => void;
     onDelete: () => void;
-    /** "to-plugin" / "to-builtin" shows the migration button; `null` hides it —
-     * only relevant during a built-in driver's deprecation window. */
-    migrationDirection?: MigrationDirection;
-    onMigrate?: () => void;
 }
 
 const BUTTON_CLASS =
@@ -38,29 +33,11 @@ export const ActionButtons = ({
     onEdit,
     onDuplicate,
     onDelete,
-    migrationDirection,
-    onMigrate,
 }: ActionButtonsProps) => {
     const {t} = useTranslation();
     const {canUpdate, canDuplicate, canDelete} = useConnectionCapabilities();
     return (
         <>
-            {canUpdate && migrationDirection && onMigrate && (
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onMigrate();
-                    }}
-                    className={clsx(BUTTON_CLASS, HOVER.primary)}
-                    title={
-                        migrationDirection === 'to-plugin'
-                            ? t('migration.switchToPlugin')
-                            : t('migration.switchToBuiltin')
-                    }
-                >
-                    <ArrowLeftRight size={13} />
-                </button>
-            )}
             {isOpen ? (
                 <button
                     onClick={(e) => {

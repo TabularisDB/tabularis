@@ -22,14 +22,26 @@ fn parse_decimal(text: &str) -> Option<Decimal<'_>> {
     let int = int.trim_start_matches('0');
     let frac = frac.trim_end_matches('0');
     let negative = negative && !(int.is_empty() && frac.is_empty());
-    Some(Decimal { negative, int, frac })
+    Some(Decimal {
+        negative,
+        int,
+        frac,
+    })
 }
 
-fn decimal_fits(text: &str, precision: Option<u32>, scale: Option<u32>) -> Result<(), ConvertError> {
+fn decimal_fits(
+    text: &str,
+    precision: Option<u32>,
+    scale: Option<u32>,
+) -> Result<(), ConvertError> {
     match text {
         "NaN" => return Ok(()),
         "Infinity" | "-Infinity" => {
-            return if precision.is_none() { Ok(()) } else { Err(ConvertError::OutOfRange) };
+            return if precision.is_none() {
+                Ok(())
+            } else {
+                Err(ConvertError::OutOfRange)
+            };
         }
         _ => {}
     }
@@ -55,8 +67,16 @@ fn decimal_to_i64(text: &str, min: i64, max: i64) -> Result<i64, ConvertError> {
     if parts.int.len() > 19 {
         return Err(ConvertError::OutOfRange);
     }
-    let magnitude: i128 = if parts.int.is_empty() { 0 } else { parts.int.parse().map_err(|_| ConvertError::Malformed)? };
-    let value = if parts.negative { -magnitude } else { magnitude };
+    let magnitude: i128 = if parts.int.is_empty() {
+        0
+    } else {
+        parts.int.parse().map_err(|_| ConvertError::Malformed)?
+    };
+    let value = if parts.negative {
+        -magnitude
+    } else {
+        magnitude
+    };
     i64::try_from(value)
         .ok()
         .filter(|v| *v >= min && *v <= max)
@@ -75,6 +95,32 @@ fn fits_f32(value: f64) -> bool {
     ((value as f32).to_string()).parse::<f64>().ok() == Some(value)
 }
 
+/// True unless `text` is a whole number that `value` does not hold exactly.
+/// Numbers with a fraction, or too long for an `i128`, are judged by their
+/// decimal text instead.
+fn integer_survives(text: &str, value: f64) -> bool {
+    let Some(parts) = parse_decimal(text) else {
+        return true;
+    };
+    if !parts.frac.is_empty() || parts.int.len() > 38 {
+        return true;
+    }
+    let magnitude: i128 = if parts.int.is_empty() {
+        0
+    } else {
+        match parts.int.parse() {
+            Ok(v) => v,
+            Err(_) => return true,
+        }
+    };
+    let expected = if parts.negative {
+        -magnitude
+    } else {
+        magnitude
+    };
+    value as i128 == expected
+}
+
 fn decimal_to_f64(text: &str, bits: u8, allow_non_finite: bool) -> Result<f64, ConvertError> {
     let special = match text {
         "NaN" => Some(f64::NAN),
@@ -83,12 +129,23 @@ fn decimal_to_f64(text: &str, bits: u8, allow_non_finite: bool) -> Result<f64, C
         _ => None,
     };
     if let Some(value) = special {
-        return if allow_non_finite { Ok(value) } else { Err(ConvertError::NonFinite) };
+        return if allow_non_finite {
+            Ok(value)
+        } else {
+            Err(ConvertError::NonFinite)
+        };
     }
     parse_decimal(text).ok_or(ConvertError::Malformed)?;
     let value: f64 = text.parse().map_err(|_| ConvertError::Malformed)?;
     if !value.is_finite() {
         return Err(ConvertError::OutOfRange);
+    }
+    // An integer must come back as the same integer. The shortest decimal form
+    // of a rounded float can still print as the original digits (1e18 + 100
+    // rounds to 1e18 + 128 yet prints as 1000000000000000100), so compare the
+    // values, not their text.
+    if !integer_survives(text, value) {
+        return Err(ConvertError::Lossy);
     }
     let shown = if bits == 32 {
         if !fits_f32(value) {
@@ -118,6 +175,18 @@ fn text_of(value: TransferValue) -> Result<String, ConvertError> {
     }
 }
 
+/// The exact decimal text of a numeric cell. A SQLite NUMERIC column stores
+/// integers and reals natively, so a decimal source can arrive as any of them.
+fn decimal_text(value: TransferValue) -> Result<String, ConvertError> {
+    match value {
+        TransferValue::Text(text) => Ok(text),
+        TransferValue::Int(v) => Ok(v.to_string()),
+        TransferValue::Float(v) if v.is_finite() => Ok(v.to_string()),
+        TransferValue::Float(_) => Err(ConvertError::NonFinite),
+        _ => Err(ConvertError::Malformed),
+    }
+}
+
 fn int_of(value: &TransferValue) -> Result<i64, ConvertError> {
     match value {
         TransferValue::Int(v) => Ok(*v),
@@ -133,11 +202,18 @@ pub fn apply(conversion: &Conversion, value: TransferValue) -> Result<TransferVa
         Op::Copy => Ok(value),
         Op::BoolToInt => match value {
             TransferValue::Bool(b) => Ok(TransferValue::Int(i64::from(b))),
+            // SQLite sources produce Int for boolean columns (storing the
+            // raw integer 0/1/2/…). Pass through unchanged — no lossy coercion.
+            TransferValue::Int(v) => Ok(TransferValue::Int(v)),
             _ => Err(ConvertError::Malformed),
         },
         Op::IntRange { min, max } => {
             let v = int_of(&value)?;
-            if v < min || v > max { Err(ConvertError::OutOfRange) } else { Ok(value) }
+            if v < min || v > max {
+                Err(ConvertError::OutOfRange)
+            } else {
+                Ok(value)
+            }
         }
         Op::IntToFloat { max_exact } => {
             let v = int_of(&value)?;
@@ -152,28 +228,42 @@ pub fn apply(conversion: &Conversion, value: TransferValue) -> Result<TransferVa
             decimal_fits(&text, precision, scale)?;
             Ok(TransferValue::Text(text))
         }
-        Op::FloatCheck { bits, allow_non_finite } => {
+        Op::FloatCheck {
+            bits,
+            allow_non_finite,
+        } => {
             let TransferValue::Float(v) = value else {
                 return Err(ConvertError::Malformed);
             };
             if !v.is_finite() {
-                return if allow_non_finite { Ok(value) } else { Err(ConvertError::NonFinite) };
+                return if allow_non_finite {
+                    Ok(value)
+                } else {
+                    Err(ConvertError::NonFinite)
+                };
             }
-            if bits == 32 && !fits_f32(v) { Err(ConvertError::Lossy) } else { Ok(value) }
+            if bits == 32 && !fits_f32(v) {
+                Err(ConvertError::Lossy)
+            } else {
+                Ok(value)
+            }
         }
         Op::DecimalFit { precision, scale } => {
-            let text = text_of(value)?;
+            let text = decimal_text(value)?;
             decimal_fits(&text, precision, scale)?;
             Ok(TransferValue::Text(text))
         }
         Op::DecimalToInt { min, max } => {
-            decimal_to_i64(&text_of(value)?, min, max).map(TransferValue::Int)
+            decimal_to_i64(&decimal_text(value)?, min, max).map(TransferValue::Int)
         }
-        Op::DecimalToFloat { bits, allow_non_finite } => {
-            decimal_to_f64(&text_of(value)?, bits, allow_non_finite).map(TransferValue::Float)
+        Op::DecimalToFloat {
+            bits,
+            allow_non_finite,
+        } => {
+            decimal_to_f64(&decimal_text(value)?, bits, allow_non_finite).map(TransferValue::Float)
         }
         Op::DecimalToNumeric => {
-            let text = text_of(value)?;
+            let text = decimal_text(value)?;
             match decimal_to_i64(&text, i64::MIN, i64::MAX) {
                 Ok(v) => Ok(TransferValue::Int(v)),
                 Err(ConvertError::Malformed) => Err(ConvertError::Malformed),
@@ -182,15 +272,27 @@ pub fn apply(conversion: &Conversion, value: TransferValue) -> Result<TransferVa
         }
         Op::TextMaxLen { max } => {
             let text = text_of(value)?;
-            if text.chars().count() as u64 > max { Err(ConvertError::TooLong) } else { Ok(TransferValue::Text(text)) }
+            if text.chars().count() as u64 > max {
+                Err(ConvertError::TooLong)
+            } else {
+                Ok(TransferValue::Text(text))
+            }
         }
         Op::Temporal { precision } => {
             let text = text_of(value)?;
-            if fraction_digits(&text) > precision as usize { Err(ConvertError::Lossy) } else { Ok(TransferValue::Text(text)) }
+            if fraction_digits(&text) > precision as usize {
+                Err(ConvertError::Lossy)
+            } else {
+                Ok(TransferValue::Text(text))
+            }
         }
         Op::JsonNotNumeric => {
             let text = text_of(value)?;
-            if text.trim().parse::<f64>().is_ok() { Err(ConvertError::Lossy) } else { Ok(TransferValue::Text(text)) }
+            if text.trim().parse::<f64>().is_ok() {
+                Err(ConvertError::Lossy)
+            } else {
+                Ok(TransferValue::Text(text))
+            }
         }
     }
 }

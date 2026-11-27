@@ -52,7 +52,12 @@ async fn execute_connection_command<R: Runtime>(
 #[tauri::command]
 pub async fn get_connections<R: Runtime>(app: AppHandle<R>) -> Result<serde_json::Value, String> {
     migrate_ssh_connections(&app).await.ok();
-    migrate_postgres_ssl_mode_spelling(&app).await.ok();
+    if let Err(e) = migrate_builtin_driver_ids(&app).await {
+        log::warn!("Driver-id migration failed: {e}");
+    }
+    if let Err(e) = migrate_postgres_ssl_mode_spelling(&app).await {
+        log::warn!("SSL-mode spelling migration failed: {e}");
+    }
     execute_connection_command(
         &app,
         crate::application::connections::ConnectionCommand::GetConnections,
@@ -65,7 +70,12 @@ pub async fn get_connections_with_groups<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<serde_json::Value, String> {
     migrate_ssh_connections(&app).await.ok();
-    migrate_postgres_ssl_mode_spelling(&app).await.ok();
+    if let Err(e) = migrate_builtin_driver_ids(&app).await {
+        log::warn!("Driver-id migration failed: {e}");
+    }
+    if let Err(e) = migrate_postgres_ssl_mode_spelling(&app).await {
+        log::warn!("SSL-mode spelling migration failed: {e}");
+    }
     execute_connection_command(
         &app,
         crate::application::connections::ConnectionCommand::GetConnectionsWithGroups,
@@ -905,9 +915,10 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
         let mut conn_file = persistence::read_connections_file(&conn_path)?;
 
         // Check if any connections have old embedded SSH params
-        let needs_migration = conn_file.connections.iter().any(|c| {
-            c.params.ssh_enabled.unwrap_or(false) && c.params.ssh_connection_id.is_none()
-        });
+        let needs_migration = conn_file
+            .connections
+            .iter()
+            .any(|c| c.params.ssh_enabled.unwrap_or(false) && c.params.ssh_connection_id.is_none());
 
         if !needs_migration {
             return Ok(None);
@@ -1005,8 +1016,7 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
         }
 
         // Save migrated SSH connections
-        let ssh_json =
-            serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
+        let ssh_json = serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
         persistence::write_private_file(&ssh_path, ssh_json)?;
 
         // Save migrated connections using new format (preserving groups)
@@ -1029,10 +1039,9 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
 }
 
 /// Migrates already-persisted `ssl_mode` values on postgres-dialect
-/// connections (driver id other than the builtin `"postgres"`) from the
-/// stale MySQL-style spelling to the Postgres-style spelling the plugin
-/// actually understands. Idempotent — a no-op once every affected
-/// connection has been rewritten. See
+/// connections from the stale MySQL-style spelling to the Postgres-style
+/// spelling the plugin actually understands. Idempotent — a no-op once
+/// every affected connection has been rewritten. See
 /// `connection_migrations::migrate_postgres_ssl_mode_spelling_at_path` for
 /// the full rationale, including the concurrency guard against a race with
 /// the `--mcp` process's own call to the same function.
@@ -1041,6 +1050,23 @@ async fn migrate_postgres_ssl_mode_spelling<R: Runtime>(app: &AppHandle<R>) -> R
     let migrated =
         crate::connection_migrations::migrate_postgres_ssl_mode_spelling_at_path(&conn_path)
             .await?;
+    if migrated {
+        app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>()
+            .invalidate();
+    }
+    Ok(())
+}
+
+/// Force-migrates saved connections still on the built-in `"postgres"` driver
+/// to the `"postgresql"` plugin, now that the built-in driver is being
+/// removed. Runs automatically at launch (no dismissible nudge, no undo) so
+/// no saved connection is left pointing at a driver id that no longer
+/// resolves. See `connection_migrations::migrate_builtin_driver_ids_at_path`
+/// for the full rationale, including the concurrency guard.
+async fn migrate_builtin_driver_ids<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let conn_path = get_config_path(app)?;
+    let migrated =
+        crate::connection_migrations::migrate_builtin_driver_ids_at_path(&conn_path).await?;
     if migrated {
         app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>()
             .invalidate();

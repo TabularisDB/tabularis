@@ -1,1 +1,0 @@
-"CREATE OR REPLACE FUNCTION test_schema.add_numbers(a integer, b integer)\n RETURNS integer\n LANGUAGE sql\n IMMUTABLE\nAS $function$ SELECT a + b $function$\n"

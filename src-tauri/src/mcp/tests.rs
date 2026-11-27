@@ -157,21 +157,6 @@ async fn list_databases_unknown_connection_errors() {
 /// driver types — not a mock — so a manifest change on any of them would
 /// actually be caught here.
 #[test]
-fn resolve_default_schema_defaults_postgres_to_public() {
-    let driver: Arc<dyn DatabaseDriver> = Arc::new(postgres::PostgresDriver::new());
-    assert_eq!(resolve_default_schema(&driver, None), Some("public"));
-}
-
-#[test]
-fn resolve_default_schema_prefers_a_caller_supplied_schema_on_postgres() {
-    let driver: Arc<dyn DatabaseDriver> = Arc::new(postgres::PostgresDriver::new());
-    assert_eq!(
-        resolve_default_schema(&driver, Some("analytics")),
-        Some("analytics"),
-    );
-}
-
-#[test]
 fn resolve_default_schema_passes_through_unchanged_on_non_postgres_drivers() {
     let mysql: Arc<dyn DatabaseDriver> = Arc::new(mysql::MysqlDriver::new());
     assert_eq!(resolve_default_schema(&mysql, None), None);
@@ -277,17 +262,17 @@ fn database_arg_ignores_a_missing_blank_or_non_string_value() {
 #[test]
 fn database_override_replaces_a_multi_database_selection() {
     let mut params = ConnectionParams {
-        driver: "postgres".to_string(),
+        driver: "postgresql".to_string(),
         database: DatabaseSelection::Multiple(vec!["main".to_string(), "analytics".to_string()]),
         ..Default::default()
     };
 
-    apply_database_override(
-        &mut params,
-        Some("analytics"),
-        &postgres::PostgresDriver::new().manifest().capabilities,
-    )
-    .unwrap();
+    let pg_caps = crate::drivers::driver_trait::DriverCapabilities {
+        sql_dialect: Some(SqlDialect::Postgres),
+        schemas: true,
+        ..Default::default()
+    };
+    apply_database_override(&mut params, Some("analytics"), &pg_caps).unwrap();
 
     assert!(matches!(params.database, DatabaseSelection::Single(ref db) if db == "analytics"));
 }
@@ -295,17 +280,17 @@ fn database_override_replaces_a_multi_database_selection() {
 #[test]
 fn database_override_keeps_the_saved_selection_without_a_database() {
     let mut params = ConnectionParams {
-        driver: "postgres".to_string(),
+        driver: "postgresql".to_string(),
         database: DatabaseSelection::Multiple(vec!["main".to_string(), "analytics".to_string()]),
         ..Default::default()
     };
 
-    apply_database_override(
-        &mut params,
-        None,
-        &postgres::PostgresDriver::new().manifest().capabilities,
-    )
-    .unwrap();
+    let pg_caps = crate::drivers::driver_trait::DriverCapabilities {
+        sql_dialect: Some(SqlDialect::Postgres),
+        schemas: true,
+        ..Default::default()
+    };
+    apply_database_override(&mut params, None, &pg_caps).unwrap();
 
     assert_eq!(params.database.as_vec(), vec!["main", "analytics"]);
 }
@@ -354,7 +339,7 @@ async fn database_scope_is_enforced_before_driver_access() {
             ),
             (
                 "saved-single",
-                "postgres",
+                "mysql",
                 DatabaseSelection::Single("sandbox".to_string()),
             ),
             (
@@ -362,7 +347,7 @@ async fn database_scope_is_enforced_before_driver_access() {
                 "mysql",
                 DatabaseSelection::Multiple(vec!["sandbox".to_string(), "analytics".to_string()]),
             ),
-            ("saved-empty", "postgres", DatabaseSelection::default()),
+            ("saved-empty", "mysql", DatabaseSelection::default()),
         ] {
             connections.push(json!({
                 "id": id,
@@ -413,7 +398,6 @@ async fn database_scope_is_enforced_before_driver_access() {
     }
 
     driver_registry::register_driver(sqlite::SqliteDriver::new()).await;
-    driver_registry::register_driver(postgres::PostgresDriver::new()).await;
     driver_registry::register_driver(mysql::MysqlDriver::new()).await;
     let private_path = paths::get_app_config_dir()
         .parent()

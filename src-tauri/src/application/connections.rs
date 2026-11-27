@@ -549,8 +549,7 @@ pub fn resolve_icon_asset(data_dir: &Path, relative_path: &str) -> Result<PathBu
 }
 
 fn load_file(runtime: &RuntimeContext) -> Result<ConnectionsFile, String> {
-    let file =
-        crate::persistence::load_connections_file(&runtime.paths.connections_file())?;
+    let file = crate::persistence::load_connections_file(&runtime.paths.connections_file())?;
     #[cfg(test)]
     connections_file_read_hooks::fire_after_connections_read_hook();
     Ok(file)
@@ -2430,7 +2429,9 @@ pub async fn set_selected_databases(
     if databases.iter().any(|db| db.trim().is_empty()) {
         return Err("Database names cannot be empty".to_string());
     }
-    let driver = find_connection(&load_connections_snapshot(runtime)?, connection_id)?.params.driver;
+    let driver = find_connection(&load_connections_snapshot(runtime)?, connection_id)?
+        .params
+        .driver;
     let is_schema_based = crate::drivers::registry::get_driver(&driver)
         .await
         .map(|driver| driver.manifest().capabilities.schemas)

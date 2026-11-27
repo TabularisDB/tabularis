@@ -603,8 +603,11 @@ async fn session_cleanup_only_aborts_jobs_owned_by_that_session() {
 }
 
 fn postgres_dialect() -> DumpDialect {
-    let pg = crate::drivers::postgres::PostgresDriver::new();
-    DumpDialect::from_capabilities("postgres", &pg.manifest().capabilities)
+    let caps = crate::drivers::driver_trait::DriverCapabilities {
+        sql_dialect: Some(crate::drivers::driver_trait::SqlDialect::Postgres),
+        ..Default::default()
+    };
+    DumpDialect::from_capabilities("postgresql", &caps)
 }
 
 fn column(name: &str, data_type: &str) -> TableColumn {

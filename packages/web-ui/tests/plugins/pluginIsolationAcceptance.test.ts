@@ -124,7 +124,6 @@ describe('plugin isolation acceptance contract', () => {
         expect(projectFile('src-tauri/src/drivers/sqlite/mod.rs')).toContain(
             'PRAGMA query_only = ON',
         );
-        expect(projectFile('src-tauri/src/drivers/postgres/mod.rs')).toContain('BEGIN READ ONLY');
         expect(projectFile('src-tauri/src/drivers/mysql/mod.rs')).toContain(
             'START TRANSACTION READ ONLY',
         );

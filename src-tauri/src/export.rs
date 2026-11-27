@@ -20,7 +20,7 @@ use std::sync::{Arc, Mutex};
 use serde_json::Value;
 
 use crate::commands::AbortHandleMap;
-use crate::drivers::{mysql, postgres, sqlite};
+use crate::drivers::{mysql, sqlite};
 use crate::models::ConnectionParams;
 
 pub struct ExportCancellationState {
@@ -109,10 +109,10 @@ where
         Ok(())
     };
 
-    // Only PostgreSQL connections pin, so only they receive a session.
+    // Plugin drivers receive session_id for pinned-connection streaming;
+    // built-in mysql/sqlite do not pin.
     match driver {
         "mysql" => mysql::export::stream_query(params, query, &mut on_row).await,
-        "postgres" => postgres::export::stream_query(params, query, session_id, &mut on_row).await,
         "sqlite" => sqlite::export::stream_query(params, query, &mut on_row).await,
         other => stream_query_via_plugin(other, params, query, session_id, &mut on_row).await,
     }
@@ -137,6 +137,15 @@ where
         .ok_or_else(|| format!("Unsupported driver for export: {driver_id}"))?;
     let driver = driver.for_connection(params).await?.unwrap_or(driver);
 
+    // Paging re-sends the query once per page, which is only safe for a read.
+    // Anything else (`UPDATE ... RETURNING`, an unclassifiable statement) runs
+    // exactly once with no row cap, so it neither repeats nor truncates. A
+    // read-only connection was already restricted to reads above.
+    let single_run = !params.read_only
+        && crate::application::read_only::classify_query(driver.as_ref(), params, query).await
+            != "select";
+    let limit = if single_run { None } else { Some(PAGE_SIZE) };
+
     let mut page: u32 = 1;
     loop {
         let result = if params.read_only {
@@ -144,19 +153,31 @@ where
                 driver.as_ref(),
                 params,
                 query,
-                Some(PAGE_SIZE),
+                limit,
                 page,
                 None,
             )
             .await?
         } else {
             match session_id {
+                Some(id) if single_run => {
+                    crate::commands::write_in_open_transaction(
+                        driver.as_ref(),
+                        params,
+                        query,
+                        limit,
+                        page,
+                        None,
+                        id,
+                    )
+                    .await?
+                }
                 Some(id) => {
                     crate::commands::read_in_open_transaction(
                         driver.as_ref(),
                         params,
                         query,
-                        Some(PAGE_SIZE),
+                        limit,
                         page,
                         None,
                         id,
@@ -165,7 +186,7 @@ where
                 }
                 None => {
                     driver
-                        .execute_query(params, query, Some(PAGE_SIZE), page, None)
+                        .execute_query(params, query, limit, page, None)
                         .await?
                 }
             }
@@ -182,7 +203,7 @@ where
             .map(|pagination| pagination.has_more)
             .unwrap_or(fetched >= PAGE_SIZE);
 
-        if fetched == 0 || !has_more {
+        if single_run || fetched == 0 || !has_more {
             break;
         }
         page += 1;

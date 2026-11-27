@@ -7,12 +7,7 @@ import type {ConnectionTag} from '@/types/tags';
 import {useDatabase} from '@/hooks/useDatabase';
 import {getConnectionAccent, getConnectionIcon} from '@/utils/driverUI';
 import {getCapabilitiesForDriver} from '@/utils/driverCapabilities';
-import {
-    connectionSubtitle,
-    getCardClass,
-    migrationDirectionForDriver,
-    type ConnectionDropPosition,
-} from '@/utils/connections';
+import {connectionSubtitle, getCardClass, type ConnectionDropPosition} from '@/utils/connections';
 import {StatusBadge} from './StatusBadge';
 import {ActionButtons} from './ActionButtons';
 import {ConnectionChips} from './ConnectionChips';
@@ -40,8 +35,6 @@ export interface ConnectionListItemProps {
     selectionActive?: boolean;
     /** Toggles this connection's selection. Enables the checkbox when provided. */
     onToggleSelect?: () => void;
-    /** Called when the migration button is clicked; omitted outside the migration window. */
-    onMigrate?: () => void;
 }
 
 export const ConnectionListItem = ({
@@ -61,7 +54,6 @@ export const ConnectionListItem = ({
     dropPosition = null,
     selectionActive = false,
     onToggleSelect,
-    onMigrate,
 }: ConnectionListItemProps) => {
     const {t} = useTranslation();
     const {activeConnectionId, isConnectionOpenAnywhere} = useDatabase();
@@ -78,7 +70,6 @@ export const ConnectionListItem = ({
             t('connections.databaseCount', {count, defaultValue: '{{count}} databases'}),
     });
     const driverColor = getConnectionAccent(conn, driverManifest);
-    const migrationDirection = migrationDirectionForDriver(conn.params.driver, allDrivers);
     const connectIfPossible = () => {
         if (isDriverEnabled && !isConnecting) onConnect();
     };
@@ -151,8 +142,6 @@ export const ConnectionListItem = ({
                     onEdit={onEdit}
                     onDuplicate={onDuplicate}
                     onDelete={onDelete}
-                    migrationDirection={migrationDirection}
-                    onMigrate={onMigrate}
                 />
             </div>
         </div>

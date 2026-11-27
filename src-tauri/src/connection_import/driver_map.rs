@@ -19,7 +19,7 @@ pub fn map_driver_label(label: &str, registered_ids: &[String]) -> (String, bool
 /// at a plugin id (e.g. "MongoDB" -> "mongodb").
 pub fn canonical_id(label: &str) -> String {
     match label.trim().to_ascii_lowercase().as_str() {
-        "postgresql" | "postgres" | "postgre" => "postgres".to_string(),
+        "postgresql" | "postgres" | "postgre" => "postgresql".to_string(),
         "mysql" | "mariadb" => "mysql".to_string(),
         "sqlite" | "sqlite3" => "sqlite".to_string(),
         "sql server" | "sqlserver" | "mssql" | "jtds" => "mssql".to_string(),
@@ -41,7 +41,7 @@ pub fn canonical_id(label: &str) -> String {
 /// 0 means "no port" (file-based drivers such as SQLite).
 pub fn default_port(driver_id: &str) -> u16 {
     match driver_id {
-        "postgres" | "redshift" => 5432,
+        "postgres" | "postgresql" | "redshift" => 5432,
         "mysql" => 3306,
         "cockroachdb" => 26257,
         "mssql" => 1433,
@@ -60,7 +60,7 @@ mod tests {
 
     #[test]
     fn maps_builtin_labels() {
-        assert_eq!(canonical_id("PostgreSQL"), "postgres");
+        assert_eq!(canonical_id("PostgreSQL"), "postgresql");
         assert_eq!(canonical_id("MySQL"), "mysql");
         assert_eq!(canonical_id("MariaDB"), "mysql");
         assert_eq!(canonical_id("SQLite"), "sqlite");
@@ -75,10 +75,10 @@ mod tests {
 
     #[test]
     fn installed_flag_reflects_registry() {
-        let registered = vec!["postgres".to_string(), "mysql".to_string()];
+        let registered = vec!["postgresql".to_string(), "mysql".to_string()];
         assert_eq!(
             map_driver_label("PostgreSQL", &registered),
-            ("postgres".to_string(), true)
+            ("postgresql".to_string(), true)
         );
         assert_eq!(
             map_driver_label("MongoDB", &registered),
@@ -89,6 +89,7 @@ mod tests {
     #[test]
     fn default_ports() {
         assert_eq!(default_port("postgres"), 5432);
+        assert_eq!(default_port("postgresql"), 5432);
         assert_eq!(default_port("mysql"), 3306);
         assert_eq!(default_port("sqlite"), 0);
         assert_eq!(default_port("mssql"), 1433);

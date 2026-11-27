@@ -45,7 +45,6 @@ export function useSqlDiagnosticsOptions(
         materializedViews,
         isLoadingTables,
         isLoadingViews,
-        activeDriver,
         activeSchema,
         activeCapabilities,
         activeDatabaseName,
@@ -56,7 +55,10 @@ export function useSqlDiagnosticsOptions(
     const settingsContext = useContext(SettingsContext);
 
     const settingEnabled = settingsContext?.settings.sqlDiagnosticsEnabled === true;
-    const active = settingEnabled && (options?.enabled ?? true) && activeDriver === 'postgres';
+    const active =
+        settingEnabled &&
+        (options?.enabled ?? true) &&
+        activeCapabilities?.sql_dialect === 'postgres';
     const schema = options?.schema ?? activeSchema;
     const tabDatabase = options?.database ?? null;
     const isNestedMultiDb = isSchemaBasedMultiDb(activeCapabilities, selectedDatabases);

@@ -11,7 +11,7 @@ import {hasOptedIntoDatabaseSelection} from './database';
 
 export type DatabaseDriver = string;
 
-export const BUILTIN_DRIVER_IDS = ['postgres', 'mysql', 'sqlite'] as const;
+export const BUILTIN_DRIVER_IDS = ['mysql', 'sqlite'] as const;
 export type BuiltinDriverId = (typeof BUILTIN_DRIVER_IDS)[number];
 
 /** Which direction a per-connection migration action would go, or `null` if
@@ -27,7 +27,7 @@ export type MigrationDirection = 'to-plugin' | 'to-builtin' | null;
  * triggering an action for a driver nothing actually handles yet. Add a pair
  * here in the same commit that wires its `useBuiltinDriverMigration` call.
  */
-const MIGRATABLE_DRIVER_PAIRS: ReadonlySet<string> = new Set(['postgres:postgresql']);
+const MIGRATABLE_DRIVER_PAIRS: ReadonlySet<string> = new Set();
 
 /**
  * Determine whether a connection's current driver is a deprecated built-in
@@ -325,10 +325,11 @@ export function getDefaultPort(driver: DatabaseDriver | PluginManifest): number 
         return driver.default_port ?? 0;
     }
     switch (driver) {
-        case 'postgres':
-            return 5432;
         case 'mysql':
             return 3306;
+        case 'postgres':
+        case 'postgresql':
+            return 5432;
         case 'sqlite':
             return 0; // SQLite doesn't use ports
         default:
@@ -361,7 +362,7 @@ export function validateConnectionParams(
 
     // For remote drivers, host is required
     const local = capabilities != null ? isLocalDriver(capabilities) : params.driver === 'sqlite';
-    const isBuiltInSocketDriver = params.driver === 'mysql' || params.driver === 'postgres';
+    const isBuiltInSocketDriver = params.driver === 'mysql';
     const socketDestination =
         !params.k8s_enabled &&
         !params.ssm_enabled &&
@@ -437,10 +438,11 @@ export function getDriverLabel(driver: DatabaseDriver | PluginManifest): string 
         return driver.name;
     }
     switch (driver) {
-        case 'postgres':
-            return 'PostgreSQL';
         case 'mysql':
             return 'MySQL';
+        case 'postgres':
+        case 'postgresql':
+            return 'PostgreSQL';
         case 'sqlite':
             return 'SQLite';
         default:

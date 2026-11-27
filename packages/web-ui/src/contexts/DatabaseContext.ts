@@ -73,8 +73,7 @@ export interface SavedConnection {
         ssm_enabled?: boolean;
         ssm_target?: string;
         startup_script?: string;
-        /** SSL/TLS mode (e.g. "verify-ca"); empty/absent means SSL is off. Used
-         * by findUnsupportedFeatures to detect a plugin capability gap. */
+        /** SSL/TLS mode (e.g. "verify-ca"); empty/absent means SSL is off. */
         ssl_mode?: string;
         /** Raw driver-specific connection URI, when present at runtime (never
          * persisted to disk — see connection_uri_in_keychain below). */
