@@ -686,6 +686,7 @@ async fn exec_on_sqlite_conn(
             truncated: false,
             pagination: None,
             additional_results: None,
+            column_sources: None,
             server_time_ms: None,
             fetch_time_ms: None,
         });
@@ -781,6 +782,7 @@ async fn exec_on_sqlite_conn(
         truncated,
         pagination,
         additional_results: None,
+        column_sources: None,
         server_time_ms: server_time,
         fetch_time_ms: fetch_time,
     })

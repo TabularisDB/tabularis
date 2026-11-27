@@ -79,5 +79,142 @@
   ],
   "affected_rows": 0,
   "truncated": false,
-  "pagination": null
+  "pagination": null,
+  "column_sources": [
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "id"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_text"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_varchar"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_int"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_bigint"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_smallint"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_float"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_double"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_numeric"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_bool"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_date"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_time"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_timetz"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_timestamp"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_timestamptz"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_uuid"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_json"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_jsonb"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_bytea"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_inet"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_cidr"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_macaddr"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_int_array"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_text_array"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_int4range"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_tsrange"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_interval"
+    }
+  ]
 }

@@ -14,8 +14,8 @@ use crate::protocol::text::{ColumnDefinition, ColumnFlags, Query, TextRow};
 use crate::statement::{MySqlStatement, MySqlStatementMetadata};
 use crate::HashMap;
 use crate::{
-    MySql, MySqlArguments, MySqlColumn, MySqlConnection, MySqlQueryResult, MySqlRow, MySqlTypeInfo,
-    MySqlValueFormat,
+    MySql, MySqlArguments, MySqlColumn, MySqlColumnSource, MySqlConnection, MySqlQueryResult,
+    MySqlRow, MySqlTypeInfo, MySqlValueFormat,
 };
 use either::Either;
 use futures_core::future::BoxFuture;
@@ -392,11 +392,29 @@ fn recv_next_result_column(def: &ColumnDefinition, ordinal: usize) -> Result<MyS
 
     let type_info = MySqlTypeInfo::from_column(def);
 
+    // An expression has no original table or column; leave it without a source.
+    // Metadata that is not valid UTF-8 (e.g. `character_set_results = latin1`)
+    // must never fail the query, so decode errors also mean "no source".
+    let source = (|| {
+        let table = def.table().ok()?;
+        let column = def.name().ok()?;
+        if table.is_empty() || column.is_empty() {
+            return None;
+        }
+        Some(MySqlColumnSource {
+            schema: def.schema().ok()?.to_owned(),
+            table: table.to_owned(),
+            table_alias: def.table_alias().ok()?.to_owned(),
+            column: column.to_owned(),
+        })
+    })();
+
     Ok(MySqlColumn {
         name,
         type_info,
         ordinal,
         flags: Some(def.flags),
+        source,
     })
 }
 
