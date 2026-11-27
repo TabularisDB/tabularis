@@ -104,6 +104,12 @@ jobs:
         working-directory: src-tauri
         run: cargo check --locked --no-default-features --bin tabularis
 
+      - name: Check the experimental native shell build
+        working-directory: src-tauri
+        run: |
+          sudo apt-get install -y libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libfontconfig-dev
+          cargo check --locked --no-default-features --features native --bin tabularis
+
       - name: Keep Tauri inside the desktop transport
         run: |
           if grep -rnE '(^|[^_[:alnum:]])tauri(::|_plugin)' src-tauri/src --include='*.rs' \
