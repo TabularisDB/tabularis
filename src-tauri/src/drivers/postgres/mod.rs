@@ -1174,6 +1174,7 @@ async fn exec_on_pg_client(
                 hash_comments: false,
                 line_comment_requires_space: false,
                 backslash_escapes,
+                negative_limit_unbounded: false,
             },
         );
         manual_limit = None;

@@ -1520,6 +1520,7 @@ async fn exec_on_mysql_conn(
                 hash_comments: *HASH_COMMENTS,
                 line_comment_requires_space: true,
                 backslash_escapes: true,
+                negative_limit_unbounded: false,
             },
         );
 

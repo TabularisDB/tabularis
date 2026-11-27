@@ -707,6 +707,8 @@ async fn exec_on_sqlite_conn(
                 hash_comments: false,
                 line_comment_requires_space: false,
                 backslash_escapes: false,
+                // `LIMIT -1 OFFSET <n>` skips rows without a cap.
+                negative_limit_unbounded: true,
             },
         );
 

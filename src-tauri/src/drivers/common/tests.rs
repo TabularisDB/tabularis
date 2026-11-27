@@ -12,12 +12,20 @@ const MYSQL: ScanRules = ScanRules {
     hash_comments: true,
     line_comment_requires_space: true,
     backslash_escapes: true,
+    negative_limit_unbounded: false,
 };
 
 const POSTGRES_SQLITE: ScanRules = ScanRules {
     hash_comments: false,
     line_comment_requires_space: false,
     backslash_escapes: false,
+    negative_limit_unbounded: false,
+};
+
+/// SQLite's rules: as [`POSTGRES_SQLITE`], and a negative LIMIT is no limit.
+const SQLITE: ScanRules = ScanRules {
+    negative_limit_unbounded: true,
+    ..POSTGRES_SQLITE
 };
 
 #[test]
@@ -374,6 +382,83 @@ fn test_extract_user_limit_table_name_contains_limit_with_real_limit() {
     assert_eq!(
         super::extract_user_limit("SELECT * FROM tapp_appointment_message_event_limit LIMIT 10"),
         Some(10)
+    );
+}
+
+#[test]
+fn test_build_paginated_query_reads_sqlite_negative_limit_as_no_limit() {
+    // SQLite has no OFFSET without LIMIT; `LIMIT -1` means no upper bound.
+    // It used to be left in place, and a second LIMIT was appended.
+    for q in [
+        "SELECT * FROM t LIMIT -1 OFFSET 5",
+        "SELECT * FROM t LIMIT 5, -1",
+        "SELECT * FROM t ORDER BY id LIMIT -1 OFFSET 5;",
+    ] {
+        let base = if q.contains("ORDER BY") {
+            "SELECT * FROM t ORDER BY id"
+        } else {
+            "SELECT * FROM t"
+        };
+        assert_eq!(
+            build_paginated_query_for(q, 100, 2, SQLITE),
+            format!("{base} LIMIT 101 OFFSET 105"),
+            "{q}"
+        );
+    }
+    assert_eq!(
+        build_paginated_query_for("SELECT * FROM t LIMIT -1", 100, 1, SQLITE),
+        "SELECT * FROM t LIMIT 101 OFFSET 0"
+    );
+}
+
+#[test]
+fn test_build_paginated_query_keeps_an_offset_above_u32_max() {
+    // The offset used to be cut to `u32` and fall back to 0, so the editor
+    // showed rows the original query skips. Both SQLite spellings.
+    for q in [
+        "SELECT id FROM (SELECT 1 AS id) t LIMIT -1 OFFSET 4294967296",
+        "SELECT id FROM (SELECT 1 AS id) t LIMIT 4294967296, -1",
+    ] {
+        assert_eq!(
+            build_paginated_query_for(q, 100, 1, SQLITE),
+            "SELECT id FROM (SELECT 1 AS id) t LIMIT 101 OFFSET 4294967296",
+            "{q}"
+        );
+        assert_eq!(
+            build_paginated_query_for(q, 100, 2, SQLITE),
+            "SELECT id FROM (SELECT 1 AS id) t LIMIT 101 OFFSET 4294967396",
+            "{q}"
+        );
+    }
+    // The same for the other drivers.
+    assert_eq!(
+        build_paginated_query("SELECT * FROM t LIMIT 10 OFFSET 4294967296", 100, 1),
+        "SELECT * FROM t LIMIT 10 OFFSET 4294967296"
+    );
+}
+
+#[test]
+fn test_build_paginated_query_leaves_negative_limit_to_mysql_and_postgres() {
+    // MySQL and PostgreSQL reject a negative LIMIT; the query must still reach
+    // them with it, so the user sees that error instead of a paged result.
+    let q = "SELECT * FROM orders LIMIT -1";
+    for result in [
+        build_paginated_query(q, 100, 1),
+        build_paginated_query_for(q, 100, 1, MYSQL),
+        build_paginated_query_for(q, 100, 1, POSTGRES_SQLITE),
+    ] {
+        assert!(
+            result.starts_with("SELECT * FROM orders LIMIT -1 "),
+            "{result}"
+        );
+    }
+    assert_eq!(
+        super::extract_user_limit("SELECT * FROM t LIMIT -1 OFFSET 5"),
+        None
+    );
+    assert_eq!(
+        strip_limit_offset("SELECT * FROM t LIMIT 5, -1"),
+        "SELECT * FROM t LIMIT 5, -1"
     );
 }
 
