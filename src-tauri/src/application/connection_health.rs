@@ -339,9 +339,14 @@ async fn handle_connection_failure(
     connection_id: &str,
     error: &str,
 ) {
+    // The pools leave the registry before the holders are taken. A session that
+    // opens the connection once it has no holders gets a new pool, and only the
+    // pools of the failed connection are closed below.
+    let retired = retire_pools(runtime, connection_id).await;
     crate::health_check::unregister_connection(connection_id).await;
     let owners = take_owners(state, connection_id);
-    close_connection_resources(runtime, &owners, connection_id).await;
+    release_sessions(runtime, &owners, connection_id).await;
+    close_retired(retired, connection_id).await;
 
     let payload = serde_json::json!({
         "connectionId": connection_id,
@@ -367,6 +372,32 @@ async fn close_connection_resources(
     owners: &[Uuid],
     connection_id: &str,
 ) -> usize {
+    let retired = retire_pools(runtime, connection_id).await;
+    let released = release_sessions(runtime, owners, connection_id).await;
+    close_retired(retired, connection_id).await;
+    released
+}
+
+/// Take the connection's pools out of the registry, to be closed by
+/// `close_retired` once its sessions are released.
+async fn retire_pools(
+    runtime: &RuntimeContext,
+    connection_id: &str,
+) -> Option<crate::pool_manager::RetiredPools> {
+    match crate::application::connections::saved_connection_driver(runtime, connection_id) {
+        Ok(driver) => {
+            Some(crate::pool_manager::retire_pools_for_connection_id(&driver, connection_id).await)
+        }
+        Err(err) => {
+            log::warn!("Health check: cannot close pools for {connection_id}: {err}");
+            None
+        }
+    }
+}
+
+/// Release the owners' tab sessions and routine debuggers on the connection.
+/// Returns how many tab sessions were released.
+async fn release_sessions(runtime: &RuntimeContext, owners: &[Uuid], connection_id: &str) -> usize {
     let mut released = 0;
     for owner in owners {
         released += crate::application::query_sessions::release_connection(
@@ -377,23 +408,18 @@ async fn close_connection_resources(
         .await;
         crate::application::routine_debug::release(Some(*owner), Some(connection_id)).await;
     }
-    match crate::application::connections::saved_connection_driver(runtime, connection_id) {
-        Ok(driver) => {
-            let closed = crate::pool_manager::close_pools_for_connection_id_within(
-                &driver,
-                connection_id,
-                POOL_CLOSE_TIMEOUT,
-            )
-            .await;
-            if !closed {
-                log::warn!(
-                    "Health check: pools for {connection_id} are still closing; a checked-out connection has not been returned"
-                );
-            }
-        }
-        Err(err) => log::warn!("Health check: cannot close pools for {connection_id}: {err}"),
-    }
     released
+}
+
+async fn close_retired(retired: Option<crate::pool_manager::RetiredPools>, connection_id: &str) {
+    let Some(retired) = retired else {
+        return;
+    };
+    if !retired.close_within(POOL_CLOSE_TIMEOUT).await {
+        log::warn!(
+            "Health check: pools for {connection_id} are still closing; a checked-out connection has not been returned"
+        );
+    }
 }
 
 fn emit_lifecycle(

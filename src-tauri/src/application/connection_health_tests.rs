@@ -513,6 +513,83 @@ async fn a_session_reopening_after_recovery_finds_no_holder_keeps_its_pool() {
     fixture.finish().await;
 }
 
+/// With auto-reconnect off, or after a failed reconnect, the failure handler
+/// takes the connection from its holders and then closes its pools. Pools are
+/// closed by connection ID, so a session that opened the connection after the
+/// holders were taken would lose the pool it had just opened, and the next
+/// ticks would drop it although the database was up.
+#[tokio::test]
+async fn a_session_opening_during_failure_cleanup_keeps_its_pool() {
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    let fixture = Fixture::new().await;
+    let (old_session, new_session) = (Uuid::new_v4(), Uuid::new_v4());
+    fixture.open_in(old_session).await;
+
+    // Poll the cleanup by hand so the new session can act between two of its
+    // steps, as another request task would.
+    {
+        let cleanup = handle_connection_failure(
+            &fixture.runtime,
+            &fixture.state,
+            &fixture.connection_id,
+            "ping failed",
+        );
+        let mut cleanup = std::pin::pin!(cleanup);
+        let mut done = false;
+        let mut reopened = false;
+        while !done {
+            done = futures::poll!(cleanup.as_mut()).is_ready();
+            // Once the old holder is gone, a new session opens the pool and
+            // registers before the cleanup's next step runs.
+            if !done && !reopened && !fixture.held_by(old_session) {
+                fixture.open_pool().await;
+                fixture.open_in(new_session).await;
+                reopened = true;
+            }
+            tokio::task::yield_now().await;
+        }
+        assert!(
+            reopened,
+            "the cleanup finished before the new session opened"
+        );
+    }
+    // Let a pool close the cleanup left running in the background finish.
+    for _ in 0..20 {
+        tokio::task::yield_now().await;
+    }
+
+    assert!(!fixture.held_by(old_session));
+    assert!(fixture.held_by(new_session));
+    assert!(fixture.registered().await);
+    assert!(
+        fixture.has_pool().await,
+        "the new session's pool was closed by the failure cleanup"
+    );
+    let (_, params) = crate::application::connections::resolve_saved_connection_params(
+        &fixture.runtime,
+        Some(new_session),
+        &fixture.connection_id,
+    )
+    .unwrap();
+    assert_eq!(
+        ping_resolved(&params, &fixture.connection_id).await,
+        PingOutcome::Ok,
+        "the new session cannot use its pool"
+    );
+
+    // The new session stays active through the next ticks.
+    fixture.events.clear();
+    let mut tracker = tracker();
+    fixture.ticks(&mut tracker, FAILURE_THRESHOLD).await;
+    assert!(fixture.held_by(new_session));
+    assert!(fixture.registered().await);
+    assert!(fixture
+        .events
+        .sent(CONNECTION_HEALTH_FAILED_EVENT)
+        .is_empty());
+    fixture.finish().await;
+}
+
 /// The last holder can log out between the tick's holder check and the
 /// resolve. Resolving then would send an SSH prompt to every session.
 #[tokio::test]
