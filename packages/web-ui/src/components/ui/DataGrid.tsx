@@ -104,6 +104,7 @@ import {
     type RangeExtendKey,
     getFrozenFirstColumnLayout,
     FROZEN_HEADER_CELL_CLASS,
+    summarizeSelection,
 } from '@/utils/dataGrid';
 import {isTypingTarget} from '@/utils/keyboardEvents';
 import {getSortButtonAction} from '@/utils/tableToolbar';
@@ -1080,6 +1081,35 @@ export const DataGrid = React.memo(function DataGrid({
         },
         [columns, pkIndexMaps, pkColumns, pendingChanges],
     );
+
+    const selectionSummary = useMemo(() => {
+        if (!cellRange) return null;
+        if (
+            cellRange.minRow < 0 ||
+            cellRange.maxRow >= mergedRows.length ||
+            cellRange.minCol < 0 ||
+            cellRange.maxCol >= columns.length
+        ) {
+            return null;
+        }
+
+        const values: unknown[] = [];
+        for (let rowIndex = cellRange.minRow; rowIndex <= cellRange.maxRow; rowIndex++) {
+            const mergedRow = mergedRows[rowIndex];
+            if (!mergedRow) continue;
+            const rowData = buildRowDataWithPending(
+                mergedRow.rowData,
+                mergedRow.type === 'insertion',
+            );
+            for (let colIndex = cellRange.minCol; colIndex <= cellRange.maxCol; colIndex++) {
+                if (hiddenColIndices.has(colIndex)) continue;
+                const columnName = columns[colIndex];
+                if (columnName !== undefined) values.push(rowData[columnName]);
+            }
+        }
+
+        return values.length >= 2 ? summarizeSelection(values) : null;
+    }, [cellRange, mergedRows, columns, hiddenColIndices, buildRowDataWithPending]);
 
     // Keep the sidebar's onChangeRef always pointing at the latest logic.
     // This avoids storing stale closures in context state.
@@ -3953,7 +3983,7 @@ export const DataGrid = React.memo(function DataGrid({
             : 0;
 
     return (
-        <div className="h-full flex flex-col">
+        <div className="h-full min-h-0 flex flex-col">
             {jumpToColumnOpen && (
                 <JumpToColumnModal
                     isOpen
@@ -4009,7 +4039,7 @@ export const DataGrid = React.memo(function DataGrid({
                 tabIndex={0}
                 onKeyDown={handleGridKeyDown}
                 onScroll={handleScroll}
-                className="h-full overflow-auto border border-default rounded bg-elevated relative focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+                className="flex-1 min-h-0 overflow-auto border border-default rounded bg-elevated relative focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                 style={
                     transposed
                         ? {
@@ -5210,6 +5240,62 @@ export const DataGrid = React.memo(function DataGrid({
 
                 {/* Row Editor Sidebar is now rendered in the RightSidebar layout component */}
             </div>
+            {selectionSummary && (
+                <div
+                    className="shrink-0 min-h-8 border-t border-default bg-elevated px-2 py-1 flex items-center gap-1 overflow-x-auto text-xs text-secondary"
+                    role="group"
+                    aria-label={t('dataGrid.selectionSummary')}
+                >
+                    <button
+                        type="button"
+                        onClick={() =>
+                            void copyToClipboard(
+                                String(selectionSummary.count),
+                                t('dataGrid.copied'),
+                            )
+                        }
+                        aria-label={t('dataGrid.selectionCopy', {
+                            label: t('dataGrid.selectionCount'),
+                            value: String(selectionSummary.count),
+                        })}
+                        className="inline-flex items-center gap-1 shrink-0 rounded px-1.5 py-0.5 hover:bg-surface-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                    >
+                        <span>{t('dataGrid.selectionCount')}</span>
+                        <span className="font-mono text-primary">{selectionSummary.count}</span>
+                    </button>
+                    {selectionSummary.sum !== null && (
+                        <>
+                            {[
+                                ['selectionSum', selectionSummary.sum],
+                                ['selectionAverage', selectionSummary.average],
+                                ['selectionMinimum', selectionSummary.minimum],
+                                ['selectionMaximum', selectionSummary.maximum],
+                            ].map(([key, value]) =>
+                                value ? (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() =>
+                                            void copyToClipboard(
+                                                String(value),
+                                                t('dataGrid.copied'),
+                                            )
+                                        }
+                                        aria-label={t('dataGrid.selectionCopy', {
+                                            label: t(`dataGrid.${key}`),
+                                            value,
+                                        })}
+                                        className="inline-flex items-center gap-1 shrink-0 rounded px-1.5 py-0.5 hover:bg-surface-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                    >
+                                        <span>{t(`dataGrid.${key}`)}</span>
+                                        <span className="font-mono text-primary">{value}</span>
+                                    </button>
+                                ) : null,
+                            )}
+                        </>
+                    )}
+                </div>
+            )}
         </div>
     );
 });

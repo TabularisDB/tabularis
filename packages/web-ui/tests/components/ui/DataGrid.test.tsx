@@ -1791,6 +1791,56 @@ describe('DataGrid cell range selection', () => {
         expect(screen.getByText('Denver').closest('td')).not.toHaveClass('bg-accent-primary/15');
     });
 
+    it('shows and copies numeric selection summary values', () => {
+        render(
+            <DataGrid
+                columns={['value', 'label']}
+                data={[
+                    [10, 'A'],
+                    [20, 'B'],
+                    [30, 'C'],
+                ]}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                readonly
+            />,
+        );
+
+        fireEvent.click(screen.getByText('10'));
+        fireEvent.click(screen.getByText('30'), {shiftKey: true});
+
+        expect(screen.getByText('dataGrid.selectionCount').nextElementSibling).toHaveTextContent(
+            '3',
+        );
+        expect(screen.getByText('dataGrid.selectionSum').nextElementSibling).toHaveTextContent(
+            '60',
+        );
+        expect(screen.getByText('dataGrid.selectionAverage').nextElementSibling).toHaveTextContent(
+            '20',
+        );
+        expect(screen.getByText('dataGrid.selectionMinimum').nextElementSibling).toHaveTextContent(
+            '10',
+        );
+        expect(screen.getByText('dataGrid.selectionMaximum').nextElementSibling).toHaveTextContent(
+            '30',
+        );
+
+        fireEvent.click(screen.getByText('dataGrid.selectionSum').closest('button')!);
+        expect(writeText).toHaveBeenCalledWith('60');
+    });
+
+    it('removes the summary when a range is collapsed to one cell', () => {
+        renderGrid();
+
+        fireEvent.click(screen.getByText('Alice'));
+        fireEvent.click(screen.getByText('Seattle'), {shiftKey: true});
+        expect(screen.queryByText('dataGrid.selectionSummary')).not.toBeInTheDocument();
+        expect(screen.getByText('dataGrid.selectionCount')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByText('Alice'));
+        expect(screen.queryByText('dataGrid.selectionCount')).not.toBeInTheDocument();
+    });
+
     it('copies only the range with Cmd/Ctrl+C', async () => {
         renderGrid();
 

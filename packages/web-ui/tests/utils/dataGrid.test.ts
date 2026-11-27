@@ -31,6 +31,7 @@ import {
     isOriginalCellValue,
     navigateCell,
     toLogicalArrowKey,
+    summarizeSelection,
 } from '@/utils/dataGrid';
 import {rowsToCSV, rowsToCSVWithHeaders} from '@/utils/clipboard';
 
@@ -1615,5 +1616,155 @@ describe('navigateCell', () => {
     it('ignores keys that do not navigate', () => {
         expect(nav('Enter')).toBeNull();
         expect(nav('a', true)).toBeNull();
+    });
+});
+
+describe('summarizeSelection', () => {
+    it('returns the count for an empty selection', () => {
+        expect(summarizeSelection([])).toEqual({
+            count: 0,
+            sum: null,
+            average: null,
+            minimum: null,
+            maximum: null,
+        });
+    });
+
+    it('summarizes one numeric cell', () => {
+        expect(summarizeSelection([42])).toEqual({
+            count: 1,
+            sum: '42',
+            average: '42',
+            minimum: '42',
+            maximum: '42',
+        });
+    });
+
+    it('handles integers, decimals, negative values, and numeric strings', () => {
+        expect(summarizeSelection([1, 2, 3])).toMatchObject({
+            sum: '6',
+            average: '2',
+            minimum: '1',
+            maximum: '3',
+        });
+        expect(summarizeSelection([1.25, 2.75])).toMatchObject({
+            sum: '4',
+            average: '2',
+            minimum: '1.25',
+            maximum: '2.75',
+        });
+        expect(summarizeSelection([-10, -2, 5])).toMatchObject({
+            sum: '-7',
+            average: '-2.333333333333',
+            minimum: '-10',
+            maximum: '5',
+        });
+        expect(summarizeSelection(['10', '20.5'])).toMatchObject({
+            sum: '30.5',
+            average: '15.25',
+            minimum: '10',
+            maximum: '20.5',
+        });
+    });
+
+    it('excludes null, undefined, blank, text, boolean, and unsupported values', () => {
+        expect(
+            summarizeSelection([null, undefined, '', '   ', 'abc', true, false, {}, 4]),
+        ).toMatchObject({
+            count: 9,
+            sum: '4',
+            average: '4',
+            minimum: '4',
+            maximum: '4',
+        });
+        expect(summarizeSelection([null, undefined, 'text', true])).toEqual({
+            count: 4,
+            sum: null,
+            average: null,
+            minimum: null,
+            maximum: null,
+        });
+    });
+
+    it('supports BigInt and integers beyond Number.MAX_SAFE_INTEGER exactly', () => {
+        expect(summarizeSelection([9007199254740992n, 9007199254740993n])).toMatchObject({
+            sum: '18014398509481985',
+            average: '9007199254740992.5',
+            minimum: '9007199254740992',
+            maximum: '9007199254740993',
+        });
+        expect(summarizeSelection(['9007199254740992', '9007199254740994']).sum).toBe(
+            '18014398509481986',
+        );
+    });
+
+    it('mixes BigInt, decimal, and exponent values without precision loss', () => {
+        expect(summarizeSelection([9007199254740993n, 0.125, '1.25e2', '1e-2'])).toEqual({
+            count: 4,
+            sum: '9007199254741118.135',
+            average: '2251799813685279.53375',
+            minimum: '0.01',
+            maximum: '9007199254740993',
+        });
+    });
+
+    it('handles large negative integers and decimal scaling', () => {
+        expect(summarizeSelection([-9007199254740993n, '-9007199254740994', 1.5])).toEqual({
+            count: 3,
+            sum: '-18014398509481985.5',
+            average: '-6004799503160661.833333333333',
+            minimum: '-9007199254740994',
+            maximum: '1.5',
+        });
+    });
+
+    it('rounds negative averages away from zero and normalizes negative zero', () => {
+        expect(summarizeSelection([-0.0000000000005])).toMatchObject({
+            average: '-0.000000000001',
+        });
+        expect(summarizeSelection([-0.0000000000004])).toMatchObject({
+            average: '0',
+        });
+    });
+
+    it('supports common exponent notation and rejects impractical exponents', () => {
+        expect(summarizeSelection(['1.25e2', '5e-1', '2e3'])).toMatchObject({
+            sum: '2125.5',
+            average: '708.5',
+            minimum: '0.5',
+            maximum: '2000',
+        });
+        expect(summarizeSelection(['1e10001', 1])).toMatchObject({
+            count: 2,
+            sum: '1',
+            average: '1',
+            minimum: '1',
+            maximum: '1',
+        });
+    });
+
+    it('rejects NaN and infinite numbers', () => {
+        expect(summarizeSelection([NaN, Infinity, -Infinity, 1])).toMatchObject({
+            count: 4,
+            sum: '1',
+            average: '1',
+            minimum: '1',
+            maximum: '1',
+        });
+    });
+
+    it('formats decimal averages consistently', () => {
+        expect(summarizeSelection([1, 2])).toMatchObject({average: '1.5'});
+        expect(summarizeSelection([1, 1, 1, 2])).toMatchObject({average: '1.25'});
+        expect(summarizeSelection([1, 2, 3, 4, 5, 6])).toMatchObject({
+            average: '3.5',
+        });
+    });
+
+    it('does not mutate the input array', () => {
+        const values: unknown[] = [3, 1, 2];
+        const copy = [...values];
+        summarizeSelection(values);
+        expect(values).toEqual(copy);
     });
 });
