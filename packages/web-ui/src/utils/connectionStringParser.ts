@@ -68,6 +68,18 @@ function decodeUriPart(value: string): string {
 }
 
 /**
+ * The host of a parsed URL as the connection form and the drivers expect it.
+ * WHATWG `URL.hostname` keeps the brackets around an IPv6 literal
+ * (`[::1]`), but the host field holds a bare address and the drivers resolve
+ * the host as given, so `[::1]` would fail to connect.
+ */
+function getUrlHost(url: URL): string | undefined {
+    const host = url.hostname;
+    if (host.startsWith('[') && host.endsWith(']')) return host.slice(1, -1);
+    return host || undefined;
+}
+
+/**
  * Groups of interchangeable URI schemes. When a driver registers any
  * protocol of a group, the other members become aliases for the same
  * driver (e.g. `postgresql://` works wherever `postgres://` does).
@@ -320,7 +332,7 @@ export function parseConnectionString(
             success: true,
             params: {
                 driver: declaredDriver.id,
-                host: url.hostname || undefined,
+                host: getUrlHost(url),
                 port: url.port ? Number.parseInt(url.port, 10) : undefined,
                 username: url.username ? decodeUriPart(url.username) : undefined,
                 database: decodeUriPart(url.pathname.replace(/^\//, '')),
@@ -374,7 +386,7 @@ export function parseConnectionString(
         };
     }
 
-    const host = url.hostname || undefined;
+    const host = getUrlHost(url);
     const port = url.port ? Number.parseInt(url.port, 10) : undefined;
     // Never combine credentials from the authority and query string: the
     // authority wins, even if its password is empty or missing.

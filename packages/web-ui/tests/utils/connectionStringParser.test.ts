@@ -903,3 +903,29 @@ describe('connection strings with a % that is not an escape', () => {
         expect(params('sqlite:///tmp/50%.db').database).toBe('tmp/50%.db');
     });
 });
+
+describe('connection strings with an IPv6 host', () => {
+    const params = (connectionString: string, drivers = CAPABILITY_DRIVERS) => {
+        const result = parseConnectionString(connectionString, drivers);
+        if (!result.success) throw new Error(result.error);
+        return result.params;
+    };
+
+    it('drops the URL brackets so the host field holds the bare address', () => {
+        expect(params('postgres://user:pw@[::1]:5432/db')).toMatchObject({
+            host: '::1',
+            port: 5432,
+            database: 'db',
+        });
+        expect(params('mysql://root@[2001:db8::10]/app').host).toBe('2001:db8::10');
+    });
+
+    it('keeps a host name or IPv4 address unchanged', () => {
+        expect(params('postgres://user@db.example.com/db').host).toBe('db.example.com');
+        expect(params('mysql://root@127.0.0.1:3306/app').host).toBe('127.0.0.1');
+    });
+
+    it('drops the brackets from the displayed host of a passthrough URI', () => {
+        expect(params('mongodb://user@[::1]:27017/app', URI_PASSTHROUGH_DRIVERS).host).toBe('::1');
+    });
+});
