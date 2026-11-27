@@ -1135,6 +1135,9 @@
       "openFolder": "Plugin-Ordner öffnen",
       "legacyGoogleSheetsOAuthHint": "Aktualisieren Sie das Google-Sheets-Plugin, um die Google-Anmeldung mit dieser Tabularis-Version wiederherzustellen.",
       "closePluginOverlay": "Close plugin window",
+      "saveFileTitle": "Datei aus einem Plugin speichern",
+      "saveFileMessage": "„{{plugin}}“ möchte „{{fileName}}“ ({{size}}) herunterladen.",
+      "saveFileConfirm": "Herunterladen",
       "installError": {
         "title": "Installation fehlgeschlagen",
         "subtitle": "Bei der Installation des Plugins ist ein Fehler aufgetreten. Siehe Details unten.",

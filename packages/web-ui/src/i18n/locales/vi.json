@@ -1190,6 +1190,9 @@
       "enabled": "Đang bật",
       "disabled": "Đã tắt",
       "openFolder": "Mở thư mục plugin",
+      "saveFileTitle": "Lưu tệp từ plugin",
+      "saveFileMessage": "“{{plugin}}” muốn tải xuống “{{fileName}}” ({{size}}).",
+      "saveFileConfirm": "Tải xuống",
       "installError": {
         "title": "Cài đặt thất bại",
         "subtitle": "Đã xảy ra lỗi khi cài plugin. Xem chi tiết bên dưới.",

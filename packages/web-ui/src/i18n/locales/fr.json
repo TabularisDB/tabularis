@@ -1172,6 +1172,9 @@
       "openFolder": "Ouvrir le dossier des plugins",
       "legacyGoogleSheetsOAuthHint": "Mettez à jour le plugin Google Sheets pour rétablir la connexion Google dans cette version de Tabularis.",
       "closePluginOverlay": "Close plugin window",
+      "saveFileTitle": "Enregistrer un fichier d’un plugin",
+      "saveFileMessage": "« {{plugin}} » veut télécharger « {{fileName}} » ({{size}}).",
+      "saveFileConfirm": "Télécharger",
       "installError": {
         "title": "Échec de l’installation",
         "subtitle": "Une erreur s’est produite lors de l’installation du plugin. Voir les détails ci-dessous.",

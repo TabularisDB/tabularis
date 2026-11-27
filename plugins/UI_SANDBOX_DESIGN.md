@@ -80,6 +80,14 @@ active workspace, no other save open from the same frame, at most 64 MiB of
 and 255 UTF-8 bytes. The data is copied when it arrives,
 so the plugin cannot change what is written.
 
+Focus can reach the frame without an interaction in it, for example when the
+host restores focus after its command palette closes, so the checks above don't
+prove the user asked for this file. On desktop the native save dialog is that
+confirmation. A browser download starts at once, so the web host first shows its
+own dialog with the plugin ID, file name and size, and calls `downloadFile` from
+the click on its Download button. Cancelling, or the frame unmounting while the
+dialog is open, resolves the request with `false`.
+
 ## Plugin migration
 
 Plugins continue to import hooks from `@tabularis/plugin-api`; rebuild against

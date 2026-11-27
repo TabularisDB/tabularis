@@ -1153,6 +1153,9 @@
       "openFolder": "プラグインフォルダーを開く",
       "legacyGoogleSheetsOAuthHint": "この Tabularis バージョンで Google ログインを再開するには、Google Sheets プラグインを更新してください。",
       "closePluginOverlay": "Close plugin window",
+      "saveFileTitle": "プラグインからファイルを保存",
+      "saveFileMessage": "「{{plugin}}」が「{{fileName}}」({{size}})をダウンロードしようとしています。",
+      "saveFileConfirm": "ダウンロード",
       "installError": {
         "title": "インストール失敗",
         "subtitle": "プラグインのインストール中にエラーが発生しました。詳細は下記を参照してください。",

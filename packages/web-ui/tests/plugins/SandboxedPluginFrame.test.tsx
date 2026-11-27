@@ -467,4 +467,44 @@ describe('SandboxedPluginFrame lifecycle', () => {
         expect(downloadFile).not.toHaveBeenCalled();
         button.remove();
     });
+
+    it('asks the user in a host dialog before a browser download starts', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(true);
+        registerActivePlatformCapabilities({
+            negotiation: {environment: 'browser'},
+            downloadFile,
+        } as unknown as PlatformCapabilities);
+        const view = render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        screen.getByTitle('Plugin google-sheets').focus();
+        const request = {data: new Uint8Array([1, 2]), suggestedName: 'report.csv'};
+
+        // Cancelling resolves false and downloads nothing.
+        const cancelled = handlers['api.saveFile'](request);
+        const dialog = await screen.findByRole('dialog');
+        expect(dialog).toHaveTextContent('settings.plugins.saveFileTitle');
+        expect(downloadFile).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', {name: 'common.cancel'}));
+        await expect(cancelled).resolves.toBe(false);
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(downloadFile).not.toHaveBeenCalled();
+
+        // The download starts from the click on the host's button.
+        const confirmed = handlers['api.saveFile'](request);
+        fireEvent.click(
+            await screen.findByRole('button', {name: 'settings.plugins.saveFileConfirm'}),
+        );
+        await expect(confirmed).resolves.toBe(true);
+        expect(downloadFile).toHaveBeenCalledWith({
+            fileName: 'report.csv',
+            contents: new Uint8Array([1, 2]),
+        });
+
+        // A dialog still open when the frame goes away resolves false.
+        const pending = handlers['api.saveFile'](request);
+        await screen.findByRole('dialog');
+        view.unmount();
+        await expect(pending).resolves.toBe(false);
+        expect(downloadFile).toHaveBeenCalledOnce();
+    });
 });
