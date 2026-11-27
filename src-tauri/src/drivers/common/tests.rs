@@ -492,6 +492,98 @@ fn test_build_paginated_query_honors_user_limit_after_backslash_quoted_string() 
 }
 
 #[test]
+fn test_build_paginated_query_honors_user_limit_after_quoted_parenthesis_in_parens() {
+    // A parenthesis inside a double-quoted or backtick-quoted string within
+    // `(...)` used to end (or never end) the group, so the user's LIMIT was
+    // not found and a second LIMIT was appended.
+    for (q, expected) in [
+        (
+            r#"SELECT CONCAT(name, ")") FROM t LIMIT 5"#,
+            r#"SELECT CONCAT(name, ")") FROM t LIMIT 5 OFFSET 0"#,
+        ),
+        (
+            r#"SELECT * FROM t WHERE c IN ("(") LIMIT 5"#,
+            r#"SELECT * FROM t WHERE c IN ("(") LIMIT 5 OFFSET 0"#,
+        ),
+        (
+            "SELECT * FROM t WHERE c IN (`a)`) LIMIT 5",
+            "SELECT * FROM t WHERE c IN (`a)`) LIMIT 5 OFFSET 0",
+        ),
+        (
+            r#"SELECT * FROM (SELECT "a)""b" FROM t) s LIMIT 5 OFFSET 2"#,
+            r#"SELECT * FROM (SELECT "a)""b" FROM t) s LIMIT 5 OFFSET 2"#,
+        ),
+    ] {
+        assert_eq!(build_paginated_query(q, 100, 1), expected, "{q}");
+        assert_eq!(
+            build_paginated_query_for(q, 100, 1, POSTGRES_SQLITE),
+            expected,
+            "{q}"
+        );
+    }
+}
+
+#[test]
+fn test_build_paginated_query_reads_backslash_escapes_in_parens_by_dialect() {
+    // MySQL: `\"` and `\'` escape the quote, so the string goes on to the real
+    // closing quote and the group ends at the real `)`.
+    for q in [
+        r#"SELECT CONCAT("a\"b", name) FROM t LIMIT 5"#,
+        r"SELECT CONCAT('it\'s', name) FROM t LIMIT 5",
+        r#"SELECT CONCAT("a)\"b", name) FROM t LIMIT 5"#,
+    ] {
+        let expected = q.replace("LIMIT 5", "LIMIT 5 OFFSET 0");
+        assert_eq!(build_paginated_query_for(q, 100, 1, MYSQL), expected, "{q}");
+    }
+    // PostgreSQL and SQLite: a backslash is an ordinary character, so `'a\'`
+    // is a whole string and the `)` after it closes the group.
+    let q = r"SELECT * FROM t WHERE c IN ('a\') LIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(q, 100, 1, POSTGRES_SQLITE),
+        r"SELECT * FROM t WHERE c IN ('a\') LIMIT 5 OFFSET 0"
+    );
+}
+
+#[test]
+fn test_build_paginated_query_skips_postgres_dollar_quotes() {
+    // A quote, parenthesis or LIMIT inside a dollar-quoted string is data, so
+    // the user's own LIMIT is still found and no second LIMIT is appended.
+    for q in [
+        r#"SELECT length($$a"b$$) LIMIT 5"#,
+        "SELECT length($$a)b$$) LIMIT 5",
+        r#"SELECT length($fn$a"b$fn$) LIMIT 5"#,
+        "SELECT $$ LIMIT 1 $$ AS s LIMIT 5",
+        "SELECT ($tag$ $$ ) $tag$) LIMIT 5",
+    ] {
+        let expected = q.replace(" LIMIT 5", " LIMIT 5 OFFSET 0");
+        assert_eq!(
+            build_paginated_query_for(q, 100, 1, POSTGRES_SQLITE),
+            expected,
+            "{q}"
+        );
+    }
+    // `$1` is a parameter and `a$b` an identifier, not dollar quotes.
+    assert_eq!(
+        build_paginated_query_for(
+            "SELECT * FROM t WHERE id = $1 LIMIT 5",
+            100,
+            1,
+            POSTGRES_SQLITE
+        ),
+        "SELECT * FROM t WHERE id = $1 LIMIT 5 OFFSET 0"
+    );
+    assert_eq!(
+        build_paginated_query_for("SELECT a$b$ FROM t LIMIT 5", 100, 1, POSTGRES_SQLITE),
+        "SELECT a$b$ FROM t LIMIT 5 OFFSET 0"
+    );
+    // In MySQL `$` belongs to identifiers: `$$` is no quote there.
+    assert_eq!(
+        build_paginated_query_for("SELECT a$$b FROM t LIMIT 5", 100, 1, MYSQL),
+        "SELECT a$$b FROM t LIMIT 5 OFFSET 0"
+    );
+}
+
+#[test]
 fn test_build_paginated_query_keeps_mysql_minus_expression() {
     let q = "SELECT 1--2;";
     let result = build_paginated_query(q, 1, 1);
