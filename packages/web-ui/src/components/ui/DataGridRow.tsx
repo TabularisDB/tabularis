@@ -1,5 +1,5 @@
 import React from 'react';
-import {isZebraStripedRow, DATA_GRID_ROW_HEIGHT, type MergedRow} from '@/utils/dataGrid';
+import {isZebraStripedRow, type MergedRow} from '@/utils/dataGrid';
 import {getFindMatchState} from '@/utils/gridFind';
 import {DataGridCell, DataGridExpansionRow} from './DataGridCell';
 import type {ForeignKey} from '@/types/editor';
@@ -43,6 +43,10 @@ export interface RowCtx {
     readonly: boolean | undefined;
     /** Optional alternating row background (Settings > Appearance > Data Grid). */
     zebraStripes: boolean;
+    /** Row height in px for the row density setting (#339), shared with the virtualizer. */
+    rowHeight: number;
+    /** Classes of body cells for the row density setting (#339): padding and alignment. */
+    cellDensityClass: string;
     /** Label of NULL cells (Settings > General > Data Editor, #1300). */
     nullLabel: string;
     /**
@@ -166,6 +170,8 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
         columns,
         readonly: readonlyProp,
         zebraStripes,
+        rowHeight,
+        cellDensityClass,
         frozenFirstColumnLeft,
         visibleColIndices,
         setFocusedCell,
@@ -179,7 +185,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
         <>
             <tr
                 data-row-index={rowIndex}
-                style={{height: DATA_GRID_ROW_HEIGHT}}
+                style={{height: rowHeight}}
                 className={`transition-colors group ${
                     isSelected
                         ? 'bg-accent-primary/10 border-l-4 border-accent-primary'
@@ -206,7 +212,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                             openInSidebar(rowIndex);
                         }
                     }}
-                    className={`px-2 py-1.5 text-xs text-center border-b border-r border-default sticky left-0 z-10 cursor-pointer select-none w-[50px] min-w-[50px] ${
+                    className={`px-2 ${cellDensityClass} text-xs text-center border-b border-r border-default sticky left-0 z-10 cursor-pointer select-none w-[50px] min-w-[50px] ${
                         isInsertion
                             ? isSelected
                                 ? 'bg-accent-primary/20 text-accent font-bold'

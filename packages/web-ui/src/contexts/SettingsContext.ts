@@ -10,6 +10,8 @@ export type {AppLanguage, CopyFormat};
 /** How NULL is written when rows are copied as CSV or Markdown ("" writes an empty field). */
 export type CopyNullLabel = 'null' | 'NULL' | '';
 export type DefaultSortDirection = 'asc' | 'desc';
+/** Row density of the result grid: today's rows, or shorter rows with less padding. */
+export type ResultGridDensity = 'comfortable' | 'compact';
 export type AiProvider =
     | 'chatgpt'
     | 'openai'
@@ -69,6 +71,8 @@ export interface Settings {
     stickyColumnHeaders?: boolean;
     /** Shade every other result grid row for easier scanning. Default: false. */
     resultZebraStripes?: boolean;
+    /** Result grid row density: "comfortable" (default, 35 px rows) or "compact" (shorter rows that follow the font size). */
+    resultGridDensity?: ResultGridDensity;
     /** Where the editor's open tabs sit: along the top ("horizontal") or down the left ("vertical"). Default: "horizontal". */
     tabLayout?: 'horizontal' | 'vertical';
     /** Show a thick bar in the active connection's color along the bottom of the window. Default: false. */
@@ -259,6 +263,7 @@ export const DEFAULT_SETTINGS: Settings = {
     resultTypeColors: {},
     stickyColumnHeaders: true,
     resultZebraStripes: false,
+    resultGridDensity: 'comfortable',
     tabLayout: 'horizontal',
     connectionColorBar: false,
     defaultSortDirection: 'asc',

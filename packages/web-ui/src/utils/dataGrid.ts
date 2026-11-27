@@ -9,12 +9,46 @@ import {isJsonColumn} from './json';
 import type {ResultCommands} from '@/types/commands';
 import {escapeRegExp} from './escape';
 import type {FormatTone} from './conditionalFormatting';
+import {DEFAULT_FONT_SIZE} from './settings';
+import type {ResultGridDensity} from '@/contexts/SettingsContext';
 
 /** Sentinel value indicating that the database DEFAULT value should be used */
 export const USE_DEFAULT_SENTINEL = '__USE_DEFAULT__';
 
-/** Fixed height of a grid row, shared by the row markup and the virtualizer. */
+/**
+ * Fixed height of a comfortable grid row, shared by the row markup and the
+ * virtualizer. The transposed layout's record header row keeps it at every density.
+ */
 export const DATA_GRID_ROW_HEIGHT = 35;
+
+/**
+ * Compact rows are 1.75rem: the text line (1.25rem), `py-0.5` (0.25rem) and room
+ * for the cell border. In rem, so they still fit their content at any font size.
+ */
+const COMPACT_ROW_HEIGHT_REM = 1.75;
+
+/**
+ * Height in px of a grid row for the row density setting. Comfortable (the
+ * default, and any value other than "compact") keeps the fixed 35 px; compact
+ * follows the app font size, which sets the root font size.
+ */
+export function getDataGridRowHeight(
+    density: ResultGridDensity | undefined,
+    fontSize: number | undefined,
+): number {
+    if (density !== 'compact') return DATA_GRID_ROW_HEIGHT;
+    return Math.round((fontSize || DEFAULT_FONT_SIZE) * COMPACT_ROW_HEIGHT_REM);
+}
+
+/**
+ * Classes of the grid's body cells for the row density setting: the vertical
+ * padding, and for compact rows top-aligned inline-flex content (the Boolean
+ * checkbox, FK and blob buttons), which on the text baseline would make the
+ * line, and so the row, taller than the compact height.
+ */
+export function getDataGridCellDensityClass(density: ResultGridDensity | undefined): string {
+    return density === 'compact' ? 'py-0.5 [&_.inline-flex]:align-top' : 'py-1.5';
+}
 
 /** Narrowest a data column can be resized to: its padding plus a few characters. */
 export const DATA_GRID_MIN_COLUMN_WIDTH = 48;

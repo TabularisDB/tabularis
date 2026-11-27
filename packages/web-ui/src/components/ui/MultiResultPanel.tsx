@@ -39,6 +39,7 @@ import {
     getEntryDisplayLabel,
 } from '@/utils/multiResult';
 import {useSettings} from '@/hooks/useSettings';
+import {getDataGridRowHeight} from '@/utils/dataGrid';
 import type {QueryResultEntry} from '@/types/editor';
 import type {CopyFormat} from '@/utils/clipboard';
 
@@ -279,6 +280,7 @@ export function MultiResultPanel({
 }: MultiResultPanelProps) {
     const {t} = useTranslation();
     const {settings} = useSettings();
+    const gridRowHeight = getDataGridRowHeight(settings.resultGridDensity, settings.fontSize);
     const client = useTabularisClient();
     const scrollRef = useRef<HTMLDivElement>(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -595,6 +597,7 @@ export function MultiResultPanel({
                                 onClose={() => onCloseEntry(entry.id)}
                                 initialScrollTop={getInitialScrollTop?.(entry.id)}
                                 onScrollTopChange={(top) => onScrollTopChange?.(entry.id, top)}
+                                rowHeight={gridRowHeight}
                             />
                         ))}
                     </div>

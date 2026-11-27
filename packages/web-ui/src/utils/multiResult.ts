@@ -176,12 +176,12 @@ export function removeEntriesToRight(
 
 /**
  * Computes the height (in px) for a stacked result grid based on row count.
- * Accounts for header row (35px) and data rows (35px each), capped at maxHeight.
+ * Accounts for the header row (35px) and the data rows (`rowHeight` each, 35px
+ * unless the row density setting makes them compact), capped at maxHeight.
  */
-export function getStackedGridHeight(rowCount: number, maxHeight = 400): number {
-    const ROW_HEIGHT = 35;
+export function getStackedGridHeight(rowCount: number, maxHeight = 400, rowHeight = 35): number {
     const HEADER_HEIGHT = 35;
-    const contentHeight = HEADER_HEIGHT + rowCount * ROW_HEIGHT;
+    const contentHeight = HEADER_HEIGHT + rowCount * rowHeight;
     return Math.min(contentHeight, maxHeight);
 }
 

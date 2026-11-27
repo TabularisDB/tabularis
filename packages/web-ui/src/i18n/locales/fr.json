@@ -877,6 +877,10 @@
     "dataGrid": {
       "zebraStripes": "Arrière-plan alterné des lignes",
       "zebraStripesDesc": "Ombrage une ligne sur deux pour suivre plus facilement une ligne dans les tableaux larges.",
+      "rowDensity": "Densité des lignes",
+      "rowDensityDesc": "Compacte utilise des lignes moins hautes avec moins de marge, pour afficher plus de lignes à l’écran.",
+      "rowDensityComfortable": "Confortable",
+      "rowDensityCompact": "Compacte",
       "defaultSortDirection": "Direction de tri par défaut",
       "defaultSortDirectionDesc": "Ordre de tri initial lors du premier clic sur l'en-tête d'une colonne.",
       "sortAscending": "Croissant",

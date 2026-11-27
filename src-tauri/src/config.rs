@@ -113,6 +113,9 @@ pub struct AppConfig {
     pub sticky_column_headers: Option<bool>,
     /// Alternate the background of data grid rows. Default: false.
     pub result_zebra_stripes: Option<bool>,
+    /// Data grid row density: `"comfortable"` (35 px rows) or `"compact"`
+    /// (shorter rows that follow the font size). Default: `"comfortable"`.
+    pub result_grid_density: Option<String>,
     /// Where the editor's open tabs sit: `"horizontal"` (along the top) or
     /// `"vertical"` (down the left). Default: `"horizontal"`.
     pub tab_layout: Option<String>,
@@ -872,6 +875,17 @@ mod tests {
         assert!(json.contains("defaultSortDirection"));
         let parsed: AppConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.default_sort_direction.as_deref(), Some("desc"));
+    }
+
+    #[test]
+    fn result_grid_density_serializes_with_camel_case_and_round_trips() {
+        let mut config = AppConfig::default();
+        assert!(config.result_grid_density.is_none());
+        config.result_grid_density = Some("compact".into());
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("resultGridDensity"));
+        let parsed: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.result_grid_density.as_deref(), Some("compact"));
     }
 
     #[test]

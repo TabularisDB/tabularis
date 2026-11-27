@@ -184,6 +184,37 @@ describe('AppearanceTab theme mode', () => {
         expect(updateSetting).toHaveBeenCalledWith('tabLayout', other);
     });
 
+    it.each([
+        [undefined, 'Comfortable'],
+        ['comfortable', 'Comfortable'],
+        ['compact', 'Compact'],
+        ['spacious', 'Comfortable'],
+    ] as const)(
+        'shows the %s row density as %s and lets you change it (#339)',
+        async (stored, shown) => {
+            appearanceSettings = {
+                resultGridDensity: stored as Settings['resultGridDensity'],
+            };
+            const user = userEvent.setup();
+            render(
+                <MemoryRouter>
+                    <AppearanceTab />
+                </MemoryRouter>,
+            );
+            const other = shown === 'Compact' ? 'Comfortable' : 'Compact';
+            expect(
+                screen.getByRole('button', {name: `settings.dataGrid.rowDensity${shown}`}),
+            ).toHaveAttribute('aria-pressed', 'true');
+            expect(
+                screen.getByRole('button', {name: `settings.dataGrid.rowDensity${other}`}),
+            ).toHaveAttribute('aria-pressed', 'false');
+            await user.click(
+                screen.getByRole('button', {name: `settings.dataGrid.rowDensity${other}`}),
+            );
+            expect(updateSetting).toHaveBeenCalledWith('resultGridDensity', other.toLowerCase());
+        },
+    );
+
     it.each([undefined, true, false])(
         'exposes a keyboard-accessible connection color bar toggle for value %s',
         async (connectionColorBar) => {

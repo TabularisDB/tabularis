@@ -845,6 +845,10 @@
     "dataGrid": {
       "zebraStripes": "交替行背景",
       "zebraStripesDesc": "为每隔一行添加底色，便于在宽表中横向追踪某一行。",
+      "rowDensity": "行密度",
+      "rowDensityDesc": "紧凑模式使用更矮的行和更少的内边距，让屏幕显示更多行。",
+      "rowDensityComfortable": "舒适",
+      "rowDensityCompact": "紧凑",
       "defaultSortDirection": "默认排序方向",
       "defaultSortDirectionDesc": "首次点击列标题时的初始排序顺序。",
       "sortAscending": "升序",

@@ -46,6 +46,7 @@ const {
     scrollToIndexMock,
     scrollToOffsetMock,
     virtualizerOptionsMock,
+    virtualizerMeasureMock,
     virtualizerRenderControl,
     sidebarState,
     writeHtmlMock,
@@ -60,6 +61,7 @@ const {
     scrollToOffsetMock: vi.fn(),
     // Records the options each useVirtualizer call received.
     virtualizerOptionsMock: vi.fn(),
+    virtualizerMeasureMock: vi.fn(),
     // Lets a single test simulate the virtualizer's first, unmeasured commit,
     // where it has no virtual items yet.
     virtualizerRenderControl: {forceEmpty: false},
@@ -100,6 +102,7 @@ const {settingsState} = vi.hoisted(() => ({
     settingsState: {} as {
         nullDisplay?: 'default' | 'parenthesized' | 'emptySet' | 'empty';
         resultZebraStripes?: boolean;
+        resultGridDensity?: string;
     },
 }));
 
@@ -147,6 +150,7 @@ vi.mock('@tanstack/react-virtual', () => ({
             getVirtualItems: () => items,
             getTotalSize: () => count * 35,
             scrollToIndex: scrollToIndexMock,
+            measure: virtualizerMeasureMock,
             // The real virtualizer applies the offset to the scroll element
             // itself, and — like a real, unmeasured browser viewport — clamps it
             // to 0 when nothing has rendered yet.
@@ -408,6 +412,127 @@ describe('DataGrid NULL display (#1300)', () => {
         expect(cell(container, 1).textContent).toBe('');
         expect(cell(container, 1).querySelector('[data-null-marker]')).not.toBeNull();
         expect(cell(container, 2).querySelector('[data-null-marker]')).toBeNull();
+    });
+});
+
+describe('DataGrid row density (#339)', () => {
+    afterEach(() => {
+        delete settingsState.resultGridDensity;
+    });
+
+    const renderGrid = () =>
+        render(
+            <DataGrid
+                columns={['id', 'name']}
+                data={[
+                    [1, 'Alice'],
+                    [2, 'Bob'],
+                ]}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                readonly
+            />,
+        );
+    const firstRow = (container: HTMLElement) =>
+        container.querySelector<HTMLElement>('tr[data-row-index="0"]')!;
+    const dataCell = (container: HTMLElement) =>
+        firstRow(container).querySelector<HTMLElement>('td[data-col-index="0"]')!;
+    // The row virtualizer's own size estimate, from its latest options.
+    const estimatedRowHeight = () => {
+        const rowOptions = virtualizerOptionsMock.mock.calls
+            .map(([options]) => options)
+            .filter((options) => !options.horizontal);
+        return rowOptions.at(-1).estimateSize(0) as number;
+    };
+
+    it('renders 35 px rows with the default density', () => {
+        const {container} = renderGrid();
+        expect(firstRow(container).style.height).toBe('35px');
+        expect(estimatedRowHeight()).toBe(35);
+        expect(dataCell(container)).toHaveClass('py-1.5');
+    });
+
+    it('renders shorter rows with the compact density', () => {
+        settingsState.resultGridDensity = 'compact';
+        const {container} = renderGrid();
+        expect(parseFloat(firstRow(container).style.height)).toBeLessThan(35);
+    });
+
+    it('sizes the virtualizer to the compact row', () => {
+        settingsState.resultGridDensity = 'compact';
+        const {container} = renderGrid();
+        expect(estimatedRowHeight()).toBeLessThan(35);
+        expect(estimatedRowHeight()).toBe(parseFloat(firstRow(container).style.height));
+    });
+
+    it('tightens the cell padding with the compact density', () => {
+        settingsState.resultGridDensity = 'compact';
+        const {container} = renderGrid();
+        expect(dataCell(container)).not.toHaveClass('py-1.5');
+    });
+
+    it('top-aligns inline cell content such as Boolean checkboxes in compact rows', () => {
+        settingsState.resultGridDensity = 'compact';
+        const {container} = renderGrid();
+        expect(dataCell(container)).toHaveClass('[&_.inline-flex]:align-top');
+    });
+
+    it('leaves inline cell content on the baseline with the default density', () => {
+        const {container} = renderGrid();
+        expect(dataCell(container)).not.toHaveClass('[&_.inline-flex]:align-top');
+    });
+
+    it('gives the row number cell the compact padding too', () => {
+        settingsState.resultGridDensity = 'compact';
+        const {container} = renderGrid();
+        const rowNumberCell = firstRow(container).querySelector('td')!;
+        expect(rowNumberCell).toHaveClass('py-0.5');
+        expect(rowNumberCell).not.toHaveClass('py-1.5');
+    });
+
+    it('re-measures the rows when the density changes while mounted', () => {
+        virtualizerMeasureMock.mockClear();
+        const props = {
+            columns: ['id'],
+            data: [[1], [2]],
+            selectedRows: new Set<number>(),
+            onSelectionChange: vi.fn(),
+            readonly: true,
+        };
+        const {container, rerender} = render(<DataGrid {...props} />);
+        expect(virtualizerMeasureMock).not.toHaveBeenCalled();
+
+        // The mocked settings are not a context, so a new prop stands in for the
+        // re-render a settings change triggers in the app.
+        settingsState.resultGridDensity = 'compact';
+        rerender(<DataGrid {...props} selectedRows={new Set<number>()} />);
+
+        expect(virtualizerMeasureMock).toHaveBeenCalledTimes(1);
+        expect(estimatedRowHeight()).toBe(25);
+        expect(firstRow(container).style.height).toBe('25px');
+    });
+
+    it('pages by the compact row height', () => {
+        settingsState.resultGridDensity = 'compact';
+        const {container} = render(
+            <DataGrid
+                columns={['id']}
+                data={Array.from({length: 40}, (_, i) => [i])}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                readonly
+            />,
+        );
+        const grid = container.querySelector<HTMLElement>('div[tabindex="0"]')!;
+        Object.defineProperty(grid, 'clientHeight', {configurable: true, value: 400});
+        const cell = (row: number) =>
+            container.querySelector(`td[data-row-index="${row}"][data-col-index="0"]`)!;
+
+        fireEvent.click(cell(0));
+        fireEvent.keyDown(grid, {key: 'PageDown'});
+
+        // 400 px holds 16 compact rows of 25 px; one stays visible as the anchor.
+        expect(cell(15)).toHaveClass('ring-2');
     });
 });
 
@@ -4187,6 +4312,38 @@ describe('DataGrid transposed layout (#561)', () => {
         const {container} = renderTransposed();
 
         expect(gridOf(container)).toHaveStyle({scrollPaddingTop: '35px'});
+    });
+
+    describe('with the compact row density (#339)', () => {
+        afterEach(() => {
+            delete settingsState.resultGridDensity;
+        });
+
+        const fieldRow = (container: HTMLElement, colIndex: number) =>
+            container.querySelector<HTMLElement>(`tbody tr[data-field-index="${colIndex}"]`)!;
+        const fieldLabel = (container: HTMLElement, colIndex: number) =>
+            container.querySelector(`th[scope="row"][data-col-index="${colIndex}"]`)!;
+
+        it('shortens the field rows and keeps the record header row at 35 px', () => {
+            settingsState.resultGridDensity = 'compact';
+            const {container} = renderTransposed();
+
+            expect(fieldRow(container, 0).style.height).toBe('25px');
+            expect(fieldLabel(container, 0)).toHaveClass('py-0.5');
+            expect(cellAt(container, 0, 1)).toHaveClass('py-0.5');
+            expect(container.querySelector<HTMLElement>('thead tr')!.style.height).toBe('35px');
+        });
+
+        it('pins the frozen first field under the 35 px header and pads by one compact row', async () => {
+            settingsState.resultGridDensity = 'compact';
+            const {container} = renderTransposed();
+
+            fireEvent.contextMenu(fieldLabel(container, 1));
+            fireEvent.click(await screen.findByText('dataGrid.freezeFirstRow'));
+
+            expect(fieldLabel(container, 0)).toHaveStyle({top: '35px'});
+            expect(gridOf(container)).toHaveStyle({scrollPaddingTop: '60px'});
+        });
     });
 
     it('starts at the top-left after switching layouts', () => {

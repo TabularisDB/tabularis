@@ -307,6 +307,7 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         column_masking_overrides,
         column_masking_patterns,
         result_zebra_stripes,
+        result_grid_density,
         tab_layout,
         connection_color_bar,
         row_editor_follow_selection,

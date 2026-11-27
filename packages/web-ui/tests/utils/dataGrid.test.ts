@@ -5,6 +5,8 @@ import {
     calculateSelectionRange,
     toggleSetValue,
     isZebraStripedRow,
+    getDataGridRowHeight,
+    getDataGridCellDensityClass,
     USE_DEFAULT_SENTINEL,
     resolveInsertionCellDisplay,
     resolveExistingCellDisplay,
@@ -1326,6 +1328,40 @@ describe('dataGrid utils', () => {
         it('should never stripe when disabled', () => {
             expect(isZebraStripedRow(1, false)).toBe(false);
             expect(isZebraStripedRow(3, false)).toBe(false);
+        });
+    });
+
+    describe('getDataGridRowHeight (#339)', () => {
+        it('keeps 35 px comfortable rows at every font size', () => {
+            for (const fontSize of [10, 14, 20]) {
+                expect(getDataGridRowHeight('comfortable', fontSize)).toBe(35);
+            }
+        });
+
+        it('scales compact rows with the font size, 1.75rem rounded to whole px', () => {
+            expect(getDataGridRowHeight('compact', 10)).toBe(18);
+            expect(getDataGridRowHeight('compact', 14)).toBe(25);
+            expect(getDataGridRowHeight('compact', 20)).toBe(35);
+        });
+
+        it('uses the default 14 px font size when none is set', () => {
+            expect(getDataGridRowHeight('compact', undefined)).toBe(25);
+            expect(getDataGridRowHeight('compact', 0)).toBe(25);
+        });
+
+        it('treats a missing or unknown density as comfortable', () => {
+            expect(getDataGridRowHeight(undefined, 14)).toBe(35);
+            expect(getDataGridRowHeight('spacious' as unknown as 'comfortable', 14)).toBe(35);
+        });
+    });
+
+    describe('getDataGridCellDensityClass (#339)', () => {
+        it('tightens the vertical padding and top-aligns inline content only for compact rows', () => {
+            expect(getDataGridCellDensityClass('compact')).toBe(
+                'py-0.5 [&_.inline-flex]:align-top',
+            );
+            expect(getDataGridCellDensityClass('comfortable')).toBe('py-1.5');
+            expect(getDataGridCellDensityClass(undefined)).toBe('py-1.5');
         });
     });
 });

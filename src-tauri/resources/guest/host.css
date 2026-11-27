@@ -6795,6 +6795,11 @@
       max-width: 100% !important;
     }
   }
+  .\[\&_\.inline-flex\]\:align-top {
+    & .inline-flex {
+      vertical-align: top;
+    }
+  }
   .\[\&_a\]\:cursor-pointer {
     & a {
       cursor: pointer;
