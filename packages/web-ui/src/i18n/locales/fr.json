@@ -3889,5 +3889,72 @@
     "saveBeforeExport": "Enregistrez vos modifications avant d'exporter.",
     "discardTitle": "Abandonner les notes non enregistrées ?",
     "discardMessage": "Vos modifications des notes n'ont pas été enregistrées. Fermer maintenant les supprimera."
+  },
+  "saveHistory": {
+    "title": "Modifications enregistrées",
+    "subtitle": "Examinez et restaurez les modifications de la grille que vous avez enregistrées",
+    "openAction": "Historique des modifications enregistrées",
+    "close": "Fermer",
+    "recording": {
+      "label": "Enregistrer l'historique des modifications de la grille",
+      "description": "Conserve les valeurs avant et après chaque modification enregistrée afin que vous puissiez les examiner et les restaurer. Seules les mises à jour d'une seule table PostgreSQL ayant une clé primaire sont enregistrées.",
+      "storage": "Les valeurs enregistrées sont stockées sans chiffrement dans le dossier de données de Tabularis, sur la machine qui exécute Tabularis, dans un fichier lisible uniquement par le compte qui l'exécute. Les enregistrements ne concernent que cette connexion. Les anciens enregistrements sont supprimés automatiquement.",
+      "unsupported": "Le pilote de cette connexion ne peut pas enregistrer les modifications."
+    },
+    "empty": "Aucune modification enregistrée pour cette table.",
+    "emptyDisabled": "L'enregistrement est désactivé. Activez-le pour conserver un historique des modifications enregistrées.",
+    "loading": "Chargement…",
+    "list": {
+      "row": "Ligne",
+      "columns": "Colonnes : {{columns}}",
+      "restoredAt": "Restauré {{date}}",
+      "reviewOnly": "Consultation seule"
+    },
+    "plan": {
+      "title": "Plan de restauration",
+      "intro": "La restauration réécrit les anciennes valeurs dans cette ligne sous forme de nouvelle modification. Ce n'est pas une annulation : elle n'annule ni les déclencheurs, ni les effets externes, ni le SQL exécuté après l'enregistrement.",
+      "column": "Colonne",
+      "saved": "Écrit par l'enregistrement",
+      "current": "Valeur actuelle",
+      "restoreTo": "Restaurer à",
+      "nullValue": "NULL",
+      "notCaptured": "non capturé",
+      "unavailable": "—"
+    },
+    "status": {
+      "ready": "La ligne contient toujours les valeurs enregistrées. Examinez le plan, puis restaurez.",
+      "conflict": "La ligne a changé après cet enregistrement. Rien n'a été restauré.",
+      "rowMissing": "La ligne n'existe plus ou sa clé a changé. Rien n'a été restauré.",
+      "notRestorable": "Cet enregistrement est conservé pour consultation seulement et ne peut pas être restauré.",
+      "alreadyRestored": "Cet enregistrement a déjà été restauré.",
+      "targetChanged": "La connexion enregistrée pointe maintenant vers un autre serveur que celui de cet enregistrement. Rien n'a été restauré.",
+      "restored": "Les valeurs ont été restaurées."
+    },
+    "reason": {
+      "keyChanged": "Une colonne de la clé a été modifiée, la ligne a donc été déplacée.",
+      "tableHasTriggers": "La table a des déclencheurs qui ont pu modifier d'autres données.",
+      "generatedColumn": "Une colonne générée ne peut pas être écrite.",
+      "valueNotCaptured": "Une valeur était trop volumineuse pour être conservée ou n'a pas pu être lue.",
+      "unknown": "Cet enregistrement ne peut pas être restauré."
+    },
+    "actions": {
+      "restore": "Restaurer les valeurs",
+      "restoring": "Restauration…",
+      "compare": "Comparer à nouveau",
+      "delete": "Supprimer l'enregistrement",
+      "clearAll": "Tout effacer"
+    },
+    "clear": {
+      "title": "Effacer les modifications enregistrées ?",
+      "message": "Cela supprime tous les enregistrements de cette connexion. Les lignes de la base de données ne sont pas modifiées.",
+      "confirm": "Tout effacer"
+    },
+    "errors": {
+      "load": "Impossible de charger les modifications enregistrées : ",
+      "plan": "Impossible de comparer avec la ligne actuelle : ",
+      "restore": "Impossible de restaurer les valeurs : ",
+      "toggle": "Impossible de modifier le réglage d'enregistrement : ",
+      "recordingFailed": "Les modifications ont été enregistrées, mais n'ont pas pu être journalisées car le fichier d'historique n'a pas pu être écrit."
+    }
   }
 }

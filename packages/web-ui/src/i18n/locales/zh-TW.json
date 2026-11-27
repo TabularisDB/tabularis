@@ -3871,5 +3871,72 @@
         "saveBeforeExport": "匯出前請先儲存變更。",
         "discardTitle": "捨棄未儲存的備註？",
         "discardMessage": "備註的變更尚未儲存。現在關閉將會遺失這些變更。"
+    },
+  "saveHistory": {
+    "title": "已儲存的變更",
+    "subtitle": "檢視並還原已儲存的表格編輯",
+    "openAction": "已儲存變更的歷程記錄",
+    "close": "關閉",
+    "recording": {
+      "label": "記錄已儲存的表格編輯",
+      "description": "保留每次已儲存編輯前後的值,以便你檢視與還原。僅記錄對具有主鍵的單一 PostgreSQL 資料表的更新。",
+      "storage": "記錄的值未加密,儲存在執行 Tabularis 的主機上的 Tabularis 資料資料夾中,檔案僅執行 Tabularis 的帳號可讀取,且僅限此連線。舊記錄會自動移除。",
+      "unsupported": "此連線的驅動程式不支援記錄已儲存的編輯。"
+    },
+    "empty": "此資料表尚無已記錄的已儲存變更。",
+    "emptyDisabled": "記錄已關閉。開啟後將保留已儲存編輯的記錄。",
+    "loading": "載入中…",
+    "list": {
+      "row": "列",
+      "columns": "欄位:{{columns}}",
+      "restoredAt": "已於 {{date}} 還原",
+      "reviewOnly": "僅供檢視"
+    },
+    "plan": {
+      "title": "還原計畫",
+      "intro": "還原會將先前的值以新的變更寫回此列。這不是回復:它不會復原觸發器、外部影響或儲存之後執行的其他 SQL。",
+      "column": "欄位",
+      "saved": "儲存時寫入的值",
+      "current": "目前的值",
+      "restoreTo": "還原為",
+      "nullValue": "NULL",
+      "notCaptured": "未擷取",
+      "unavailable": "—"
+    },
+    "status": {
+      "ready": "該列仍保有已儲存的值。請檢視計畫後再還原。",
+      "conflict": "該列在此次儲存之後已發生變化。未還原任何內容。",
+      "rowMissing": "該列已不存在或其鍵已變更。未還原任何內容。",
+      "notRestorable": "此次儲存僅供檢視,無法還原。",
+      "alreadyRestored": "此次儲存已經還原過。",
+      "targetChanged": "已儲存的連線現在指向與此次儲存不同的伺服器。未還原任何內容。",
+      "restored": "值已還原。"
+    },
+    "reason": {
+      "keyChanged": "鍵欄位被修改,因此該列已移動。",
+      "tableHasTriggers": "此資料表有觸發器,可能已變更其他資料。",
+      "generatedColumn": "無法寫入產生欄位。",
+      "valueNotCaptured": "某個值過大而無法保留,或無法讀取。",
+      "unknown": "此次儲存無法還原。"
+    },
+    "actions": {
+      "restore": "還原值",
+      "restoring": "還原中…",
+      "compare": "重新比較",
+      "delete": "刪除記錄",
+      "clearAll": "全部清除"
+    },
+    "clear": {
+      "title": "清除已儲存的變更?",
+      "message": "這會刪除此連線所有已記錄的儲存。資料庫中的列不會受到影響。",
+      "confirm": "全部清除"
+    },
+    "errors": {
+      "load": "無法載入已儲存的變更:",
+      "plan": "無法與目前的列比較:",
+      "restore": "無法還原這些值:",
+      "toggle": "無法變更記錄設定:",
+      "recordingFailed": "變更已儲存,但因無法寫入歷程檔案,未能記錄。"
     }
+  }
 }

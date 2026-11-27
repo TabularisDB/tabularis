@@ -3761,5 +3761,72 @@
     "saveBeforeExport": "내보내기 전에 변경 사항을 저장하세요.",
     "discardTitle": "저장하지 않은 메모를 버릴까요?",
     "discardMessage": "메모 변경 사항이 저장되지 않았습니다. 지금 닫으면 변경 사항이 사라집니다."
+  },
+  "saveHistory": {
+    "title": "저장된 변경 사항",
+    "subtitle": "저장한 그리드 편집을 검토하고 복원합니다",
+    "openAction": "저장된 변경 사항 기록",
+    "close": "닫기",
+    "recording": {
+      "label": "저장된 그리드 편집 기록",
+      "description": "저장된 편집 전후의 값을 보관하여 검토하고 복원할 수 있게 합니다. 기본 키가 있는 단일 PostgreSQL 테이블의 업데이트만 기록됩니다.",
+      "storage": "기록된 값은 Tabularis를 실행하는 컴퓨터의 Tabularis 데이터 폴더에, 실행 계정만 읽을 수 있는 파일로 암호화 없이 저장되며, 이 연결에만 적용됩니다. 오래된 기록은 자동으로 삭제됩니다.",
+      "unsupported": "이 연결의 드라이버는 저장된 편집을 기록할 수 없습니다."
+    },
+    "empty": "이 테이블에 기록된 저장된 변경 사항이 없습니다.",
+    "emptyDisabled": "기록이 꺼져 있습니다. 켜면 저장된 편집의 기록을 보관합니다.",
+    "loading": "불러오는 중…",
+    "list": {
+      "row": "행",
+      "columns": "열: {{columns}}",
+      "restoredAt": "{{date}}에 복원됨",
+      "reviewOnly": "검토 전용"
+    },
+    "plan": {
+      "title": "복원 계획",
+      "intro": "복원하면 이전 값이 새 변경으로 이 행에 다시 기록됩니다. 롤백이 아닙니다. 트리거, 외부 영향 또는 저장 이후에 실행된 다른 SQL은 되돌리지 않습니다.",
+      "column": "열",
+      "saved": "저장 시 기록된 값",
+      "current": "현재 값",
+      "restoreTo": "복원할 값",
+      "nullValue": "NULL",
+      "notCaptured": "캡처되지 않음",
+      "unavailable": "—"
+    },
+    "status": {
+      "ready": "행에 저장된 값이 그대로 남아 있습니다. 계획을 검토한 후 복원하세요.",
+      "conflict": "이 저장 이후 행이 변경되었습니다. 아무것도 복원되지 않았습니다.",
+      "rowMissing": "행이 더 이상 없거나 키가 변경되었습니다. 아무것도 복원되지 않았습니다.",
+      "notRestorable": "이 저장은 검토용으로만 보관되며 복원할 수 없습니다.",
+      "alreadyRestored": "이 저장은 이미 복원되었습니다.",
+      "targetChanged": "저장된 연결이 이 저장을 수행한 서버와 다른 서버를 가리킵니다. 아무것도 복원되지 않았습니다.",
+      "restored": "값이 복원되었습니다."
+    },
+    "reason": {
+      "keyChanged": "키 열이 변경되어 행이 이동했습니다.",
+      "tableHasTriggers": "테이블에 다른 데이터를 변경했을 수 있는 트리거가 있습니다.",
+      "generatedColumn": "생성된 열은 쓸 수 없습니다.",
+      "valueNotCaptured": "값이 너무 커서 보관할 수 없거나 읽을 수 없었습니다.",
+      "unknown": "이 저장은 복원할 수 없습니다."
+    },
+    "actions": {
+      "restore": "값 복원",
+      "restoring": "복원 중…",
+      "compare": "다시 비교",
+      "delete": "기록 삭제",
+      "clearAll": "모두 지우기"
+    },
+    "clear": {
+      "title": "저장된 변경 사항을 지우시겠습니까?",
+      "message": "이 연결에 기록된 모든 저장이 삭제됩니다. 데이터베이스의 행은 영향을 받지 않습니다.",
+      "confirm": "모두 지우기"
+    },
+    "errors": {
+      "load": "저장된 변경 사항을 불러오지 못했습니다: ",
+      "plan": "현재 행과 비교하지 못했습니다: ",
+      "restore": "값을 복원하지 못했습니다: ",
+      "toggle": "기록 설정을 변경하지 못했습니다: ",
+      "recordingFailed": "변경 사항은 저장되었지만 기록 파일에 쓸 수 없어 기록되지 않았습니다."
+    }
   }
 }

@@ -34,6 +34,12 @@ import type {
     TableSchema,
 } from '@/types/editor';
 import type {ForeignKey, Index} from '@/types/schema';
+import type {
+    RecordedSaveResponse,
+    RestorePlan,
+    SaveHistoryStatus,
+    SaveRecord,
+} from '@/types/saveHistory';
 import type {MonacoThemeDefinition, Theme} from '@/types/theme';
 import type {Settings} from '@/contexts/SettingsContext';
 import type {SavedQuery, SavedQueryFolder, SavedQueryVersion} from '@/contexts/SavedQueriesContext';
@@ -381,6 +387,18 @@ export interface RecordIdentityRequest extends RecordLocator {
 
 export interface BlobColumnRequest extends RecordIdentityRequest {
     colName: string;
+}
+
+export interface SaveRecordedRowRequest extends RecordIdentityRequest {
+    changes: Record<string, unknown>;
+}
+
+export interface ListSaveHistoryRequest extends MetadataRequest {
+    table?: string;
+}
+
+export interface SaveHistoryRecordRequest extends ConnectionIdRequest {
+    recordId: string;
 }
 
 export interface ColumnDefinition {
@@ -1372,6 +1390,21 @@ export interface CommandMap {
     >;
     insert_record: CommandDefinition<
         RecordLocator & {data: Record<string, unknown>},
+        number,
+        'database'
+    >;
+    save_recorded_row: CommandDefinition<SaveRecordedRowRequest, RecordedSaveResponse, 'database'>;
+    get_save_history_status: CommandDefinition<ConnectionIdRequest, SaveHistoryStatus, 'database'>;
+    set_save_history_enabled: CommandDefinition<
+        ConnectionIdRequest & {enabled: boolean},
+        SaveHistoryStatus,
+        'database'
+    >;
+    list_save_history: CommandDefinition<ListSaveHistoryRequest, SaveRecord[], 'database'>;
+    plan_save_restore: CommandDefinition<SaveHistoryRecordRequest, RestorePlan, 'database'>;
+    apply_save_restore: CommandDefinition<SaveHistoryRecordRequest, RestorePlan, 'database'>;
+    delete_save_history: CommandDefinition<
+        ConnectionIdRequest & {recordId?: string},
         number,
         'database'
     >;

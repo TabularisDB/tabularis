@@ -315,6 +315,7 @@ impl ApplicationApi for FixtureApplication {
             RecordCommand::DetectMimeType { .. } => {
                 serde_json::json!("application/octet-stream")
             }
+            RecordCommand::SaveHistory(_) => Value::Null,
         })
     }
 
@@ -676,6 +677,16 @@ fn declares_authorization_for_each_registered_command() {
             .authorization,
         AuthorizationLevel::Sensitive
     );
+    for command in [
+        RecordRpcCommand::SaveRecordedRow,
+        RecordRpcCommand::ListSaveHistory,
+        RecordRpcCommand::ApplySaveRestore,
+    ] {
+        assert_eq!(
+            RpcCommand::Record(command).metadata().authorization,
+            AuthorizationLevel::Database
+        );
+    }
     assert_eq!(
         RpcCommand::DatabaseObject(DatabaseObjectRpcCommand::CreateView)
             .metadata()
@@ -2014,6 +2025,39 @@ async fn routes_data_editing_and_blob_commands_through_the_shared_application_ap
         (
             "detect_mime_type",
             serde_json::json!({"headerBase64": "AAECAw=="}),
+        ),
+        (
+            "save_recorded_row",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "table": "files",
+                "pkMap": {"id": 1},
+                "changes": {"name": "after", "payload": null}
+            }),
+        ),
+        (
+            "get_save_history_status",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+        (
+            "set_save_history_enabled",
+            serde_json::json!({"connectionId": "connection-1", "enabled": true}),
+        ),
+        (
+            "list_save_history",
+            serde_json::json!({"connectionId": "connection-1", "table": "files"}),
+        ),
+        (
+            "plan_save_restore",
+            serde_json::json!({"connectionId": "connection-1", "recordId": "record-1"}),
+        ),
+        (
+            "apply_save_restore",
+            serde_json::json!({"connectionId": "connection-1", "recordId": "record-1"}),
+        ),
+        (
+            "delete_save_history",
+            serde_json::json!({"connectionId": "connection-1"}),
         ),
     ];
 

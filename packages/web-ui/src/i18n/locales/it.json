@@ -3746,5 +3746,72 @@
     "saveBeforeExport": "Salva le modifiche prima di esportare.",
     "discardTitle": "Scartare le note non salvate?",
     "discardMessage": "Le modifiche alle note non sono state salvate. Chiudendo ora andranno perse."
+  },
+  "saveHistory": {
+    "title": "Modifiche salvate",
+    "subtitle": "Controlla e ripristina le modifiche della griglia che hai salvato",
+    "openAction": "Cronologia delle modifiche salvate",
+    "close": "Chiudi",
+    "recording": {
+      "label": "Registra le modifiche salvate della griglia",
+      "description": "Conserva i valori prima e dopo ogni modifica salvata, così puoi controllarli e ripristinarli. Vengono registrati solo gli aggiornamenti di una singola tabella PostgreSQL con chiave primaria.",
+      "storage": "I valori registrati sono archiviati senza cifratura nella cartella dati di Tabularis, sulla macchina che esegue Tabularis, in un file leggibile solo dall'account che lo esegue. I record riguardano solo questa connessione. I record vecchi vengono rimossi automaticamente.",
+      "unsupported": "Il driver di questa connessione non può registrare le modifiche salvate."
+    },
+    "empty": "Nessuna modifica salvata è stata registrata per questa tabella.",
+    "emptyDisabled": "La registrazione è disattivata. Attivala per conservare un registro delle modifiche salvate.",
+    "loading": "Caricamento…",
+    "list": {
+      "row": "Riga",
+      "columns": "Colonne: {{columns}}",
+      "restoredAt": "Ripristinato {{date}}",
+      "reviewOnly": "Sola consultazione"
+    },
+    "plan": {
+      "title": "Piano di ripristino",
+      "intro": "Il ripristino riscrive i valori precedenti in questa riga come nuova modifica. Non è un rollback: non annulla trigger, effetti esterni o altro SQL eseguito dopo il salvataggio.",
+      "column": "Colonna",
+      "saved": "Scritto dal salvataggio",
+      "current": "Valore attuale",
+      "restoreTo": "Ripristina a",
+      "nullValue": "NULL",
+      "notCaptured": "non acquisito",
+      "unavailable": "—"
+    },
+    "status": {
+      "ready": "La riga contiene ancora i valori salvati. Controlla il piano, poi ripristina.",
+      "conflict": "La riga è cambiata dopo questo salvataggio. Non è stato ripristinato nulla.",
+      "rowMissing": "La riga non esiste più o la sua chiave è cambiata. Non è stato ripristinato nulla.",
+      "notRestorable": "Questo salvataggio è conservato solo per consultazione e non può essere ripristinato.",
+      "alreadyRestored": "Questo salvataggio è già stato ripristinato.",
+      "targetChanged": "La connessione salvata ora punta a un server diverso da quello su cui è stato eseguito questo salvataggio. Non è stato ripristinato nulla.",
+      "restored": "I valori sono stati ripristinati."
+    },
+    "reason": {
+      "keyChanged": "Una colonna della chiave è stata modificata, quindi la riga si è spostata.",
+      "tableHasTriggers": "La tabella ha trigger che potrebbero aver modificato altri dati.",
+      "generatedColumn": "Una colonna generata non può essere scritta.",
+      "valueNotCaptured": "Un valore era troppo grande per essere conservato o non è stato possibile leggerlo.",
+      "unknown": "Questo salvataggio non può essere ripristinato."
+    },
+    "actions": {
+      "restore": "Ripristina valori",
+      "restoring": "Ripristino…",
+      "compare": "Confronta di nuovo",
+      "delete": "Elimina record",
+      "clearAll": "Cancella tutto"
+    },
+    "clear": {
+      "title": "Cancellare le modifiche salvate?",
+      "message": "Verranno eliminati tutti i salvataggi registrati per questa connessione. Le righe nel database non vengono toccate.",
+      "confirm": "Cancella tutto"
+    },
+    "errors": {
+      "load": "Impossibile caricare le modifiche salvate: ",
+      "plan": "Impossibile confrontare con la riga attuale: ",
+      "restore": "Impossibile ripristinare i valori: ",
+      "toggle": "Impossibile cambiare l'impostazione di registrazione: ",
+      "recordingFailed": "Le modifiche sono state salvate, ma non è stato possibile registrarle perché il file della cronologia non è scrivibile."
+    }
   }
 }

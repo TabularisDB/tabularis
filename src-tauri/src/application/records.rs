@@ -59,6 +59,7 @@ pub enum RecordCommand {
     DetectMimeType {
         header_base64: String,
     },
+    SaveHistory(super::save_history::SaveHistoryCommand),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -175,6 +176,9 @@ pub async fn execute(
         RecordCommand::DetectMimeType { header_base64 } => {
             serde_json::to_value(detect_mime_type(&header_base64)?)
         }
+        RecordCommand::SaveHistory(command) => {
+            return super::save_history::execute(runtime, session_id, command).await;
+        }
     };
     result.map_err(|error| error.to_string())
 }
@@ -256,6 +260,50 @@ pub async fn update_record(
         )
         .await;
     drop(upload);
+    result
+}
+
+/// Applies every change to one row in a single transaction and returns what
+/// the driver verified before and after.
+#[allow(clippy::too_many_arguments)]
+pub async fn update_row_recorded(
+    runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
+    connection_id: &str,
+    driver: &dyn DatabaseDriver,
+    params: &crate::models::ConnectionParams,
+    table: &str,
+    pk_map: &HashMap<String, Value>,
+    changes: HashMap<String, Value>,
+    schema: Option<&str>,
+) -> Result<crate::drivers::recorded_save::RecordedUpdate, String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
+    log::info!(
+        "Updating {} column(s) on connection {} in table {} with recording",
+        changes.len(),
+        connection_id,
+        table
+    );
+    let max_blob_size = max_blob_size(runtime);
+    reject_server_file_refs(session_id, pk_map.values())?;
+    let mut uploads = Vec::new();
+    let mut resolved = Vec::with_capacity(changes.len());
+    for (col_name, mut value) in changes {
+        if let Some(upload) = resolve_upload_value(
+            runtime.paths.data_dir(),
+            session_id,
+            &mut value,
+            max_blob_size,
+        )? {
+            uploads.push(upload);
+        }
+        resolved.push((col_name, value));
+    }
+    resolved.sort_by(|a, b| a.0.cmp(&b.0));
+    let result = driver
+        .update_row_recorded(params, table, pk_map, resolved, schema, max_blob_size)
+        .await;
+    drop(uploads);
     result
 }
 

@@ -3954,5 +3954,72 @@
     "saveBeforeExport": "Salve suas alterações antes de exportar.",
     "discardTitle": "Descartar as notas não salvas?",
     "discardMessage": "Suas alterações nas notas não foram salvas. Fechar agora vai descartá-las."
+  },
+  "saveHistory": {
+    "title": "Alterações salvas",
+    "subtitle": "Revise e restaure as edições da grade que você salvou",
+    "openAction": "Histórico de alterações salvas",
+    "close": "Fechar",
+    "recording": {
+      "label": "Registrar as edições salvas da grade",
+      "description": "Guarda os valores antes e depois de cada edição salva para que você possa revisá-los e restaurá-los. Somente atualizações de uma única tabela PostgreSQL com chave primária são registradas.",
+      "storage": "Os valores registrados são armazenados sem criptografia na pasta de dados do Tabularis, na máquina que executa o Tabularis, em um arquivo legível apenas pela conta que o executa. Os registros valem apenas para esta conexão. Registros antigos são removidos automaticamente.",
+      "unsupported": "O driver desta conexão não consegue registrar edições salvas."
+    },
+    "empty": "Nenhuma alteração salva foi registrada para esta tabela.",
+    "emptyDisabled": "O registro está desativado. Ative-o para manter um histórico das edições salvas.",
+    "loading": "Carregando…",
+    "list": {
+      "row": "Linha",
+      "columns": "Colunas: {{columns}}",
+      "restoredAt": "Restaurado {{date}}",
+      "reviewOnly": "Somente revisão"
+    },
+    "plan": {
+      "title": "Plano de restauração",
+      "intro": "A restauração grava os valores anteriores de volta nesta linha como uma nova alteração. Não é um rollback: ela não desfaz triggers, efeitos externos nem outro SQL executado após o salvamento.",
+      "column": "Coluna",
+      "saved": "Gravado pelo salvamento",
+      "current": "Valor atual",
+      "restoreTo": "Restaurar para",
+      "nullValue": "NULL",
+      "notCaptured": "não capturado",
+      "unavailable": "—"
+    },
+    "status": {
+      "ready": "A linha ainda contém os valores salvos. Revise o plano e depois restaure.",
+      "conflict": "A linha mudou após este salvamento. Nada foi restaurado.",
+      "rowMissing": "A linha não existe mais ou sua chave mudou. Nada foi restaurado.",
+      "notRestorable": "Este salvamento é mantido apenas para revisão e não pode ser restaurado.",
+      "alreadyRestored": "Este salvamento já foi restaurado.",
+      "targetChanged": "A conexão salva agora aponta para um servidor diferente daquele em que este salvamento foi feito. Nada foi restaurado.",
+      "restored": "Os valores foram restaurados."
+    },
+    "reason": {
+      "keyChanged": "Uma coluna da chave foi alterada, então a linha foi movida.",
+      "tableHasTriggers": "A tabela tem triggers que podem ter alterado outros dados.",
+      "generatedColumn": "Uma coluna gerada não pode ser gravada.",
+      "valueNotCaptured": "Um valor era grande demais para ser mantido ou não pôde ser lido.",
+      "unknown": "Este salvamento não pode ser restaurado."
+    },
+    "actions": {
+      "restore": "Restaurar valores",
+      "restoring": "Restaurando…",
+      "compare": "Comparar novamente",
+      "delete": "Excluir registro",
+      "clearAll": "Limpar tudo"
+    },
+    "clear": {
+      "title": "Limpar as alterações salvas?",
+      "message": "Isso exclui todos os salvamentos registrados desta conexão. As linhas do banco de dados não são afetadas.",
+      "confirm": "Limpar tudo"
+    },
+    "errors": {
+      "load": "Não foi possível carregar as alterações salvas: ",
+      "plan": "Não foi possível comparar com a linha atual: ",
+      "restore": "Não foi possível restaurar os valores: ",
+      "toggle": "Não foi possível alterar a configuração de registro: ",
+      "recordingFailed": "As alterações foram salvas, mas não puderam ser registradas porque o arquivo de histórico não pôde ser gravado."
+    }
   }
 }

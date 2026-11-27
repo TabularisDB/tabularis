@@ -504,8 +504,34 @@ pub fn resolve_connection_params(
     session_id: Option<Uuid>,
 ) -> Result<ConnectionParams, String> {
     let params = expand_connection_params(runtime, params)?;
-    let askpass = scoped_askpass(runtime, &params, session_id)?;
-    resolve_expanded_connection_params(&params, askpass)
+    resolve_expanded_params(runtime, &params, session_id)
+}
+
+/// Resolves the transport of params that already went through
+/// [`expand_connection_params`], without reading any profile again.
+pub fn resolve_expanded_params(
+    runtime: &RuntimeContext,
+    expanded: &ConnectionParams,
+    session_id: Option<Uuid>,
+) -> Result<ConnectionParams, String> {
+    let askpass = scoped_askpass(runtime, expanded, session_id)?;
+    resolve_expanded_connection_params(expanded, askpass)
+}
+
+/// Like [`resolve_expanded_params`], but the transport uses `proxy` instead
+/// of looking the proxy up again, so it opens the route that was checked.
+pub fn resolve_expanded_params_via(
+    runtime: &RuntimeContext,
+    expanded: &ConnectionParams,
+    session_id: Option<Uuid>,
+    proxy: &ResolvedProxy,
+) -> Result<ConnectionParams, String> {
+    let askpass = scoped_askpass(runtime, expanded, session_id)?;
+    let mut resolved = resolve_connection_transport_with(expanded, askpass, Some(&proxy.endpoint))?;
+    if crate::drivers::registry::is_local_path_driver(&resolved.driver) {
+        resolved.database = crate::fs_path::sanitize_database_selection(&resolved.database);
+    }
+    Ok(resolved)
 }
 
 pub fn resolve_expanded_connection_params(
@@ -549,6 +575,14 @@ fn resolve_connection_transport(
     params: &ConnectionParams,
     askpass_server: Option<crate::askpass::AskpassServer>,
 ) -> Result<ConnectionParams, String> {
+    resolve_connection_transport_with(params, askpass_server, None)
+}
+
+fn resolve_connection_transport_with(
+    params: &ConnectionParams,
+    askpass_server: Option<crate::askpass::AskpassServer>,
+    pinned: PinnedProxy<'_>,
+) -> Result<ConnectionParams, String> {
     ensure_single_tunnel(params)?;
     let params = without_socks5_proxy(params);
     let params = params.as_ref();
@@ -561,7 +595,7 @@ fn resolve_connection_transport(
         return resolve_ssm_params(params);
     }
     if params.ssh_enabled.unwrap_or(false) {
-        return resolve_ssh_params(params, askpass_server);
+        return resolve_ssh_params_with(params, askpass_server, pinned);
     }
 
     // A local Unix socket is a file on this machine: there is no host:port to
@@ -572,11 +606,7 @@ fn resolve_connection_transport(
 
     // Direct DB connection — apply database-scope proxy when configured.
     let mut resolved = params.clone();
-    if let Some(proxy) = crate::proxy::resolve_for_connection(
-        crate::proxy::SCOPE_DATABASE,
-        params.connection_id.as_deref(),
-        params.proxy.as_ref(),
-    ) {
+    if let Some(proxy) = proxy_for_scope(crate::proxy::SCOPE_DATABASE, params, pinned) {
         let host = resolved.host.as_deref().unwrap_or("localhost").to_string();
         let port = resolved.port.unwrap_or(DEFAULT_REMOTE_PORT);
         if !is_loopback_host(&host) {
@@ -592,6 +622,88 @@ fn resolve_connection_transport(
         }
     }
     Ok(resolved)
+}
+
+/// The proxy the connection's traffic goes through to reach its server, as
+/// `resolve_connection_transport` and the SSH tunnel will use it. The proxy's
+/// password is left out: it does not change where the traffic ends up.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProxyRoute {
+    pub scope: &'static str,
+    pub protocol: crate::proxy::ProxyProtocol,
+    pub host: String,
+    pub port: u16,
+    pub username: Option<String>,
+}
+
+/// A proxy choice made once. The transport can be handed this instead of
+/// looking the proxy up again, so a change to the global settings in between
+/// cannot send the connection through a different route than the one checked.
+#[derive(Debug, Clone)]
+pub struct ResolvedProxy {
+    /// The endpoint to use for the connection's applicable scope, with its
+    /// password. `None` means the traffic is not proxied.
+    pub endpoint: Option<crate::proxy::ProxyEndpoint>,
+    pub route: Option<ProxyRoute>,
+}
+
+/// A proxy decision made earlier. `Some(None)` is a decision to use no proxy.
+type PinnedProxy<'a> = Option<&'a Option<crate::proxy::ProxyEndpoint>>;
+
+fn proxy_for_scope(
+    scope: &'static str,
+    params: &ConnectionParams,
+    pinned: PinnedProxy<'_>,
+) -> Option<crate::proxy::ProxyEndpoint> {
+    match pinned {
+        Some(choice) => choice.clone(),
+        None => crate::proxy::resolve_for_connection(
+            scope,
+            params.connection_id.as_deref(),
+            params.proxy.as_ref(),
+        ),
+    }
+}
+
+/// The scope whose proxy the connection's traffic uses, or `None` for a
+/// Kubernetes or SSM tunnel, a local socket or a loopback host.
+fn proxy_scope(params: &ConnectionParams) -> Option<&'static str> {
+    if params.k8s_enabled.unwrap_or(false) || params.ssm_enabled.unwrap_or(false) {
+        None
+    } else if params.ssh_enabled.unwrap_or(false) {
+        Some(crate::proxy::SCOPE_SSH_TUNNEL)
+    } else if params.local_unix_socket_path().is_some()
+        || is_loopback_host(params.host.as_deref().unwrap_or("localhost"))
+    {
+        None
+    } else {
+        Some(crate::proxy::SCOPE_DATABASE)
+    }
+}
+
+/// Looks the proxy up once, from the connection's override and the global
+/// settings as they are now.
+pub fn resolve_proxy_once(params: &ConnectionParams) -> ResolvedProxy {
+    let Some(scope) = proxy_scope(params) else {
+        return ResolvedProxy {
+            endpoint: None,
+            route: None,
+        };
+    };
+    let endpoint = proxy_for_scope(scope, params, None);
+    let route = endpoint.as_ref().map(|endpoint| ProxyRoute {
+        scope,
+        protocol: endpoint.protocol,
+        host: endpoint.host.trim().to_lowercase(),
+        port: endpoint.port,
+        username: endpoint.username.clone(),
+    });
+    ResolvedProxy { endpoint, route }
+}
+
+/// `None` when the connection is not proxied.
+pub fn effective_proxy_route(params: &ConnectionParams) -> Option<ProxyRoute> {
+    resolve_proxy_once(params).route
 }
 
 fn is_loopback_host(host: &str) -> bool {
@@ -621,7 +733,15 @@ fn resolve_ssh_params(
     params: &ConnectionParams,
     askpass_server: Option<crate::askpass::AskpassServer>,
 ) -> Result<ConnectionParams, String> {
-    let (target, proxy, key) = ssh_tunnel_route(params)?;
+    resolve_ssh_params_with(params, askpass_server, None)
+}
+
+fn resolve_ssh_params_with(
+    params: &ConnectionParams,
+    askpass_server: Option<crate::askpass::AskpassServer>,
+    pinned: PinnedProxy<'_>,
+) -> Result<ConnectionParams, String> {
+    let (target, proxy, key) = ssh_tunnel_route_with(params, pinned)?;
     let tunnel = open_shared_tunnel(&key, || {
         open_ssh_tunnel(params, &target, proxy, askpass_server)
     })?;
@@ -730,17 +850,27 @@ fn ssh_tunnel_route(
     ),
     String,
 > {
+    ssh_tunnel_route_with(params, None)
+}
+
+fn ssh_tunnel_route_with(
+    params: &ConnectionParams,
+    pinned: PinnedProxy<'_>,
+) -> Result<
+    (
+        crate::ssh_tunnel::ForwardTarget,
+        Option<crate::proxy::ProxyEndpoint>,
+        String,
+    ),
+    String,
+> {
     let ssh_host = params.ssh_host.as_deref().ok_or("Missing SSH Host")?;
     let ssh_port = params.ssh_port.unwrap_or(22);
     let ssh_user = params.ssh_user.as_deref().ok_or("Missing SSH User")?;
     let target = ssh_forward_target(params);
     let base_key = crate::ssh_tunnel::build_tunnel_key(ssh_user, ssh_host, ssh_port, &target);
 
-    let proxy = crate::proxy::resolve_for_connection(
-        crate::proxy::SCOPE_SSH_TUNNEL,
-        params.connection_id.as_deref(),
-        params.proxy.as_ref(),
-    );
+    let proxy = proxy_for_scope(crate::proxy::SCOPE_SSH_TUNNEL, params, pinned);
     let key = match &proxy {
         Some(p) => {
             let proto = match p.protocol {

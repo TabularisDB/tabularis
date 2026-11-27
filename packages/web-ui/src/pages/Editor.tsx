@@ -123,6 +123,7 @@ import {
     CheckCircle2,
     WrapText,
     Eye,
+    History,
 } from 'lucide-react';
 import {invoke} from '@tauri-apps/api/core';
 import {TableToolbar} from '@/components/ui/TableToolbar';
@@ -143,6 +144,9 @@ import {QuerySelectionModal} from '@/components/modals/QuerySelectionModal';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
 import {ExplainSelectionModal} from '@/components/modals/ExplainSelectionModal';
 import {DmlPreviewModal} from '@/components/modals/DmlPreviewModal';
+import {SaveHistoryModal} from '@/components/modals/SaveHistoryModal';
+import {useSaveHistorySupport} from '@/hooks/useSaveHistorySupport';
+import {groupUpdatesByRow, recordingFailed, shouldRecordSaves} from '@/utils/saveHistory';
 import {useTabSwitcher} from '@/hooks/useTabSwitcher';
 import {TabSwitcherModal} from '@/components/modals/TabSwitcherModal';
 import {QueryModal} from '@/components/modals/QueryModal';
@@ -647,6 +651,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const [explainSelectableQueries, setExplainSelectableQueries] = useState<
         {query: string; index: number}[]
     >([]);
+    const [isSaveHistoryOpen, setIsSaveHistoryOpen] = useState(false);
+    // The tab the history was opened from; a restore may finish after the
+    // user has moved to another tab.
+    const saveHistoryTabIdRef = useRef<string | null>(null);
     const [isDmlPreviewOpen, setIsDmlPreviewOpen] = useState(false);
     const [dmlPreview, setDmlPreview] = useState<DmlPreview | null>(null);
     const [dmlPreviewError, setDmlPreviewError] = useState<string | null>(null);
@@ -1148,6 +1156,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 activeTab?.result?.columns,
             ),
         [activeTab?.pkColumns, activeTab?.columnMetadata, activeTab?.result?.columns],
+    );
+
+    const saveHistorySupported = useSaveHistorySupport(activeConnectionId);
+    const saveHistoryScope = getTableDataChangeScope(
+        activeCapabilities,
+        activeTab?.schema,
+        activeSchema,
+        activeTab?.database,
     );
 
     const selectionHasPending = useMemo(() => {
@@ -4287,6 +4303,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
         try {
             const promises = [];
+            let recordingFailures = 0;
 
             const dataChangeScope = getTableDataChangeScope(
                 activeCapabilities,
@@ -4354,6 +4371,16 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
             // Updates
             if (updates.length > 0) {
+                // The save still goes ahead when the status cannot be read, but
+                // the user is told it may not have been recorded.
+                const saveStatus = isKeyless
+                    ? null
+                    : await client
+                          .call('get_save_history_status', {connectionId: activeConnectionId})
+                          .catch(() => {
+                              recordingFailures++;
+                              return null;
+                          });
                 if (isKeyless) {
                     // Without a primary key the WHERE clause matches every identity
                     // column, so each UPDATE invalidates the previous values used to
@@ -4397,6 +4424,21 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                             }
                         }),
                     );
+                } else if (shouldRecordSaves(saveStatus, isKeyless)) {
+                    // One transaction per row, so its before/after values are
+                    // verified together and kept for review.
+                    promises.push(
+                        ...groupUpdatesByRow(updates).map(async (row) => {
+                            const response = await client.call('save_recorded_row', {
+                                connectionId: activeConnectionId,
+                                table: activeTable,
+                                pkMap: row.pkMap,
+                                changes: row.changes,
+                                ...dataChangeScope,
+                            });
+                            if (recordingFailed(response)) recordingFailures++;
+                        }),
+                    );
                 } else {
                     promises.push(
                         ...updates.map((u) =>
@@ -4428,6 +4470,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             }
 
             await Promise.all(promises);
+
+            if (recordingFailures > 0) {
+                showAlert(t('saveHistory.errors.recordingFailed'), {kind: 'warning'});
+            }
 
             // Remove processed changes from state
             const newPendingChanges = {...(pendingChanges || {})};
@@ -4496,6 +4542,20 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         rowIdentity,
         guardProductionWrite,
     ]);
+
+    // Reload the grid after a restore, keeping whatever is still staged.
+    const handleSaveHistoryRestored = useCallback(() => {
+        const originId = saveHistoryTabIdRef.current;
+        const tab = originId
+            ? tabsRef.current.find((candidate) => candidate.id === originId)
+            : null;
+        if (!tab) return;
+        void runQuery(undefined, tab.page, tab.id, undefined, undefined, undefined, undefined, {
+            pendingChanges: tab.pendingChanges,
+            pendingDeletions: tab.pendingDeletions,
+            pendingInsertions: tab.pendingInsertions,
+        });
+    }, [runQuery]);
 
     // Cmd/Ctrl+S: commit the active tab's pending grid changes (like TablePlus).
     useEffect(() => {
@@ -6803,6 +6863,21 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 >
                                                     <Minus size={16} />
                                                 </button>
+                                                {saveHistorySupported && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            saveHistoryTabIdRef.current =
+                                                                activeTab?.id ?? null;
+                                                            setIsSaveHistoryOpen(true);
+                                                        }}
+                                                        className="flex items-center justify-center w-7 h-7 text-secondary hover:text-primary hover:bg-surface-secondary rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                                        title={t('saveHistory.openAction')}
+                                                        aria-label={t('saveHistory.openAction')}
+                                                    >
+                                                        <History size={16} />
+                                                    </button>
+                                                )}
                                             </div>
                                         )}
 
@@ -7235,6 +7310,17 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 }}
                 onClose={() => setIsExplainSelectionOpen(false)}
             />
+            {activeConnectionId && activeTab?.activeTable && (
+                <SaveHistoryModal
+                    isOpen={isSaveHistoryOpen}
+                    onClose={() => setIsSaveHistoryOpen(false)}
+                    connectionId={activeConnectionId}
+                    table={activeTab.activeTable}
+                    schema={saveHistoryScope.schema}
+                    database={saveHistoryScope.database}
+                    onRestored={handleSaveHistoryRestored}
+                />
+            )}
             <DmlPreviewModal
                 isOpen={isDmlPreviewOpen}
                 onClose={() => {

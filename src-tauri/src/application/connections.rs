@@ -413,11 +413,63 @@ pub(crate) fn saved_connection_driver(
         .driver)
 }
 
-pub(crate) fn resolve_saved_connection_params(
+/// One read of a saved connection and of the SSH/Kubernetes profiles it
+/// references. Whatever is checked against [`params`](Self::params) and
+/// whatever is connected through [`resolve`](Self::resolve) comes from this
+/// single read, so an edit made in between cannot split the two.
+pub(crate) struct SavedConnectionSnapshot {
+    driver_id: String,
+    params: ConnectionParams,
+    /// The proxy chosen when the snapshot was taken. It depends on the global
+    /// proxy settings as well as on the connection, so it is looked up once and
+    /// handed to the transport rather than looked up again.
+    proxy: crate::application::tunnels::ResolvedProxy,
+}
+
+impl SavedConnectionSnapshot {
+    /// The connection with its profiles expanded, before any tunnel is opened.
+    pub(crate) fn params(&self) -> &ConnectionParams {
+        &self.params
+    }
+
+    pub(crate) fn route(&self) -> Option<&crate::application::tunnels::ProxyRoute> {
+        self.proxy.route.as_ref()
+    }
+
+    pub(crate) fn resolve(
+        &self,
+        runtime: &RuntimeContext,
+        session_id: Option<Uuid>,
+    ) -> Result<(String, ConnectionParams), String> {
+        let params = crate::application::tunnels::resolve_expanded_params(
+            runtime,
+            &self.params,
+            session_id,
+        )?;
+        Ok((self.driver_id.clone(), params))
+    }
+
+    /// Like [`resolve`](Self::resolve), but the transport uses the proxy the
+    /// snapshot was taken with instead of looking it up again.
+    pub(crate) fn resolve_pinned(
+        &self,
+        runtime: &RuntimeContext,
+        session_id: Option<Uuid>,
+    ) -> Result<(String, ConnectionParams), String> {
+        let params = crate::application::tunnels::resolve_expanded_params_via(
+            runtime,
+            &self.params,
+            session_id,
+            &self.proxy,
+        )?;
+        Ok((self.driver_id.clone(), params))
+    }
+}
+
+pub(crate) fn snapshot_saved_connection(
     runtime: &RuntimeContext,
-    session_id: Option<Uuid>,
     connection_id: &str,
-) -> Result<(String, ConnectionParams), String> {
+) -> Result<SavedConnectionSnapshot, String> {
     let file = load_file(runtime)?;
     let saved = find_connection(&file, connection_id)?;
     let driver_id = saved.params.driver.clone();
@@ -428,9 +480,21 @@ pub(crate) fn resolve_saved_connection_params(
     apply_credential_profile(runtime, &file, &mut params)?;
     params.extra.extend(plugin_secrets);
     params.connection_id = Some(connection_id.to_string());
-    let params =
-        crate::application::tunnels::resolve_connection_params(runtime, &params, session_id)?;
-    Ok((driver_id, params))
+    let params = crate::application::tunnels::expand_connection_params(runtime, &params)?;
+    let proxy = crate::application::tunnels::resolve_proxy_once(&params);
+    Ok(SavedConnectionSnapshot {
+        driver_id,
+        params,
+        proxy,
+    })
+}
+
+pub(crate) fn resolve_saved_connection_params(
+    runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
+    connection_id: &str,
+) -> Result<(String, ConnectionParams), String> {
+    snapshot_saved_connection(runtime, connection_id)?.resolve(runtime, session_id)
 }
 
 /// Every credential value the instance holds for its saved connections and SSH
@@ -549,8 +613,7 @@ pub fn resolve_icon_asset(data_dir: &Path, relative_path: &str) -> Result<PathBu
 }
 
 fn load_file(runtime: &RuntimeContext) -> Result<ConnectionsFile, String> {
-    let file =
-        crate::persistence::load_connections_file(&runtime.paths.connections_file())?;
+    let file = crate::persistence::load_connections_file(&runtime.paths.connections_file())?;
     #[cfg(test)]
     connections_file_read_hooks::fire_after_connections_read_hook();
     Ok(file)
@@ -1569,6 +1632,9 @@ fn clean_up_deleted_connection(
     {
         log::warn!("Failed to remove query history of deleted connection {id}: {error}");
     }
+    if let Err(error) = super::save_history::remove_for_connection(runtime.paths.data_dir(), id) {
+        log::warn!("Failed to remove save history of deleted connection {id}: {error}");
+    }
     if let Err(error) = super::schema_notes::remove_for_connection(runtime.paths.config_dir(), id) {
         log::warn!("Failed to remove schema notes of deleted connection {id}: {error}");
     }
@@ -2430,7 +2496,9 @@ pub async fn set_selected_databases(
     if databases.iter().any(|db| db.trim().is_empty()) {
         return Err("Database names cannot be empty".to_string());
     }
-    let driver = find_connection(&load_connections_snapshot(runtime)?, connection_id)?.params.driver;
+    let driver = find_connection(&load_connections_snapshot(runtime)?, connection_id)?
+        .params
+        .driver;
     let is_schema_based = crate::drivers::registry::get_driver(&driver)
         .await
         .map(|driver| driver.manifest().capabilities.schemas)

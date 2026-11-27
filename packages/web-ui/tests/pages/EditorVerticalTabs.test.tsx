@@ -1,5 +1,6 @@
 import {useCallback, useRef, useState} from 'react';
 import {createEvent, fireEvent, render, screen} from '@testing-library/react';
+import {invoke} from '@tauri-apps/api/core';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {Editor} from '@/pages/Editor';
 import {EditorContext, type EditorContextType} from '@/contexts/EditorContext';
@@ -191,6 +192,7 @@ const dragFirstOntoLast = () => {
 describe('Editor vertical tab layout (#1646)', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        vi.mocked(invoke).mockResolvedValue([]);
         mocks.settings = {resultPageSize: 100, csvIncludeHeaders: true};
     });
 

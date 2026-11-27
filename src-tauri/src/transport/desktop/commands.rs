@@ -1424,6 +1424,118 @@ pub async fn delete_record<R: Runtime>(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn save_recorded_row<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    table: String,
+    pk_map: std::collections::HashMap<String, serde_json::Value>,
+    changes: std::collections::HashMap<String, serde_json::Value>,
+    schema: Option<String>,
+    database: Option<String>,
+) -> Result<crate::application::save_history::RecordedSaveResponse, String> {
+    crate::application::save_history::save_row(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        table,
+        pk_map,
+        changes,
+        schema,
+        database,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn get_save_history_status<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+) -> Result<crate::application::save_history::SaveHistoryStatus, String> {
+    crate::application::save_history::status(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn set_save_history_enabled<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    enabled: bool,
+) -> Result<crate::application::save_history::SaveHistoryStatus, String> {
+    crate::application::save_history::set_enabled(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        enabled,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn list_save_history<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    table: Option<String>,
+    schema: Option<String>,
+    database: Option<String>,
+) -> Result<Vec<crate::application::save_history::SaveRecord>, String> {
+    crate::application::save_history::list(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+        table,
+        schema,
+        database,
+    )
+}
+
+#[tauri::command]
+pub async fn plan_save_restore<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    record_id: String,
+) -> Result<crate::application::save_history::RestorePlan, String> {
+    crate::application::save_history::plan_restore(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        &record_id,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn apply_save_restore<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    record_id: String,
+) -> Result<crate::application::save_history::RestorePlan, String> {
+    crate::application::save_history::apply_restore(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        &record_id,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn delete_save_history<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    record_id: Option<String>,
+) -> Result<usize, String> {
+    crate::application::save_history::delete(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+        record_id.as_deref(),
+    )
+}
+
+#[tauri::command]
 pub async fn update_record<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,

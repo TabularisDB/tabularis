@@ -3649,5 +3649,72 @@
     "saveBeforeExport": "导出前请先保存更改。",
     "discardTitle": "放弃未保存的备注？",
     "discardMessage": "备注的更改尚未保存。现在关闭将丢失这些更改。"
+  },
+  "saveHistory": {
+    "title": "已保存的更改",
+    "subtitle": "查看并恢复已保存的表格编辑",
+    "openAction": "已保存更改的历史记录",
+    "close": "关闭",
+    "recording": {
+      "label": "记录已保存的表格编辑",
+      "description": "保留每次已保存编辑前后的值,以便你查看和恢复。仅记录对带主键的单个 PostgreSQL 表的更新。",
+      "storage": "记录的值未加密,存储在运行 Tabularis 的机器上的 Tabularis 数据文件夹中,文件仅运行 Tabularis 的账户可读,且仅限此连接。旧记录会被自动清除。",
+      "unsupported": "此连接的驱动不支持记录已保存的编辑。"
+    },
+    "empty": "此表尚无已记录的已保存更改。",
+    "emptyDisabled": "记录已关闭。开启后将保留已保存编辑的记录。",
+    "loading": "加载中…",
+    "list": {
+      "row": "行",
+      "columns": "列:{{columns}}",
+      "restoredAt": "已于 {{date}} 恢复",
+      "reviewOnly": "仅供查看"
+    },
+    "plan": {
+      "title": "恢复计划",
+      "intro": "恢复会将之前的值作为一次新的更改写回此行。这不是回滚:它不会撤销触发器、外部影响或保存之后执行的其他 SQL。",
+      "column": "列",
+      "saved": "保存时写入的值",
+      "current": "当前值",
+      "restoreTo": "恢复为",
+      "nullValue": "NULL",
+      "notCaptured": "未捕获",
+      "unavailable": "—"
+    },
+    "status": {
+      "ready": "该行仍保持已保存的值。请查看计划后再恢复。",
+      "conflict": "该行在此次保存之后已发生变化。未恢复任何内容。",
+      "rowMissing": "该行已不存在或其键已更改。未恢复任何内容。",
+      "notRestorable": "此次保存仅供查看,无法恢复。",
+      "alreadyRestored": "此次保存已经恢复过。",
+      "targetChanged": "已保存的连接现在指向与此次保存不同的服务器。未恢复任何内容。",
+      "restored": "值已恢复。"
+    },
+    "reason": {
+      "keyChanged": "键列被修改,因此该行已移动。",
+      "tableHasTriggers": "该表有触发器,可能已更改其他数据。",
+      "generatedColumn": "无法写入生成列。",
+      "valueNotCaptured": "某个值过大无法保留,或无法读取。",
+      "unknown": "此次保存无法恢复。"
+    },
+    "actions": {
+      "restore": "恢复值",
+      "restoring": "正在恢复…",
+      "compare": "重新比较",
+      "delete": "删除记录",
+      "clearAll": "全部清除"
+    },
+    "clear": {
+      "title": "清除已保存的更改?",
+      "message": "这将删除此连接的所有已记录保存。数据库中的行不会受到影响。",
+      "confirm": "全部清除"
+    },
+    "errors": {
+      "load": "无法加载已保存的更改:",
+      "plan": "无法与当前行比较:",
+      "restore": "无法恢复这些值:",
+      "toggle": "无法更改记录设置:",
+      "recordingFailed": "更改已保存,但由于无法写入历史文件,未能记录。"
+    }
   }
 }
