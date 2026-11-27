@@ -3647,5 +3647,19 @@
     "saveBeforeExport": "Guarda tus cambios antes de exportar.",
     "discardTitle": "¿Descartar las notas sin guardar?",
     "discardMessage": "Los cambios en las notas no se han guardado. Si cierras ahora, se perderán."
+  },
+  "appMenu": {
+    "checkForUpdates": "Buscar actualizaciones…",
+    "settings": "Ajustes…",
+    "website": "Sitio web de Tabularis",
+    "reportIssue": "Informar de un problema…",
+    "discord": "Comunidad de Discord",
+    "newConnection": "Nueva conexión…",
+    "openConnections": "Abrir conexiones",
+    "commandPalette": "Paleta de comandos",
+    "quickNavigator": "Navegador rápido",
+    "searchActions": "Buscar acciones",
+    "toggleSidebar": "Mostrar/ocultar barra lateral",
+    "toggleRightSidebar": "Alternar barra lateral derecha"
   }
 }

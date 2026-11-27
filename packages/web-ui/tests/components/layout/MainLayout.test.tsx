@@ -66,6 +66,10 @@ vi.mock('@/hooks/useGlobalShortcuts', () => ({
     useGlobalShortcuts: vi.fn(),
 }));
 
+vi.mock('@/hooks/useAppMenu', () => ({
+    useAppMenu: vi.fn(),
+}));
+
 vi.mock('@/hooks/useAutoConnectFromUrl', () => ({
     useAutoConnectFromUrl: vi.fn(),
 }));

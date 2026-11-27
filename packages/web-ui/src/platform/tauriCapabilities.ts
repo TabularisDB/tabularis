@@ -16,6 +16,7 @@ import {
     requestPermission,
     sendNotification,
 } from '@tauri-apps/plugin-notification';
+import {Menu, MenuItem, PredefinedMenuItem, Submenu} from '@tauri-apps/api/menu';
 import {UserAttentionType, getCurrentWindow} from '@tauri-apps/api/window';
 import {getCurrentWebview} from '@tauri-apps/api/webview';
 import {WebviewWindow} from '@tauri-apps/api/webviewWindow';
@@ -23,6 +24,7 @@ import {
     PLATFORM_CAPABILITY_NAMES,
     createPlatformCapabilityNegotiation,
     requirePlatformCapability,
+    type AppMenuSectionSpec,
     type AttentionLevel,
     type BlobRecordRequest,
     type ChooseInputFileOptions,
@@ -82,6 +84,7 @@ export interface TauriPlatformOperations {
     openStorageLocation(): Promise<void>;
     setNativeWindowTheme(theme: NativeWindowTheme | null): Promise<void>;
     setInterfaceScale(factor: number): Promise<void>;
+    setAppMenu(sections: readonly AppMenuSectionSpec[]): Promise<void>;
     getSystemIsDark(): Promise<boolean>;
     listenForSystemThemeChanges(onChange: SystemThemeListener): Promise<() => void>;
     currentWindowLabel(): string;
@@ -89,6 +92,71 @@ export interface TauriPlatformOperations {
 }
 
 let appDataDirPromise: Promise<string> | null = null;
+
+interface ClosableMenuHandle {
+    close(): Promise<void>;
+}
+
+let latestAppMenuInstall = 0;
+
+async function findAppMenuSubmenu(
+    topLevel: readonly unknown[],
+    section: AppMenuSectionSpec,
+): Promise<Submenu | null> {
+    if (section.submenu === null) {
+        const first = topLevel[0];
+        return first instanceof Submenu ? first : null;
+    }
+    for (const item of topLevel) {
+        if (item instanceof Submenu && (await item.text()) === section.submenu) return item;
+    }
+    return null;
+}
+
+/**
+ * Starts from Tauri's default menu so the standard Edit, Window and app items
+ * keep working, then adds the given entries. A section whose submenu is
+ * missing is skipped.
+ *
+ * A later call supersedes one still in progress, so the installed menu always
+ * comes from the latest sections. Every handle created here is closed at the
+ * end: closing a handle only releases this webview's reference, and the
+ * installed menu stays alive because the app holds it.
+ */
+export async function installTauriAppMenu(sections: readonly AppMenuSectionSpec[]): Promise<void> {
+    const install = ++latestAppMenuInstall;
+    const isSuperseded = () => install !== latestAppMenuInstall;
+    const handles: ClosableMenuHandle[] = [];
+    try {
+        const menu = await Menu.default();
+        handles.push(menu);
+        const topLevel = await menu.items();
+        handles.push(...topLevel);
+        for (const section of sections) {
+            if (isSuperseded()) return;
+            const submenu = await findAppMenuSubmenu(topLevel, section);
+            if (!submenu) continue;
+            const items = await Promise.all(
+                section.entries.map((entry) =>
+                    entry === 'separator'
+                        ? PredefinedMenuItem.new({item: 'Separator'})
+                        : MenuItem.new({id: entry.id, text: entry.label, action: entry.run}),
+                ),
+            );
+            handles.push(...items);
+            if (section.position === null) {
+                await submenu.append(items);
+            } else {
+                await submenu.insert(items, section.position);
+            }
+        }
+        if (isSuperseded()) return;
+        const previous = await menu.setAsAppMenu();
+        if (previous) handles.push(previous);
+    } finally {
+        await Promise.allSettled(handles.map((handle) => handle.close()));
+    }
+}
 
 /**
  * Absolute data directory as resolved by the backend, honouring a custom
@@ -291,6 +359,7 @@ const defaultTauriOperations: TauriPlatformOperations = {
     openStorageLocation: () => invoke<void>('open_storage_location'),
     setNativeWindowTheme: (theme) => getCurrentWindow().setTheme(theme),
     setInterfaceScale: (factor) => getCurrentWebview().setZoom(factor),
+    setAppMenu: installTauriAppMenu,
     getSystemIsDark: getTauriSystemIsDark,
     listenForSystemThemeChanges: listenForTauriSystemThemeChanges,
     currentWindowLabel: () => getCurrentWindow().label,
@@ -537,6 +606,10 @@ export class TauriPlatformCapabilities implements PlatformCapabilities {
 
     setInterfaceScale(factor: number): Promise<void> {
         return this.operations.setInterfaceScale(factor);
+    }
+
+    setAppMenu(sections: readonly AppMenuSectionSpec[]): Promise<void> {
+        return this.operations.setAppMenu(sections);
     }
 
     getSystemIsDark(): Promise<boolean> {

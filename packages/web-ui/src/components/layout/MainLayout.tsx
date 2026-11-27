@@ -5,6 +5,7 @@ import {LoadingState} from '@/components/ui/LoadingState';
 import {CommandPaletteProvider} from '@/contexts/CommandPaletteProvider';
 import {PluginRegistryProvider} from '@/contexts/PluginRegistryProvider';
 import {PluginUpdateToast} from '@/components/plugins/PluginUpdateToast';
+import {useAppMenu} from '@/hooks/useAppMenu';
 import {useAutoConnectFromUrl} from '@/hooks/useAutoConnectFromUrl';
 import {useConnectionLayoutContext} from '@/hooks/useConnectionLayoutContext';
 import {useConnectionWindowLifecycle} from '@/hooks/useConnectionWindowLifecycle';
@@ -28,6 +29,7 @@ const MainLayoutContent = () => {
     const {splitView, isSplitVisible} = useConnectionLayoutContext();
     const location = useLocation();
     useGlobalShortcuts();
+    useAppMenu();
     useAutoConnectFromUrl();
     useConnectionWindowLifecycle();
 

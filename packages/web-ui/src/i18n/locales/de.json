@@ -3718,5 +3718,19 @@
     "saveBeforeExport": "Speichere deine Änderungen vor dem Export.",
     "discardTitle": "Ungespeicherte Notizen verwerfen?",
     "discardMessage": "Deine Änderungen an den Notizen wurden nicht gespeichert. Wenn du jetzt schließt, gehen sie verloren."
+  },
+  "appMenu": {
+    "checkForUpdates": "Nach Updates suchen…",
+    "settings": "Einstellungen…",
+    "website": "Tabularis-Website",
+    "reportIssue": "Problem melden…",
+    "discord": "Discord-Community",
+    "newConnection": "Neue Verbindung…",
+    "openConnections": "Verbindungen öffnen",
+    "commandPalette": "Befehlspalette",
+    "quickNavigator": "Schnellnavigation",
+    "searchActions": "Aktionen suchen",
+    "toggleSidebar": "Seitenleiste umschalten",
+    "toggleRightSidebar": "Rechte Seitenleiste umschalten"
   }
 }

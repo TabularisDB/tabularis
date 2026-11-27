@@ -149,6 +149,20 @@ export type NativeWindowTheme = 'light' | 'dark';
 
 export type SystemThemeListener = (isDark: boolean) => void;
 
+export interface AppMenuItemSpec {
+    readonly id: string;
+    readonly label: string;
+    readonly run: () => void;
+}
+
+export interface AppMenuSectionSpec {
+    /** Title of an existing submenu in the default menu; null for the application submenu. */
+    readonly submenu: string | null;
+    /** Index in that submenu where the entries go; null appends them at the end. */
+    readonly position: number | null;
+    readonly entries: readonly (AppMenuItemSpec | 'separator')[];
+}
+
 export interface PlatformCapabilities {
     readonly negotiation: PlatformCapabilityNegotiation;
 
@@ -191,6 +205,11 @@ export interface PlatformCapabilities {
     setNativeWindowTheme(theme: NativeWindowTheme | null): Promise<void>;
     /** Native engine zoom; browsers retain their own page zoom controls. */
     setInterfaceScale?(factor: number): Promise<void>;
+    /**
+     * Adds entries to the platform's default menu and installs it for the whole
+     * application. The caller decides on which platforms and windows to call it.
+     */
+    setAppMenu?(sections: readonly AppMenuSectionSpec[]): Promise<void>;
     getSystemIsDark(): Promise<boolean>;
     /**
      * Subscribe to operating-system light/dark changes. The listener is also

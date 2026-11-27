@@ -7,6 +7,7 @@
  */
 
 export const LINKS = {
+    WEBSITE: 'https://tabularis.dev',
     DISCORD: 'https://discord.com/invite/K2hmhfHRSt',
     GITHUB: 'https://github.com/TabularisDB/tabularis',
     GITHUB_ISSUES: 'https://github.com/TabularisDB/tabularis/issues',
@@ -17,6 +18,7 @@ export const LINKS = {
 } as const;
 
 // Named exports for convenience
+export const WEBSITE_URL = LINKS.WEBSITE;
 export const DISCORD_URL = LINKS.DISCORD;
 export const GITHUB_URL = LINKS.GITHUB;
 export const GITHUB_ISSUES_URL = LINKS.GITHUB_ISSUES;

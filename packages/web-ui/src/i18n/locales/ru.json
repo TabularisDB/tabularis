@@ -3852,5 +3852,19 @@
     "saveBeforeExport": "Сохраните изменения перед экспортом.",
     "discardTitle": "Отменить несохранённые заметки?",
     "discardMessage": "Изменения в заметках не сохранены. Если закрыть сейчас, они будут потеряны."
+  },
+  "appMenu": {
+    "checkForUpdates": "Проверить обновления…",
+    "settings": "Настройки…",
+    "website": "Сайт Tabularis",
+    "reportIssue": "Сообщить о проблеме…",
+    "discord": "Сообщество в Discord",
+    "newConnection": "Новое подключение…",
+    "openConnections": "Открыть подключения",
+    "commandPalette": "Панель команд",
+    "quickNavigator": "Быстрый навигатор",
+    "searchActions": "Поиск действий",
+    "toggleSidebar": "Показать/скрыть боковую панель",
+    "toggleRightSidebar": "Переключить правую боковую панель"
   }
 }

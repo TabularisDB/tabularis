@@ -4,6 +4,7 @@
   "version": "0.34.0",
   "type": "module",
   "links": {
+    "website": "https://tabularis.dev",
     "discord": "https://discord.com/invite/K2hmhfHRSt",
     "github": "https://github.com/TabularisDB/tabularis",
     "github-issues": "https://github.com/TabularisDB/tabularis/issues",

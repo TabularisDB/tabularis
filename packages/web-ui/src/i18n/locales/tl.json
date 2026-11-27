@@ -3831,5 +3831,19 @@
     "saveBeforeExport": "I-save muna ang mga pagbabago bago mag-export.",
     "discardTitle": "Itapon ang mga talang hindi pa naka-save?",
     "discardMessage": "Hindi pa naka-save ang mga pagbabago sa mga tala. Mawawala ang mga ito kapag isinara ngayon."
+  },
+  "appMenu": {
+    "checkForUpdates": "Tingnan ang mga Update…",
+    "settings": "Mga Setting…",
+    "website": "Website ng Tabularis",
+    "reportIssue": "Mag-ulat ng Isyu…",
+    "discord": "Komunidad sa Discord",
+    "newConnection": "Bagong koneksyon…",
+    "openConnections": "Buksan ang mga koneksyon",
+    "commandPalette": "Command Palette",
+    "quickNavigator": "Quick Navigator",
+    "searchActions": "Maghanap ng mga aksyon",
+    "toggleSidebar": "I-toggle ang sidebar",
+    "toggleRightSidebar": "I-toggle ang kanang sidebar"
   }
 }
