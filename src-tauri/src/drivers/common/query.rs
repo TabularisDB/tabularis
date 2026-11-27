@@ -77,30 +77,43 @@ pub fn returns_result_set(query: &str) -> bool {
 /// [`returns_result_set`] for a driver whose resolved syntax has `#` line
 /// comments (`hash_comments`), so `# note\nSELECT 1` still fetches rows.
 pub fn returns_result_set_for(query: &str, hash_comments: bool) -> bool {
-    let head = strip_leading_sql_comments_for(query, hash_comments)
+    let body = strip_leading_sql_comments_for(query, hash_comments);
+    let head = body
         .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
         .next()
         .unwrap_or("")
         .to_uppercase();
-    matches!(
-        head.as_str(),
-        "SELECT"
-            | "WITH"
-            | "SHOW"
-            | "EXPLAIN"
-            | "DESCRIBE"
-            | "DESC"
-            | "VALUES"
-            | "TABLE"
-            | "PRAGMA"
-            | "CALL"
-            | "ANALYZE"
-            | "CHECK"
-            | "CHECKSUM"
-            | "OPTIMIZE"
-            | "REPAIR"
-            | "HELP"
-    )
+    match head.as_str() {
+        "SELECT" | "WITH" | "SHOW" | "EXPLAIN" | "DESCRIBE" | "DESC" | "VALUES" | "TABLE"
+        | "PRAGMA" | "CALL" | "ANALYZE" | "CHECK" | "CHECKSUM" | "OPTIMIZE" | "REPAIR" | "HELP" => {
+            true
+        }
+        // `INSERT … RETURNING id` (PostgreSQL, SQLite, MariaDB) sends rows back
+        // like a SELECT; executing it for a row count would drop them.
+        "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "REPLACE" => {
+            // `hash_comments` is set for MySQL/MariaDB only, which is also the
+            // one dialect whose `--` comments need a space after them and
+            // whose strings read a backslash as an escape.
+            has_returning_clause(
+                body,
+                ScanRules {
+                    hash_comments,
+                    line_comment_requires_space: hash_comments,
+                    backslash_escapes: hash_comments,
+                },
+            )
+        }
+        _ => false,
+    }
+}
+
+/// Whether the statement has a `RETURNING` clause of its own: a top-level
+/// token, not one inside a comment, a string, a quoted name or a
+/// parenthesized subquery.
+fn has_returning_clause(statement: &str, rules: ScanRules) -> bool {
+    tokenize_sql_with_pos(statement, rules)
+        .iter()
+        .any(|(token, _)| token.eq_ignore_ascii_case("RETURNING"))
 }
 
 /// Check if a query type supports EXPLAIN.

@@ -165,6 +165,49 @@ fn test_returns_result_set_for_hash_comments() {
 }
 
 #[test]
+fn test_returns_result_set_for_dml_with_returning() {
+    for q in [
+        "INSERT INTO t (a) VALUES (1) RETURNING id",
+        "insert into t values (1) returning *",
+        "UPDATE t SET a = 1 WHERE id = 2 RETURNING a, id",
+        "DELETE FROM t WHERE id = 1 RETURNING *;",
+        "-- header\nDELETE FROM t RETURNING id",
+        "MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE RETURNING t.id",
+        "REPLACE INTO t VALUES (1) RETURNING id",
+        "INSERT INTO t SELECT * FROM s RETURNING\n  id",
+    ] {
+        assert!(returns_result_set(q), "{q}");
+    }
+    for q in [
+        "INSERT INTO t (a) VALUES (1)",
+        "INSERT INTO t (note) VALUES ('RETURNING soon')",
+        "INSERT INTO t (\"returning\") VALUES (1)",
+        "INSERT INTO t SELECT * FROM (SELECT 1 AS returning) s",
+        "UPDATE t SET a = 1",
+        "CREATE FUNCTION f() RETURNS int AS $$ SELECT 1 $$ LANGUAGE sql",
+        // A RETURNING in a comment is not a clause.
+        "UPDATE orders SET status = 'closed' WHERE id = 1 -- RETURNING is not needed here",
+        "UPDATE orders SET status = 'closed' --RETURNING id",
+        "DELETE FROM t /* RETURNING id */ WHERE id = 1",
+    ] {
+        assert!(!returns_result_set(q), "{q}");
+    }
+    // MySQL/MariaDB: `#` starts a comment, and `--` needs a space after it.
+    assert!(!returns_result_set_for(
+        "DELETE FROM t WHERE id = 1 # RETURNING id",
+        true
+    ));
+    assert!(!returns_result_set_for(
+        "DELETE FROM t WHERE id = 1 -- RETURNING id",
+        true
+    ));
+    assert!(returns_result_set_for(
+        "DELETE FROM t WHERE id = 1 RETURNING id",
+        true
+    ));
+}
+
+#[test]
 fn test_strip_leading_sql_comments_unterminated() {
     assert_eq!(strip_leading_sql_comments("-- only comment"), "");
     assert_eq!(strip_leading_sql_comments("/* never closed"), "");
