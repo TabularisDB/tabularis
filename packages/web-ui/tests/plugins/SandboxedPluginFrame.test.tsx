@@ -508,6 +508,36 @@ describe('SandboxedPluginFrame lifecycle', () => {
         expect(downloadFile).toHaveBeenCalledOnce();
     });
 
+    it('keeps the plugin overlay open when Escape only cancels a save confirmation', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(true);
+        registerActivePlatformCapabilities({
+            negotiation: {environment: 'browser'},
+            downloadFile,
+        } as unknown as PlatformCapabilities);
+        render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        act(() => {
+            handlers['ui.modal'](true);
+        });
+        const iframe = screen.getByTitle('Plugin google-sheets');
+        iframe.focus();
+        mocks.call.mockClear();
+
+        const cancelled = handlers['api.saveFile']({
+            data: new Uint8Array([1]),
+            suggestedName: 'a.txt',
+        });
+        await screen.findByRole('dialog');
+        fireEvent.keyDown(screen.getByRole('button', {name: 'common.cancel'}), {key: 'Escape'});
+        await expect(cancelled).resolves.toBe(false);
+
+        expect(mocks.call).not.toHaveBeenCalledWith('ui.closeModal');
+        expect(
+            screen.getByRole('button', {name: 'settings.plugins.closePluginOverlay'}),
+        ).toBeInTheDocument();
+        expect(downloadFile).not.toHaveBeenCalled();
+    });
+
     it('moves keyboard focus into the save confirmation and back to the frame', async () => {
         const downloadFile = vi.fn().mockResolvedValue(true);
         registerActivePlatformCapabilities({

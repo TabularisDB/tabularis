@@ -767,7 +767,9 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
     useEffect(() => {
         if (!modalOpen) return;
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
+            // A host dialog above the overlay (the save confirmation) handles
+            // Escape first and marks it handled; leave the plugin open then.
+            if (event.key === 'Escape' && !event.defaultPrevented) {
                 setModalOpen(false);
                 void rpcRef.current?.call('ui.closeModal').catch(() => undefined);
             }
