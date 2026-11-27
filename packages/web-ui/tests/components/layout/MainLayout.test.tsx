@@ -29,6 +29,10 @@ vi.mock('@/components/layout/ProductionBanner', () => ({
     ProductionBanner: () => <div data-testid="production-banner" />,
 }));
 
+vi.mock('@/components/layout/ConnectionColorBar', () => ({
+    ConnectionColorBar: () => <div data-testid="connection-color-bar" />,
+}));
+
 vi.mock('@/components/layout/ReadOnlyBanner', () => ({
     ReadOnlyBanner: () => <div data-testid="read-only-banner" />,
 }));

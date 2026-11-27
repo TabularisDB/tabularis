@@ -199,6 +199,60 @@ describe('columnUsage', () => {
             expect(summary(correlated, ordersNoSchema, {columnsOf: owned})).toEqual([]);
         });
 
+        it('reads ORDER BY and LIMIT after the last set-operation side as the combined result', () => {
+            const archive: ColumnUsageTarget = {
+                schema: 'public',
+                table: 'archive',
+                column: 'customer_id',
+            };
+            const union =
+                'SELECT customer_id FROM public.orders UNION SELECT customer_id FROM public.archive';
+            // Only the select list of the archive side reads the column.
+            expect(summary(`${union} ORDER BY customer_id`, archive)).toEqual(['parsed']);
+            const ids = 'SELECT id FROM public.orders UNION SELECT id FROM public.archive';
+            for (const tail of [
+                'ORDER BY customer_id',
+                'ORDER BY customer_id LIMIT 5',
+                'ORDER BY customer_id DESC OFFSET 2 ROWS FETCH NEXT 5 ROWS ONLY',
+            ]) {
+                expect(summary(`${ids} ${tail}`, archive)).toEqual([]);
+            }
+            // Parenthesised sides, MySQL style, and a union inside a subquery.
+            expect(
+                summary(
+                    'SELECT id FROM public.orders UNION ALL (SELECT id FROM public.archive) ORDER BY customer_id',
+                    archive,
+                ),
+            ).toEqual([]);
+            expect(
+                summary(`SELECT x FROM t WHERE id IN (${ids} ORDER BY customer_id)`, archive),
+            ).toEqual([]);
+            // An ORDER BY inside one parenthesised side still reads that side's table.
+            expect(
+                summary(
+                    'SELECT id FROM public.orders UNION (SELECT id FROM public.archive ORDER BY customer_id)',
+                    archive,
+                ),
+            ).toEqual(['parsed']);
+            // Without a set operation, ORDER BY reads the query's own tables.
+            expect(
+                summary('SELECT id FROM public.orders ORDER BY customer_id', ordersPublic),
+            ).toEqual(['parsed']);
+            expect(
+                summary(
+                    'SELECT id FROM public.orders WHERE id IN (SELECT 1 UNION SELECT 2) ORDER BY customer_id',
+                    ordersPublic,
+                ),
+            ).toEqual(['parsed']);
+            // A window or aggregate ORDER BY inside a side stays with that side.
+            expect(
+                summary(
+                    'SELECT id FROM public.orders UNION SELECT row_number() OVER (ORDER BY customer_id) FROM public.archive',
+                    archive,
+                ),
+            ).toEqual(['parsed']);
+        });
+
         it('splits only where a query follows UNION, INTERSECT, EXCEPT or MINUS', () => {
             // `minus` is an ordinary name outside Oracle.
             for (const dialect of ['postgres', 'mysql', 'sqlite']) {

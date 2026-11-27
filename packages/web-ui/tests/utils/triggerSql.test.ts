@@ -7,6 +7,7 @@ import {
     buildTriggerSql,
     extractFunctionBody,
     parseTriggerFunctionName,
+    parseTriggerFunctionRef,
     buildCreateTriggerSql,
     buildCreateTriggerStatements,
     parseTriggerDefinition,
@@ -14,6 +15,7 @@ import {
     usesCompleteTriggerSqlEditor,
     normalizeSelection,
     splitSqlStatements,
+    type TriggerEvent,
     type TriggerSqlInput,
 } from '@/utils/triggerSql';
 
@@ -347,6 +349,67 @@ $function$`;
             // The outer END; is NOT included — only the body between BEGIN and the matching END.
             expect(body).not.toMatch(/^END;$/m);
         });
+
+        it('ignores BEGIN and END inside comments, strings and quoted names', () => {
+            const statements = [
+                '-- begin checks',
+                "  RAISE NOTICE 'end of batch';",
+                '  NEW."End" := 1; /* the end */',
+                '  EXECUTE $q$SELECT 1; END;$q$;',
+                '  -- end',
+                '  RETURN NEW;',
+            ].join('\n');
+            const fnDef = `CREATE OR REPLACE FUNCTION review.trg_audit_fn()
+  RETURNS trigger
+  LANGUAGE plpgsql
+AS $function$
+BEGIN
+${statements}
+END;
+$function$`;
+            expect(extractFunctionBody(fnDef)).toBe(statements.trim());
+        });
+
+        it('keeps an E-string with a backslash-escaped quote whole, and a plain string ending in a backslash', () => {
+            const statements = String.raw`RAISE NOTICE E'it\'s END of batch';
+  NEW.path := 'C:\';
+  RETURN NEW;`;
+            const fnDef = `CREATE OR REPLACE FUNCTION review.trg_audit_fn()
+  RETURNS trigger
+  LANGUAGE plpgsql
+AS $function$
+BEGIN
+  ${statements}
+END;
+$function$`;
+            const body = extractFunctionBody(fnDef);
+            expect(body).toBe(statements);
+            // The body saves back unchanged.
+            expect(buildTriggerFunctionSql({...base, body: body!})).toContain(statements);
+        });
+
+        it('reads lowercase keywords', () => {
+            const fnDef = `CREATE OR REPLACE FUNCTION public.trg_fn()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+declare
+  n integer := 0;
+begin
+  if new.amount < 0 then
+    n := 1;
+  end if;
+  return new;
+end;
+$function$`;
+            const body = extractFunctionBody(fnDef);
+            expect(body).toBe(
+                'declare\n  n integer := 0;\nbegin\n  if new.amount < 0 then\n    n := 1;\n  end if;\n  return new;',
+            );
+            // Saving it back must not wrap the lowercase DECLARE in a second BEGIN.
+            const rebuilt = buildTriggerFunctionSql({...base, body: body!});
+            expect((rebuilt.match(/\bBEGIN\b/gi) ?? []).length).toBe(1);
+        });
     });
 
     describe('parseTriggerFunctionName', () => {
@@ -390,6 +453,56 @@ $function$`;
         it('returns null for an empty or malformed clause', () => {
             expect(parseTriggerFunctionName('EXECUTE FUNCTION ();')).toBeNull();
             expect(parseTriggerFunctionName('')).toBeNull();
+        });
+
+        it('reads a name whose parts are quoted separately, as pg_get_triggerdef prints it', () => {
+            expect(parseTriggerFunctionName('EXECUTE FUNCTION app."AuditLog"();')).toBe(
+                'app.AuditLog',
+            );
+            expect(parseTriggerFunctionName('EXECUTE FUNCTION "Sales".audit_fn();')).toBe(
+                'Sales.audit_fn',
+            );
+        });
+    });
+
+    describe('parseTriggerFunctionRef', () => {
+        it('splits the schema from the name', () => {
+            expect(parseTriggerFunctionRef('EXECUTE FUNCTION my_audit();')).toEqual({
+                name: 'my_audit',
+            });
+            expect(parseTriggerFunctionRef('EXECUTE FUNCTION "store" . "trg_fn" ( );')).toEqual({
+                schema: 'store',
+                name: 'trg_fn',
+            });
+            expect(parseTriggerFunctionRef('EXECUTE PROCEDURE app."AuditLog"();')).toEqual({
+                schema: 'app',
+                name: 'AuditLog',
+            });
+        });
+
+        it('keeps dots and doubled quotes inside a quoted part', () => {
+            expect(parseTriggerFunctionRef('EXECUTE FUNCTION "my.app"."log.v2"();')).toEqual({
+                schema: 'my.app',
+                name: 'log.v2',
+            });
+            expect(parseTriggerFunctionRef('EXECUTE FUNCTION "say""hi"();')).toEqual({
+                name: 'say"hi',
+            });
+        });
+
+        it('reads the EXECUTE clause that ends the definition, not one inside WHEN', () => {
+            const def = [
+                'CREATE TRIGGER audit AFTER UPDATE ON app.notes FOR EACH ROW',
+                `WHEN ((new.note = 'EXECUTE FUNCTION app."Wrong"()'::text))`,
+                'EXECUTE FUNCTION app.correct()',
+            ].join(' ');
+            expect(parseTriggerFunctionRef(def)).toEqual({schema: 'app', name: 'correct'});
+            expect(parseTriggerFunctionRef(`${def};\n`)).toEqual({schema: 'app', name: 'correct'});
+        });
+
+        it('returns null without an EXECUTE FUNCTION|PROCEDURE clause', () => {
+            expect(parseTriggerFunctionRef('CREATE TRIGGER t AFTER INSERT ON x')).toBeNull();
+            expect(parseTriggerFunctionRef('EXECUTE FUNCTION ();')).toBeNull();
         });
     });
 
@@ -542,6 +655,70 @@ $function$`;
             parseTriggerDefinition('CREATE TRIGGER x BEFORE INSERT OR UPDATE OR DELETE ON t')
                 .events,
         ).toEqual(['INSERT', 'UPDATE', 'DELETE']);
+    });
+
+    it.each([
+        ['AFTER UPDATE OF status ON t', ['UPDATE'], 'status'],
+        ['AFTER INSERT OR UPDATE OF status, total ON t', ['INSERT', 'UPDATE'], 'status, total'],
+        [
+            'AFTER UPDATE OF "Status", amount OR DELETE ON t',
+            ['UPDATE', 'DELETE'],
+            '"Status", amount',
+        ],
+        ['BEFORE UPDATE OF `a b` ON t', ['UPDATE'], '`a b`'],
+    ])('parses the UPDATE OF column list of %s', (header, events, updateOf) => {
+        const parsed = parseTriggerDefinition(`CREATE TRIGGER x ${header}`);
+        expect(parsed.events).toEqual(events);
+        expect(parsed.updateOf).toBe(updateOf);
+    });
+
+    it('keeps OR inside a quoted column name, and writes the name back exactly', () => {
+        const parsed = parseTriggerDefinition(
+            'CREATE TRIGGER x AFTER UPDATE OF "ship OR pickup" OR DELETE ON orders',
+        );
+        expect(parsed.events).toEqual(['UPDATE', 'DELETE']);
+        expect(parsed.updateOf).toBe('"ship OR pickup"');
+        const [sql] = buildCreateTriggerStatements({
+            dialect: 'postgres',
+            name: 'x',
+            table: 'orders',
+            timing: 'AFTER',
+            events: parsed.events,
+            updateOf: parsed.updateOf,
+            body: '',
+            existingTail: 'EXECUTE FUNCTION f()',
+        });
+        expect(sql).toContain('AFTER UPDATE OF "ship OR pickup" OR DELETE ON');
+    });
+
+    it('has no UPDATE OF list for a plain UPDATE', () => {
+        expect(
+            parseTriggerDefinition('CREATE TRIGGER x AFTER UPDATE ON t').updateOf,
+        ).toBeUndefined();
+    });
+
+    it('writes the UPDATE OF list back while UPDATE is an event, except for mysql', () => {
+        const args = {
+            name: 'trg',
+            table: 't',
+            timing: 'AFTER' as const,
+            events: ['INSERT', 'UPDATE'] as TriggerEvent[],
+            updateOf: 'status, total',
+            body: 'BEGIN END',
+            existingTail: 'EXECUTE FUNCTION f()',
+        };
+        expect(buildCreateTriggerStatements({...args, dialect: 'postgres'})[0]).toContain(
+            'AFTER INSERT OR UPDATE OF status, total ON',
+        );
+        expect(
+            buildCreateTriggerStatements({...args, dialect: 'sqlite', events: ['UPDATE']})[0],
+        ).toContain('AFTER UPDATE OF status, total ON');
+        expect(
+            buildCreateTriggerStatements({...args, dialect: 'postgres', events: ['DELETE']})[0],
+        ).toContain('AFTER DELETE ON');
+        expect(
+            buildCreateTriggerStatements({...args, dialect: 'mysql', events: ['UPDATE']})[0],
+        ).not.toContain(' OF ');
     });
 
     it('splits statements without breaking $$ bodies', () => {

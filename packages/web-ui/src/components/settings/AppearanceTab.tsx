@@ -11,6 +11,7 @@ import {
     EDITOR_FONT_SIZE_MIN,
 } from '@/utils/editorFontSize';
 import {useTheme} from '@/hooks/useTheme';
+import {resolveTabLayout} from '@/utils/tabLayout';
 import {DEFAULT_RESULT_FONT_FAMILY, RESULT_FONT_INHERIT, getFontCSS} from '@/utils/settings';
 import {
     SettingSection,
@@ -31,6 +32,9 @@ export function AppearanceTab() {
     const platform = usePlatformCapabilities();
     const {allThemes} = useTheme();
     const [subTab, setSubTab] = useState<'general' | 'editor'>('general');
+    // Font size is applied app-wide on release; while dragging we only preview it,
+    // so the layout (and the slider under the cursor) stays put.
+    const [fontSizeDraft, setFontSizeDraft] = useState<number | null>(null);
 
     return (
         <div>
@@ -119,6 +123,7 @@ export function AppearanceTab() {
                             <SettingSlider
                                 value={settings.fontSize || 14}
                                 onChange={(v) => updateSetting('fontSize', v)}
+                                onDraftChange={setFontSizeDraft}
                                 min={10}
                                 max={20}
                                 step={1}
@@ -129,11 +134,44 @@ export function AppearanceTab() {
                             <p className="text-xs text-muted mb-2">{t('settings.preview')}:</p>
                             <p
                                 className="text-primary"
-                                style={{fontSize: `${settings.fontSize || 14}px`}}
+                                style={{
+                                    fontSize: `${fontSizeDraft ?? (settings.fontSize || 14)}px`,
+                                }}
                             >
                                 Aa Bb Cc 123 - {t('settings.fontPreviewText')}
                             </p>
                         </div>
+                    </SettingSection>
+
+                    <SettingSection title={t('settings.tabLayout.title')}>
+                        <SettingRow
+                            label={t('settings.tabLayout.label')}
+                            description={t('settings.tabLayout.description')}
+                        >
+                            <SettingButtonGroup
+                                value={resolveTabLayout(settings.tabLayout)}
+                                onChange={(v) => updateSetting('tabLayout', v)}
+                                options={[
+                                    {
+                                        value: 'horizontal',
+                                        label: t('settings.tabLayout.horizontal'),
+                                    },
+                                    {value: 'vertical', label: t('settings.tabLayout.vertical')},
+                                ]}
+                            />
+                        </SettingRow>
+                    </SettingSection>
+
+                    <SettingSection title={t('settings.connectionColor.title')}>
+                        <SettingRow
+                            label={t('settings.connectionColor.bottomBar')}
+                            description={t('settings.connectionColor.bottomBarDesc')}
+                        >
+                            <SettingToggle
+                                checked={settings.connectionColorBar ?? false}
+                                onChange={(v) => updateSetting('connectionColorBar', v)}
+                            />
+                        </SettingRow>
                     </SettingSection>
 
                     <SettingSection title={t('settings.dataGrid.title')}>

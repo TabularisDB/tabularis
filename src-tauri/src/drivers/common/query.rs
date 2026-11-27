@@ -63,6 +63,13 @@ pub fn strip_leading_sql_comments_for(query: &str, hash_comments: bool) -> &str 
 /// erroring — losing accurate affected_rows for procs that mutate is the
 /// lesser evil compared to misclassifying procedures that do return
 /// rows.
+///
+/// MySQL's table maintenance statements (`ANALYZE`, `CHECK`, `CHECKSUM`,
+/// `OPTIMIZE`, `REPAIR TABLE`) and its `HELP` return rows too. Where one
+/// returns none (PostgreSQL's `ANALYZE`), the fetch path gives an empty
+/// result, as for `CALL`. PostgreSQL's cursor `FETCH` stays on the execute
+/// path: the fetch path stops reading at the editor's row limit, after the
+/// cursor has already moved past every fetched row.
 pub fn returns_result_set(query: &str) -> bool {
     returns_result_set_for(query, false)
 }
@@ -78,17 +85,21 @@ pub fn returns_result_set_for(query: &str, hash_comments: bool) -> bool {
         .to_uppercase();
     match head.as_str() {
         "SELECT" | "WITH" | "SHOW" | "EXPLAIN" | "DESCRIBE" | "DESC" | "VALUES" | "TABLE"
-        | "PRAGMA" | "CALL" => true,
+        | "PRAGMA" | "CALL" | "ANALYZE" | "CHECK" | "CHECKSUM" | "OPTIMIZE" | "REPAIR" | "HELP" => {
+            true
+        }
         // `INSERT … RETURNING id` (PostgreSQL, SQLite, MariaDB) sends rows back
         // like a SELECT; executing it for a row count would drop them.
         "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "REPLACE" => {
             // `hash_comments` is set for MySQL/MariaDB only, which is also the
-            // one dialect whose `--` comments need a space after them.
+            // one dialect whose `--` comments need a space after them and
+            // whose strings read a backslash as an escape.
             has_returning_clause(
                 body,
-                CommentRules {
+                ScanRules {
                     hash_comments,
                     line_comment_requires_space: hash_comments,
+                    backslash_escapes: hash_comments,
                 },
             )
         }
@@ -99,7 +110,7 @@ pub fn returns_result_set_for(query: &str, hash_comments: bool) -> bool {
 /// Whether the statement has a `RETURNING` clause of its own: a top-level
 /// token, not one inside a comment, a string, a quoted name or a
 /// parenthesized subquery.
-fn has_returning_clause(statement: &str, rules: CommentRules) -> bool {
+fn has_returning_clause(statement: &str, rules: ScanRules) -> bool {
     tokenize_sql_with_pos(statement, rules)
         .iter()
         .any(|(token, _)| token.eq_ignore_ascii_case("RETURNING"))
@@ -145,7 +156,12 @@ pub fn calculate_offset(page: u32, page_size: u32) -> u32 {
 /// On return `*i` points past the closing quote (or past end-of-input
 /// for an unterminated literal — kept as-is for parity with the rest
 /// of the tokenizer's lenient behaviour).
-fn read_quoted(chars: &[(usize, char)], i: &mut usize, quote: char) -> String {
+fn read_quoted(
+    chars: &[(usize, char)],
+    i: &mut usize,
+    quote: char,
+    backslash_escapes: bool,
+) -> String {
     let len = chars.len();
     let mut token = String::new();
     token.push(quote);
@@ -153,7 +169,7 @@ fn read_quoted(chars: &[(usize, char)], i: &mut usize, quote: char) -> String {
     while *i < len {
         let ch = chars[*i].1;
         token.push(ch);
-        if quote != '`' && ch == '\\' && *i + 1 < len {
+        if quote != '`' && backslash_escapes && ch == '\\' && *i + 1 < len {
             *i += 1;
             token.push(chars[*i].1);
         } else if ch == quote {
@@ -170,27 +186,81 @@ fn read_quoted(chars: &[(usize, char)], i: &mut usize, quote: char) -> String {
     token
 }
 
-/// A driver's line-comment rules, as in [`build_paginated_query_for`].
-#[derive(Clone, Copy)]
-struct CommentRules {
-    /// `# …` is a line comment (MySQL/MariaDB).
-    hash_comments: bool,
-    /// `--` starts a comment only before whitespace or the end (MySQL/MariaDB).
-    line_comment_requires_space: bool,
+/// Whether the quote at `chars[i]` opens a PostgreSQL `E'...'` string, where a
+/// backslash escapes the next character even with standard strings.
+pub(super) fn is_e_string(chars: &[(usize, char)], i: usize) -> bool {
+    chars[i].1 == '\''
+        && i >= 1
+        && matches!(chars[i - 1].1, 'E' | 'e')
+        && (i < 2 || !(chars[i - 2].1.is_alphanumeric() || chars[i - 2].1 == '_'))
+}
+
+/// Whether a backslash escapes inside the quoted string opening at
+/// `chars[i]`. `escape_string_end` is the index just past the last
+/// single-quoted string that used backslash escapes: PostgreSQL continues a
+/// string across whitespace (and `--` comments) that holds a newline, and
+/// only the first part of a continued `E'...'` string carries the `E`.
+fn string_escapes(
+    chars: &[(usize, char)],
+    i: usize,
+    rules: ScanRules,
+    escape_string_end: Option<usize>,
+) -> bool {
+    let continues = |end: usize| {
+        if chars[i].1 != '\'' || end > i {
+            return false;
+        }
+        let mut newline = false;
+        let mut j = end;
+        while j < i {
+            match chars[j].1 {
+                '-' if chars[j + 1].1 == '-' => {
+                    while j < i && chars[j].1 != '\n' {
+                        j += 1;
+                    }
+                }
+                '\n' | '\r' => {
+                    newline = true;
+                    j += 1;
+                }
+                ch if ch.is_whitespace() => j += 1,
+                _ => return false,
+            }
+        }
+        newline
+    };
+    rules.backslash_escapes || is_e_string(chars, i) || escape_string_end.is_some_and(continues)
+}
+
+/// A driver's comment and string rules for [`build_paginated_query_for`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ScanRules {
+    /// `# …` is a line comment (MySQL/MariaDB; in PostgreSQL `#`, `#>`,
+    /// `#>>`, `#-` are operators).
+    pub hash_comments: bool,
+    /// `--` starts a comment only before whitespace or the end (MySQL/MariaDB;
+    /// PostgreSQL and SQLite accept `--note`).
+    pub line_comment_requires_space: bool,
+    /// A backslash escapes the next character in a quoted string
+    /// (MySQL/MariaDB, and PostgreSQL with `standard_conforming_strings =
+    /// off`). In SQLite and PostgreSQL standard strings it is an ordinary
+    /// character; PostgreSQL `E'...'` strings still escape.
+    pub backslash_escapes: bool,
 }
 
 /// The rules [`build_paginated_query`] and the public helpers use when no
 /// driver is given: MySQL's, the most restrictive.
-const DEFAULT_COMMENT_RULES: CommentRules = CommentRules {
+const DEFAULT_SCAN_RULES: ScanRules = ScanRules {
     hash_comments: true,
     line_comment_requires_space: true,
+    backslash_escapes: true,
 };
 
 /// If a comment starts at `chars[i]`, returns the index just past it: past
 /// the end of the line for `--` and `#`, past `*/` for `/* */` (or the end of
 /// the input when either is not closed), following `rules` as
 /// [`trailing_comment_start`] does.
-fn comment_end(chars: &[(usize, char)], i: usize, rules: CommentRules) -> Option<usize> {
+fn comment_end(chars: &[(usize, char)], i: usize, rules: ScanRules) -> Option<usize> {
     let at = |index: usize| chars.get(index).map(|&(_, ch)| ch);
     let line_end = |from: usize| {
         let mut end = from;
@@ -230,10 +300,11 @@ fn comment_end(chars: &[(usize, char)], i: usize, rules: CommentRules) -> Option
 /// `tapp_appointment_message_event_limit`. Each token is returned with
 /// its starting byte offset so callers can slice the original input
 /// instead of rebuilding it from tokens.
-fn tokenize_sql_with_pos(sql: &str, rules: CommentRules) -> Vec<(String, usize)> {
+fn tokenize_sql_with_pos(sql: &str, rules: ScanRules) -> Vec<(String, usize)> {
     let mut tokens: Vec<(String, usize)> = Vec::new();
     let chars: Vec<(usize, char)> = sql.char_indices().collect();
     let len = chars.len();
+    let mut escape_string_end = None;
     let mut i = 0;
 
     while i < len {
@@ -251,7 +322,9 @@ fn tokenize_sql_with_pos(sql: &str, rules: CommentRules) -> Vec<(String, usize)>
         }
 
         if c == '\'' || c == '"' || c == '`' {
-            let token = read_quoted(&chars, &mut i, c);
+            let escapes = string_escapes(&chars, i, rules, escape_string_end);
+            let token = read_quoted(&chars, &mut i, c, escapes);
+            escape_string_end = (c == '\'' && escapes).then_some(i);
             tokens.push((token, start_byte));
             continue;
         }
@@ -441,10 +514,10 @@ fn trailing_row_limit(tokens: &[(String, usize)]) -> Option<TrailingRowLimit> {
 /// begin with `--` headers — the appended pagination clause would land
 /// on the same line as the `--` and be parsed as part of the comment.
 pub fn strip_limit_offset(query: &str) -> String {
-    strip_limit_offset_with(query, DEFAULT_COMMENT_RULES)
+    strip_limit_offset_with(query, DEFAULT_SCAN_RULES)
 }
 
-fn strip_limit_offset_with(query: &str, rules: CommentRules) -> String {
+fn strip_limit_offset_with(query: &str, rules: ScanRules) -> String {
     let trimmed = query.trim_end();
     let tokens = tokenize_sql_with_pos(trimmed, rules);
     match trailing_row_limit(&tokens) {
@@ -459,7 +532,7 @@ fn strip_limit_offset_with(query: &str, rules: CommentRules) -> String {
 /// Uses a token-aware scan so that `LIMIT` as a substring of a table name
 /// (e.g. `tapp_appointment_message_event_limit`) is never misidentified.
 pub fn extract_user_limit(query: &str) -> Option<u32> {
-    trailing_row_limit_of(query, DEFAULT_COMMENT_RULES)?
+    trailing_row_limit_of(query, DEFAULT_SCAN_RULES)?
         .limit?
         .try_into()
         .ok()
@@ -471,14 +544,76 @@ pub fn extract_user_limit(query: &str) -> Option<u32> {
 /// [`strip_limit_offset`] removes. Uses a token-aware scan so `OFFSET` inside
 /// an identifier or string literal is never misidentified.
 pub fn extract_user_offset(query: &str) -> Option<u32> {
-    trailing_row_limit_of(query, DEFAULT_COMMENT_RULES)?
+    trailing_row_limit_of(query, DEFAULT_SCAN_RULES)?
         .offset?
         .try_into()
         .ok()
 }
 
-fn trailing_row_limit_of(query: &str, rules: CommentRules) -> Option<TrailingRowLimit> {
+fn trailing_row_limit_of(query: &str, rules: ScanRules) -> Option<TrailingRowLimit> {
     trailing_row_limit(&tokenize_sql_with_pos(query.trim(), rules))
+}
+
+/// The byte offset where the row-locking clauses that end a query start:
+/// `FOR { UPDATE | NO KEY UPDATE | SHARE | KEY SHARE } [OF <table>, ...]
+/// [NOWAIT | SKIP LOCKED]`, possibly repeated, or MySQL's
+/// `LOCK IN SHARE MODE`. MySQL accepts LIMIT only before them, and
+/// PostgreSQL rejects a second LIMIT after them.
+fn trailing_locking_clause_start(query: &str, rules: ScanRules) -> Option<usize> {
+    let tokens = tokenize_sql_with_pos(query, rules);
+    let is = |index: usize, keyword: &str| {
+        tokens
+            .get(index)
+            .is_some_and(|(token, _)| token.eq_ignore_ascii_case(keyword))
+    };
+    // The index just past the locking clause starting at token `i`.
+    let clause_end = |mut i: usize| -> Option<usize> {
+        if is(i, "LOCK") && is(i + 1, "IN") && is(i + 2, "SHARE") && is(i + 3, "MODE") {
+            return Some(i + 4);
+        }
+        if !is(i, "FOR") {
+            return None;
+        }
+        i += 1;
+        if is(i, "UPDATE") || is(i, "SHARE") {
+            i += 1;
+        } else if is(i, "NO") && is(i + 1, "KEY") && is(i + 2, "UPDATE") {
+            i += 3;
+        } else if is(i, "KEY") && is(i + 1, "SHARE") {
+            i += 2;
+        } else {
+            return None;
+        }
+        if is(i, "OF") {
+            let tables = i + 1;
+            i = tables;
+            // The table list ends at the next keyword. PostgreSQL also accepts
+            // LIMIT/OFFSET/FETCH after the locking clause, so those end it too.
+            while i < tokens.len()
+                && !["NOWAIT", "SKIP", "FOR", "LIMIT", "OFFSET", "FETCH"]
+                    .iter()
+                    .any(|keyword| is(i, keyword))
+            {
+                i += 1;
+            }
+            if i == tables {
+                return None;
+            }
+        }
+        if is(i, "NOWAIT") {
+            i += 1;
+        } else if is(i, "SKIP") && is(i + 1, "LOCKED") {
+            i += 2;
+        }
+        Some(i)
+    };
+    (0..tokens.len()).find_map(|start| {
+        let mut i = clause_end(start)?;
+        while i < tokens.len() {
+            i = clause_end(i)?;
+        }
+        Some(tokens[start].1)
+    })
 }
 
 /// Build a paginated query by stripping any user-supplied LIMIT/OFFSET and
@@ -493,32 +628,30 @@ fn trailing_row_limit_of(query: &str, rules: CommentRules) -> Option<TrailingRow
 /// set the user actually asked for (the rows after their OFFSET). Discarding it
 /// silently collapsed `LIMIT 1 OFFSET 1` to `LIMIT 1 OFFSET 0` on page 1.
 pub fn build_paginated_query(query: &str, page_size: u32, page: u32) -> String {
-    build_paginated_query_for(query, page_size, page, true, true)
+    build_paginated_query_for(query, page_size, page, DEFAULT_SCAN_RULES)
 }
 
-/// [`build_paginated_query`] parameterized by the driver's comment syntax:
-/// `hash_comments` treats `# …` as a line comment (MySQL/MariaDB only; in
-/// PostgreSQL `#`, `#>`, `#>>`, `#-` are operators), and
-/// `line_comment_requires_space` requires whitespace or EOF after `--`
-/// (MySQL/MariaDB only; PostgreSQL and SQLite accept `--note`).
+/// [`build_paginated_query`] with the driver's comment and string rules.
 pub fn build_paginated_query_for(
     query: &str,
     page_size: u32,
     page: u32,
-    hash_comments: bool,
-    line_comment_requires_space: bool,
+    rules: ScanRules,
 ) -> String {
     let page_offset = calculate_offset(page, page_size);
-    let normalized =
-        trim_trailing_statement_terminator(query, hash_comments, line_comment_requires_space);
-    let clause_source =
-        match trailing_comment_start(normalized, hash_comments, line_comment_requires_space) {
-            Some(comment_start) => normalized[..comment_start].trim_end(),
-            None => normalized,
-        };
-    let rules = CommentRules {
-        hash_comments,
-        line_comment_requires_space,
+    let normalized = trim_trailing_statement_terminator(query, rules);
+    let clause_source = match trailing_comment_start(normalized, rules) {
+        Some(comment_start) => normalized[..comment_start].trim_end(),
+        None => normalized,
+    };
+    // Row-locking clauses stay at the end, after the pagination clause.
+    let locking_start = trailing_locking_clause_start(clause_source, rules);
+    let (clause_source, locking) = match locking_start {
+        Some(start) => (
+            clause_source[..start].trim_end(),
+            Some(&clause_source[start..]),
+        ),
+        None => (clause_source, None),
     };
     let row_limit = trailing_row_limit_of(clause_source, rules);
     let user_limit: Option<u32> = row_limit
@@ -532,7 +665,7 @@ pub fn build_paginated_query_for(
         .unwrap_or(0);
     // Cut at the clauses even when they set nothing (`LIMIT ALL`, `OFFSET 0`).
     let has_row_limit = row_limit.is_some();
-    let base_source = if has_row_limit {
+    let base_source = if has_row_limit || locking.is_some() {
         clause_source
     } else {
         normalized
@@ -550,24 +683,23 @@ pub fn build_paginated_query_for(
 
     let offset = user_offset.saturating_add(page_offset);
 
-    let separator =
-        if trailing_comment_start(&base, hash_comments, line_comment_requires_space).is_some() {
-            "\n"
-        } else {
-            " "
-        };
+    let separator = if trailing_comment_start(&base, rules).is_some() {
+        "\n"
+    } else {
+        " "
+    };
 
-    format!(
+    let paginated = format!(
         "{}{}LIMIT {} OFFSET {}",
         base, separator, fetch_count, offset
-    )
+    );
+    match locking {
+        Some(locking) => format!("{paginated} {locking}"),
+        None => paginated,
+    }
 }
 
-fn trim_trailing_statement_terminator(
-    query: &str,
-    hash_comments: bool,
-    line_comment_requires_space: bool,
-) -> &str {
+fn trim_trailing_statement_terminator(query: &str, rules: ScanRules) -> &str {
     let original_end = query.trim_end().len();
     let mut end = query.len();
 
@@ -575,9 +707,7 @@ fn trim_trailing_statement_terminator(
         let trimmed = query[..end].trim_end();
         end = trimmed.len();
 
-        if let Some(comment_start) =
-            trailing_comment_start(trimmed, hash_comments, line_comment_requires_space)
-        {
+        if let Some(comment_start) = trailing_comment_start(trimmed, rules) {
             end = comment_start;
             continue;
         }
@@ -592,11 +722,7 @@ fn trim_trailing_statement_terminator(
     }
 }
 
-fn trailing_comment_start(
-    sql: &str,
-    hash_comments: bool,
-    line_comment_requires_space: bool,
-) -> Option<usize> {
+fn trailing_comment_start(sql: &str, rules: ScanRules) -> Option<usize> {
     #[derive(Clone, Copy)]
     enum State {
         Normal,
@@ -611,6 +737,8 @@ fn trailing_comment_start(
     let chars: Vec<(usize, char)> = sql.char_indices().collect();
     let mut state = State::Normal;
     let mut candidate = None;
+    let mut escapes = rules.backslash_escapes;
+    let mut escape_string_end = None;
     let mut i = 0;
 
     while i < chars.len() {
@@ -625,7 +753,7 @@ fn trailing_comment_start(
                 if ch == '-'
                     && i + 1 < chars.len()
                     && chars[i + 1].1 == '-'
-                    && (!line_comment_requires_space
+                    && (!rules.line_comment_requires_space
                         || i + 2 >= chars.len()
                         || chars[i + 2].1.is_whitespace())
                 {
@@ -635,7 +763,7 @@ fn trailing_comment_start(
                     continue;
                 }
 
-                if hash_comments && ch == '#' {
+                if rules.hash_comments && ch == '#' {
                     candidate.get_or_insert(byte);
                     state = State::HashComment;
                     i += 1;
@@ -650,6 +778,7 @@ fn trailing_comment_start(
                 }
 
                 candidate = None;
+                escapes = string_escapes(&chars, i, rules, escape_string_end);
                 state = match ch {
                     '\'' => State::SingleQuote,
                     '"' => State::DoubleQuote,
@@ -665,12 +794,16 @@ fn trailing_comment_start(
                     State::Backtick => '`',
                     _ => unreachable!(),
                 };
-                if !matches!(state, State::Backtick) && ch == '\\' && i + 1 < chars.len() {
+                if !matches!(state, State::Backtick) && escapes && ch == '\\' && i + 1 < chars.len()
+                {
                     i += 2;
                 } else if ch == quote {
                     if i + 1 < chars.len() && chars[i + 1].1 == quote {
                         i += 2;
                     } else {
+                        if matches!(state, State::SingleQuote) && escapes {
+                            escape_string_end = Some(i + 1);
+                        }
                         state = State::Normal;
                         i += 1;
                     }

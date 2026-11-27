@@ -435,6 +435,9 @@ jobs:
         if: runner.os == 'Windows' && !inputs.preview && !inputs.prerelease
         shell: pwsh
         env:
+          # Same heap as the main Tauri build: the frontend build runs again here
+          # and no longer fits in Node's default heap on the Windows runner.
+          NODE_OPTIONS: --max-old-space-size=4096
           PACKAGE_MANAGER_SRC: winget
           PACKAGE_MANAGER_NAME: winget
         run: pnpm tauri build --bundles nsis --config src-tauri/tauri.winget.conf.json

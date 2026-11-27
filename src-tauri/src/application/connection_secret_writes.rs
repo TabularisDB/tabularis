@@ -1,10 +1,10 @@
 use crate::runtime::RuntimeContext;
 
 #[derive(Default)]
-pub(super) struct SecretWrites(Vec<(String, Option<String>)>);
+pub(crate) struct SecretWrites(Vec<(String, Option<String>)>);
 
 impl SecretWrites {
-    pub(super) fn set(
+    pub(crate) fn set(
         &mut self,
         runtime: &RuntimeContext,
         account: String,
@@ -16,7 +16,7 @@ impl SecretWrites {
         Ok(())
     }
 
-    pub(super) fn delete(
+    pub(crate) fn delete(
         &mut self,
         runtime: &RuntimeContext,
         account: String,
@@ -31,7 +31,7 @@ impl SecretWrites {
         self.0.append(&mut other.0);
     }
 
-    pub(super) fn rollback(&mut self, runtime: &RuntimeContext) {
+    pub(crate) fn rollback(&mut self, runtime: &RuntimeContext) {
         for (account, previous) in self.0.drain(..).rev() {
             let result = match previous {
                 Some(value) => runtime.secrets.set(&account, &value),

@@ -83,8 +83,8 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
                 key: 'timezone',
                 label: 'Timezone',
                 type: 'string',
-                default: 'SYSTEM',
-                description: 'Session timezone sent to MySQL after connect.',
+                description:
+                    "Session timezone sent to MySQL after connect. Leave empty to use the server's default.",
             },
         ],
         capabilities: {
@@ -208,7 +208,7 @@ export function useDrivers(): {
     installedPlugins: InstalledPluginInfo[];
     loading: boolean;
     error: string | null;
-    refresh: () => void;
+    refresh: () => Promise<void>;
 } {
     const client = useTabularisClient();
     const driverStore = getDriverStore(client);

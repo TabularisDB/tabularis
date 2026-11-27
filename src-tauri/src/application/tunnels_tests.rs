@@ -119,13 +119,53 @@ fn saved_tunnel_profiles_expand_without_exposing_secrets() {
             driver: "postgres".to_string(),
             database: DatabaseSelection::Single("app".to_string()),
             ssh_enabled: Some(true),
-            ssh_connection_id: Some(ssh.id),
+            ssh_connection_id: Some(ssh.id.clone()),
             ..ConnectionParams::default()
         },
     )
     .unwrap();
     assert_eq!(ssh_params.ssh_host.as_deref(), Some("bastion.example.com"));
+    assert_eq!(ssh_params.ssh_user.as_deref(), Some(ssh.user.as_str()));
     assert_eq!(ssh_params.ssh_password.as_deref(), Some("stored-password"));
+
+    let ssh_override = expand_connection_params(
+        &runtime,
+        &ConnectionParams {
+            driver: "postgres".to_string(),
+            database: DatabaseSelection::Single("app".to_string()),
+            ssh_enabled: Some(true),
+            ssh_connection_id: Some(ssh.id.clone()),
+            ssh_user: Some("  custom-user  ".to_string()),
+            ..ConnectionParams::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(ssh_override.ssh_user.as_deref(), Some("custom-user"));
+    assert_eq!(
+        ssh_override.ssh_host.as_deref(),
+        Some("bastion.example.com")
+    );
+    assert_eq!(
+        ssh_override.ssh_password.as_deref(),
+        Some("stored-password")
+    );
+
+    let ssh_blank_override = expand_connection_params(
+        &runtime,
+        &ConnectionParams {
+            driver: "postgres".to_string(),
+            database: DatabaseSelection::Single("app".to_string()),
+            ssh_enabled: Some(true),
+            ssh_connection_id: Some(ssh.id),
+            ssh_user: Some("   ".to_string()),
+            ..ConnectionParams::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        ssh_blank_override.ssh_user.as_deref(),
+        Some(ssh.user.as_str())
+    );
 
     let k8s_params = expand_connection_params(
         &runtime,

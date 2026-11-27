@@ -1512,8 +1512,16 @@ async fn exec_on_mysql_conn(
     if is_select && limit.is_some() {
         let l = limit.unwrap();
 
-        final_query =
-            crate::drivers::common::build_paginated_query_for(query, l, page, *HASH_COMMENTS, true);
+        final_query = crate::drivers::common::build_paginated_query_for(
+            query,
+            l,
+            page,
+            crate::drivers::common::ScanRules {
+                hash_comments: *HASH_COMMENTS,
+                line_comment_requires_space: true,
+                backslash_escapes: true,
+            },
+        );
 
         pagination = Some(Pagination {
             page,
@@ -1966,20 +1974,12 @@ use std::collections::HashMap;
 const DEFAULT_MYSQL_MAX_ALLOWED_PACKET: u64 = 1_073_741_824;
 const DEFAULT_MYSQL_SOCKET_TIMEOUT_MS: u64 = 600_000;
 const DEFAULT_MYSQL_CONNECT_TIMEOUT_MS: u64 = 60_000;
-const DEFAULT_MYSQL_TIMEZONE: &str = "SYSTEM";
 
 fn mysql_setting_value(key: &str) -> Option<serde_json::Value> {
     crate::config::get_cached_config()
         .plugins
         .and_then(|plugins| plugins.get("mysql").cloned())
         .and_then(|plugin| plugin.settings.get(key).cloned())
-}
-
-fn mysql_string_setting(key: &str, default: &str) -> String {
-    mysql_setting_value(key)
-        .and_then(|value| value.as_str().map(ToOwned::to_owned))
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| default.to_string())
 }
 
 fn mysql_numeric_setting(key: &str, default: u64) -> u64 {
@@ -2093,9 +2093,10 @@ impl MysqlDriver {
                         key: "timezone".to_string(),
                         label: "Timezone".to_string(),
                         setting_type: "string".to_string(),
-                        default: Some(serde_json::json!(DEFAULT_MYSQL_TIMEZONE)),
+                        default: None,
                         description: Some(
-                            "Session timezone sent to MySQL after connect.".to_string(),
+                            "Session timezone sent to MySQL after connect. Leave empty to use the server's default."
+                                .to_string(),
                         ),
                         required: false,
                         options: vec![],
@@ -2145,7 +2146,9 @@ impl DatabaseDriver for MysqlDriver {
         let socket_timeout =
             mysql_numeric_setting("socketTimeout", DEFAULT_MYSQL_SOCKET_TIMEOUT_MS);
         let connect_timeout = crate::pool_manager::mysql_connect_timeout(params).as_millis();
-        let timezone = mysql_string_setting("timezone", DEFAULT_MYSQL_TIMEZONE);
+        let timezone = crate::pool_manager::mysql_timezone_setting()
+            .map(|timezone| format!("&timezone={}", encode(&timezone)))
+            .unwrap_or_default();
         let ssl_mode = match params.ssl_mode.as_deref() {
             Some("disabled") | Some("disable") => "disabled",
             Some("preferred") | Some("prefer") => "preferred",
@@ -2155,7 +2158,7 @@ impl DatabaseDriver for MysqlDriver {
             _ => "required",
         };
         Ok(format!(
-            "mysql://{}@{}:{}/{}?maxAllowedPacket={}&socketTimeout={}&connectTimeout={}&timezone={}&ssl-mode={}",
+            "mysql://{}@{}:{}/{}?maxAllowedPacket={}&socketTimeout={}&connectTimeout={}{}&ssl-mode={}",
             credentials,
             params.host.as_deref().unwrap_or("localhost"),
             params.port.unwrap_or(3306),
@@ -2163,7 +2166,7 @@ impl DatabaseDriver for MysqlDriver {
             max_allowed_packet,
             socket_timeout,
             connect_timeout,
-            encode(&timezone),
+            timezone,
             ssl_mode,
         ))
     }

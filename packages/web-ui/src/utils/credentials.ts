@@ -23,6 +23,8 @@ interface ConnectionParams {
     ssh_allow_passphrase_prompt?: boolean;
     unix_socket_path?: string;
     save_in_keychain?: boolean;
+    credential_profile_id?: string;
+    use_iam_auth?: boolean;
     /** Opaque plugin-specific connection fields, persisted as-is and forwarded
      * verbatim to the driver/plugin. */
     extra?: Record<string, string>;

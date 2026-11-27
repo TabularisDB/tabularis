@@ -20,6 +20,7 @@ interface SqlCellProps {
     onToggleQueryPlanVisible: () => void;
     connectionId: string;
     explainQuery?: ResolvedQuery;
+    explainError?: string;
     schema?: string;
 }
 
@@ -37,6 +38,7 @@ export function SqlCell({
     onToggleQueryPlanVisible,
     connectionId,
     explainQuery,
+    explainError,
     schema,
 }: SqlCellProps) {
     const {t} = useTranslation();
@@ -85,11 +87,12 @@ export function SqlCell({
             <SqlCellExplain
                 query={explainQuery?.sql ?? cell.content}
                 queryError={
-                    unresolvedRefs.length > 0
+                    explainError ??
+                    (unresolvedRefs.length > 0
                         ? t('editor.notebook.queryPlanUnresolved', {
                               refs: [...new Set(unresolvedRefs.map((ref) => ref.match))].join(', '),
                           })
-                        : undefined
+                        : undefined)
                 }
                 connectionId={connectionId}
                 schema={schema}

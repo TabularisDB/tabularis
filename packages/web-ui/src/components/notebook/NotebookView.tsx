@@ -36,6 +36,8 @@ import {isTypingTarget} from '@/utils/keyboardEvents';
 import {flushPendingEditorChanges} from '@/utils/pendingEditorChanges';
 import {
     getExecutableCells,
+    partitionRunAllCells,
+    earlierReferencedCellIds,
     getDisabledCells,
     findDisabledPrerequisites,
     createRunAllResult,
@@ -49,7 +51,12 @@ import {
     findUnresolvedDependencies,
     variableOptionsForDriver,
 } from '@/utils/notebookVariables';
-import {resolveParams} from '@/utils/notebookParams';
+import {
+    resolveParams,
+    supportsTypedParams,
+    type ParamDrafts,
+    type ParamError,
+} from '@/utils/notebookParams';
 import {resolveSqlSyntax} from '@/utils/sqlSyntax';
 import {addHistoryEntry, createHistoryEntry} from '@/utils/notebookHistory';
 import {
@@ -106,6 +113,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const {activeSchema, activeCapabilities, selectedDatabases, activeDriver} = useDatabase();
     // Lets notebook parameters skip `@name` inside string literals and comments.
     const sqlDialect = resolveSqlSyntax(activeCapabilities);
+    const typedParamsSupported = supportsTypedParams(sqlDialect);
     const variableOptions = useMemo(
         () => variableOptionsForDriver(activeCapabilities ?? activeDriver, activeDriver),
         [activeCapabilities, activeDriver],
@@ -137,6 +145,9 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const [isClearOutputsConfirmOpen, setIsClearOutputsConfirmOpen] = useState(false);
     const [viewMode, setViewMode] = useState<NotebookViewMode>('edit');
     const [executedParamsByCell, setExecutedParamsByCell] = useState<Record<string, string>>({});
+    // Rows edited in the Parameters panel and not applied yet. Kept here so they
+    // survive a switch between Edit and Report view; never saved, never in undo.
+    const [paramDrafts, setParamDrafts] = useState<ParamDrafts>({});
     const [dragIndex, setDragIndex] = useState<number | null>(null);
     // Gap-based insertion point in [0, cells.length]; `null` while not dragging.
     const [dropPos, setDropPos] = useState<number | null>(null);
@@ -364,6 +375,21 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         [updateNotebook],
     );
 
+    /** Why typed parameters stop a cell, one line per parameter. */
+    const describeParamErrors = useCallback(
+        (errors: ParamError[]) =>
+            errors
+                .map(({name, reference, kind, issue}) =>
+                    t(`editor.notebook.params.errors.${kind}`, {
+                        name,
+                        reference,
+                        reason: issue ? t(`editor.notebook.params.issues.${issue}`) : '',
+                    }),
+                )
+                .join('\n'),
+        [t],
+    );
+
     const runCellInner = useCallback(
         async (cellId: string): Promise<CellRunOutcome> => {
             const cell = cellsRef.current.find((c) => c.id === cellId);
@@ -396,6 +422,16 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 const paramResult = resolveParams(sql, params, sqlDialect);
                 if (paramResult.unresolvedParams.length > 0) {
                     // Only warn, don't block — unresolved @params might be SQL variables
+                }
+                // A typed parameter that cannot be written as a value stops the cell:
+                // its reference is still in the SQL and must not reach the database.
+                if (paramResult.errors.length > 0) {
+                    updateCell(cellId, {
+                        error: describeParamErrors(paramResult.errors),
+                        isLoading: false,
+                        result: null,
+                    });
+                    return;
                 }
                 sql = paramResult.sql;
             }
@@ -530,6 +566,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             params,
             currentParamsSignature,
             sqlDialect,
+            describeParamErrors,
             variableOptions,
             guardQueryExecution,
             t,
@@ -645,9 +682,28 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             return {result: addSuccess(current), failed: false};
         };
 
-        // Split into parallel and sequential groups
-        const parallelCells = executable.filter(({cell}) => cell.isParallel);
-        const sequentialCells = executable.filter(({cell}) => !cell.isParallel);
+        // Parallel cells start together. Everything else is grouped by database:
+        // one database stays in order, and different databases run at once.
+        const {parallel: parallelCells, lanes} = partitionRunAllCells(executable, effectiveSchema);
+        // Settles when that cell's own run has finished, so a cell on another
+        // database can wait for an earlier cell it reads. "skipped" means this
+        // run never started it (stop-on-error); waiters must not treat an old
+        // result as the output of this run.
+        const finished = new Map<string, Promise<'done' | 'skipped'>>();
+        const markFinished = new Map<string, (status: 'done' | 'skipped') => void>();
+        for (const {cell} of executable) {
+            let resolve: (status: 'done' | 'skipped') => void = () => {};
+            finished.set(
+                cell.id,
+                new Promise<'done' | 'skipped'>((done) => {
+                    resolve = done;
+                }),
+            );
+            markFinished.set(cell.id, resolve);
+        }
+        const finishCell = (cellId: string, status: 'done' | 'skipped') => {
+            markFinished.get(cellId)?.(status);
+        };
 
         // Run parallel cells concurrently
         if (parallelCells.length > 0) {
@@ -662,29 +718,76 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                     index,
                     parallelResults[i],
                 ).result;
+                finishCell(cell.id, 'done');
             }
         }
 
-        // Run sequential cells one by one
-        for (let i = 0; i < sequentialCells.length; i++) {
-            const {cell, index} = sequentialCells[i];
-            const {outcome, run} = startCell(cell.id);
-            const [ran] = await Promise.allSettled([run]);
-
-            const recorded = record(result, outcome, cell.id, index, ran);
-            result = recorded.result;
-            if (recorded.failed && stopOnError) {
-                const remaining = sequentialCells.length - i - 1;
-                if (remaining > 0) {
-                    result = addSkipped(result, remaining);
+        // Each database is its own queue. Queues start together; a failure with
+        // stop-on-error only skips the rest of that database.
+        const laneSteps = await Promise.all(
+            lanes.map(async (lane) => {
+                const steps: Array<
+                    | {kind: 'stopped'; index: number}
+                    | {kind: 'ran'; index: number; settled: RunAllResult}
+                > = [];
+                let stopLane = false;
+                for (const {cell, index} of lane) {
+                    if (stopLane) {
+                        steps.push({kind: 'stopped', index});
+                        finishCell(cell.id, 'skipped');
+                        continue;
+                    }
+                    const dependencies = await Promise.all(
+                        earlierReferencedCellIds(
+                            index,
+                            prepare(cell.content.trim()),
+                            cellsRef.current,
+                        ).map((id) => finished.get(id) ?? Promise.resolve('done' as const)),
+                    );
+                    if (dependencies.includes('skipped')) {
+                        steps.push({kind: 'stopped', index});
+                        finishCell(cell.id, 'skipped');
+                        continue;
+                    }
+                    const started = startCell(cell.id);
+                    const [ran] = await Promise.allSettled([started.run]);
+                    // Captured now: a later cell may re-run this one and replace
+                    // the error with a success before the summary is built.
+                    const settled = record(
+                        createRunAllResult(),
+                        started.outcome,
+                        cell.id,
+                        index,
+                        ran,
+                    );
+                    steps.push({kind: 'ran', index, settled: settled.result});
+                    finishCell(cell.id, 'done');
+                    if (stopOnError && settled.failed) stopLane = true;
                 }
-                break;
+                return steps;
+            }),
+        );
+
+        for (const step of laneSteps.flat().sort((a, b) => a.index - b.index)) {
+            if (step.kind === 'stopped') {
+                result = addSkipped(result, 1);
+                continue;
             }
+            result = {
+                ...result,
+                executed: result.executed + step.settled.executed,
+                succeeded: result.succeeded + step.settled.succeeded,
+                failed: result.failed + step.settled.failed,
+                skipped: result.skipped + step.settled.skipped,
+                blocked: result.blocked + step.settled.blocked,
+                errors: [...result.errors, ...step.settled.errors],
+                blockedCells: [...result.blockedCells, ...step.settled.blockedCells],
+            };
         }
 
         setRunAllResult(result);
         setIsRunningAll(false);
-    }, [params, runCell, stopOnError]);
+    }, [effectiveSchema, params, runCell, stopOnError]);
 
     const handleExport = useCallback(async () => {
         // Export what the editors show, including a keystroke still held back.
@@ -792,11 +895,13 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             // Update the tab to point to the new notebook
             updateTab(tab.id, {notebookId: newId, title});
 
-            // Update local state — a different notebook now, so drop its history.
+            // Update local state — a different notebook now, so drop its history
+            // and any parameter drafts of the one it replaces.
             setNotebook(importedState);
             notebookRef.current = importedState;
             cellsRef.current = importedCells;
             resetHistory();
+            setParamDrafts({});
 
             showAlert(t('editor.notebook.importSuccess'), {kind: 'info'});
         } catch {
@@ -989,6 +1094,18 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         }
     }, []);
 
+    // The query plan explains what the cell would run: parameters first, then
+    // cell references. A parameter that cannot be sent stops the plan as well.
+    const queryPlanProps = (cell: NotebookCell) => {
+        if (cell.type !== 'sql' || !cell.isQueryPlanVisible || cell.isDisabled) return {};
+        const resolved = resolveParams(cell.content.trim(), params, sqlDialect);
+        return {
+            explainQuery: resolveQueryVariables(resolved.sql, cells, variableOptions),
+            explainError:
+                resolved.errors.length > 0 ? describeParamErrors(resolved.errors) : undefined,
+        };
+    };
+
     const toolbarProps = {
         onAddSqlCell: () => addCell('sql'),
         onAddMarkdownCell: () => addCell('markdown'),
@@ -1059,6 +1176,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     return (
         <div className="flex flex-col h-full relative">
             <ConfirmModal
+                key={dangerousQuery?.confirmationId}
                 isOpen={!!dangerousQuery}
                 onClose={() => resolveDangerousQuery(false)}
                 onConfirm={() => resolveDangerousQuery(true)}
@@ -1092,6 +1210,9 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                     cells={cells}
                     params={params}
                     onParamsChange={handleParamsChange}
+                    paramDrafts={paramDrafts}
+                    onParamDraftsChange={setParamDrafts}
+                    typedParamsSupported={typedParamsSupported}
                     runAllResult={runAllResult}
                     onDismissRunAllResult={() => setRunAllResult(null)}
                     onSwitchToEdit={() => handleViewModeChange('edit')}
@@ -1112,7 +1233,13 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                         onDragOver={handleContainerDragOver}
                         className="flex-1 overflow-auto p-4 space-y-0"
                     >
-                        <ParamsPanel params={params} onParamsChange={handleParamsChange} />
+                        <ParamsPanel
+                            params={params}
+                            onParamsChange={handleParamsChange}
+                            drafts={paramDrafts}
+                            onDraftsChange={setParamDrafts}
+                            typedSupported={typedParamsSupported}
+                        />
                         <NotebookOutline
                             cells={cells}
                             onScrollToCell={scrollToCell}
@@ -1165,21 +1292,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                                     onDuplicate={() => duplicateCell(cell.id)}
                                     canDuplicate={!isExecuting}
                                     connectionId={connectionId}
-                                    explainQuery={
-                                        cell.type === 'sql' &&
-                                        cell.isQueryPlanVisible &&
-                                        !cell.isDisabled
-                                            ? resolveQueryVariables(
-                                                  resolveParams(
-                                                      cell.content.trim(),
-                                                      params,
-                                                      sqlDialect,
-                                                  ).sql,
-                                                  cells,
-                                                  variableOptions,
-                                              )
-                                            : undefined
-                                    }
+                                    {...queryPlanProps(cell)}
                                     activeSchema={cell.schema || effectiveSchema || undefined}
                                     selectedDatabases={isMultiDb ? selectedDatabases : undefined}
                                     onSchemaChange={

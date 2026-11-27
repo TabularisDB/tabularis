@@ -2865,6 +2865,7 @@ mod tests {
             ssh_allow_passphrase_prompt: None,
             unix_socket_path: None,
             save_in_keychain: None,
+            credential_profile_id: None,
             k8s_enabled: None,
             k8s_connection_id: None,
             k8s_context: None,

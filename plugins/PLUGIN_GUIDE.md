@@ -180,7 +180,7 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `explain` | bool | `true` if the driver implements the `explain_query` method (EXPLAIN / query plan support). Enables the Visual EXPLAIN button in the SQL editor and notebook cells; when `false` or omitted, the Visual EXPLAIN UI is hidden for connections using this driver. Defaults to `false`. |
 | `unix_socket` | bool | `true` if the driver supports connecting through a local Unix socket file instead of TCP host:port. When enabled, the connection form allows toggling between Host/Port and Socket Path. When connecting over a local socket, the plugin receives the socket path in `unix_socket_path` in `ConnectionParams` (and `host`/`port` are omitted or bypassed). Over an SSH tunnel, the SSH server forwards the connection to the socket path, and the plugin receives an established local TCP forward port without seeing `unix_socket_path`. Defaults to `false`. |
 | `supports_ssl` | bool | `true` to show the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal. The values are forwarded to the plugin as `ssl_mode`, `ssl_ca`, `ssl_cert`, and `ssl_key` in `ConnectionParams`. Network drivers only. Also accepted as camelCase `supportsSsl`. Defaults to `false`. |
-| `query_timeout` | bool | `true` when the driver honours `query_timeout_secs` — stops a statement on the server once the limit passes. Shows the query-timeout field in the connection modal. Built-in PostgreSQL and MySQL set this; plugins that can cancel a running statement should opt in. Defaults to `false`. |
+| `query_timeout` | bool | `true` when the driver honours `query_timeout_secs` — stops a statement on the server once the limit passes. Shows the query-timeout field in the connection modal. Built-in PostgreSQL, MySQL and SQLite set this; plugins that can cancel a running statement should opt in. Defaults to `false`. |
 | `socks5_proxy` | bool | `true` when the driver sends every database connection through the SOCKS5 proxy the host passes in `socks5_proxy_host` / `socks5_proxy_port` (and `socks5_proxy_username` / `socks5_proxy_password` when set). With SSH enabled, the host then opens a dynamic forward instead of rewriting `host` / `port`, so a connection that names several endpoints (an SRV seedlist, a replica set) reaches all of them. Also accepted as camelCase `socks5Proxy`. Defaults to `false`. See [SSH Tunnels through a SOCKS5 Proxy](#ssh-tunnels-through-a-socks5-proxy). |
 
 For drivers with several URL forms, declare the single example as the placeholder and add selectable presets:
@@ -259,6 +259,7 @@ Always set `sql_dialect` to the closest preset, and add `sql_syntax` when no pre
   - `--` not followed by a space (`1--1` is arithmetic in MySQL);
   - a `;` that any dialect reads as a statement separator, even inside what your engine treats as a string or comment.
 - **Generated SQL and literals.** Filters, dumps, notebook cell CTEs and Copy as INSERT fall back to standard quoting (`'` doubled, backslashes left as is), and dumps write booleans as `1`/`0`. On an engine where `\` is an escape character this is wrong, so declare `mysql` (or `sql_syntax.string_escape`) there; on one that rejects `1`/`0` for a boolean column, declare `sql_syntax.boolean_literals`.
+- **Typed notebook parameters.** A notebook parameter with a type is written into the cell's SQL as a literal by the host, so types are offered only when `sql_syntax.extends` or `sql_dialect` is `postgres`, `mysql` or `sqlite`. Without one of those the type selector is disabled with the reason and parameters stay raw. See [Notebook Parameters](#notebook-parameters).
 
 ### SQL Syntax (`sql_syntax`)
 
@@ -282,9 +283,9 @@ Always set `sql_dialect` to the closest preset, and add `sql_syntax` when no pre
 | `script_blocks` | bool | `false` | Procedural blocks stay one statement: `BEGIN … END` (not `BEGIN TRANSACTION`), `EXCEPTION WHEN ERROR THEN`, `IF … END IF`, `LOOP`, `WHILE`, `REPEAT`, `FOR … DO`, `CASE … END CASE`, labels and `CREATE PROCEDURE` bodies. |
 | `psql_blocks` | bool | `false` | Firebird PSQL: preserve declarations and nested BEGIN/CASE blocks in procedures, functions, triggers, packages and EXECUTE BLOCK. Enable alternative q-quotes and consume standalone isql SET TERM directives. Ordinary transaction statements remain separate. Requires a host and registry schema supporting this field. |
 | `dollar_quoting` | bool | preset (`postgres`: `true`) | `$tag$ … $tag$` strings. |
-| `string_escape` | string | preset (`mysql`: doubled quote plus doubled backslash; others: `"standard"`) | How the host writes string literals in filters, foreign-key filters, Copy as INSERT / IN list, clipboard import, dumps and notebook cell CTEs: `"standard"` (`'it''s'`) or `"backslash"` (`'it\'s'`, with `\\`, NUL (`\0`), `\n` and `\r` escaped too). On a `mysql` base (`extends: "mysql"`, or `sql_dialect: "mysql"` without `extends`) `"standard"` is ignored with a warning, since the engine still reads `\` as an escape character; `"backslash"` is allowed. |
+| `string_escape` | string | preset (`mysql`: doubled quote plus doubled backslash; others: `"standard"`) | How the host writes string literals in filters, foreign-key filters, Copy as INSERT / IN list, clipboard import, dumps, notebook cell CTEs and typed notebook parameters: `"standard"` (`'it''s'`) or `"backslash"` (`'it\'s'`, with `\\`, NUL (`\0`), `\n` and `\r` escaped too). On a `mysql` base (`extends: "mysql"`, or `sql_dialect: "mysql"` without `extends`) `"standard"` is ignored with a warning, since the engine still reads `\` as an escape character; `"backslash"` is allowed. |
 | `like_escape` | bool | `true` | Whether `LIKE … ESCAPE '!'` is supported. With `false`, literal LIKE filters escape `%`, `_` and `\` with a backslash (the engine's default LIKE escape) and omit `ESCAPE`. |
-| `boolean_literals` | string | each generator's default (dumps: `TRUE`/`FALSE` on `postgres`, `1`/`0` elsewhere; Copy as INSERT and filters: `TRUE`/`FALSE`; notebook cell CTEs: `'true'`) | How the host writes boolean values in SQL it generates: `"keywords"` (`TRUE` / `FALSE`) or `"numeric"` (`1` / `0`). Applies to dumps, Copy as INSERT / IN list, foreign-key and cell-value filters, filters on `BOOL` / `BOOLEAN` columns (`true`, `false`, `1`, `0`), notebook cell CTEs and the BOOLEAN columns a clipboard import creates. Declare `"keywords"` when the engine has no implicit integer-to-boolean coercion (GoogleSQL rejects `1` for a `BOOL` column). Any other value is ignored. |
+| `boolean_literals` | string | each generator's default (dumps: `TRUE`/`FALSE` on `postgres`, `1`/`0` elsewhere; Copy as INSERT and filters: `TRUE`/`FALSE`; notebook cell CTEs: `'true'`) | How the host writes boolean values in SQL it generates: `"keywords"` (`TRUE` / `FALSE`) or `"numeric"` (`1` / `0`). Applies to dumps, Copy as INSERT / IN list, foreign-key and cell-value filters, filters on `BOOL` / `BOOLEAN` columns (`true`, `false`, `1`, `0`), notebook cell CTEs, typed notebook parameters and the BOOLEAN columns a clipboard import creates. Declare `"keywords"` when the engine has no implicit integer-to-boolean coercion (GoogleSQL rejects `1` for a `BOOL` column). Any other value is ignored. |
 | `formatter` | string | preset | `sql-formatter` language for Format SQL: `bigquery`, `clickhouse`, `db2`, `db2i`, `duckdb`, `hive`, `mariadb`, `mysql`, `n1ql`, `plsql`, `postgresql`, `redshift`, `singlestoredb`, `snowflake`, `spark`, `sql`, `sqlite`, `tidb`, `transactsql` or `trino`. |
 | `keywords` | string[] | `[]` | Extra autocomplete keywords. At most 1000 entries of up to 64 characters: an ASCII letter or `_`, then letters, digits, `_`, `$`, `.` or single inner spaces (`"FOR SYSTEM_TIME AS OF"`, `"SAFE."`). |
 | `functions` | string[] | `[]` | Extra autocomplete function names, same limits as `keywords`. |
@@ -359,6 +360,38 @@ The GoogleSQL descriptor of a BigQuery driver, with `"sql_dialect": "mysql"` as 
   ]
 }
 ```
+
+### Notebook Parameters
+
+A notebook parameter is referenced in a cell as `@name` or `${name}`. Each parameter is in one of two modes.
+
+**Raw** is the default, and the mode of every parameter saved before types existed. The value is pasted into the SQL exactly as typed, on every driver: a string needs its own quotes, a value can be any SQL fragment, and `'${name}'` is replaced inside quotes. A raw value takes effect as it is typed.
+
+**Typed** is opt-in per parameter. The host validates the value and writes it into the SQL as a literal. Typed rows are edited as drafts and committed together with **Apply**, which changes the applied values once and never runs a cell.
+
+Typed parameters depend on the driver's capabilities, not on its id:
+
+| Driver | Parameters |
+|--------|------------|
+| Built-in driver, or plugin whose `sql_syntax.extends` or `sql_dialect` is `postgres`, `mysql` or `sqlite` | raw and typed |
+| Any other plugin (`mssql`, `oracle`, `generic`, or no declared dialect) | raw only: the type selector is disabled with the reason, and a cell that references a typed parameter stops with an error instead of running |
+
+The dialect is resolved as for [Column Statistics](#column-statistics): a valid `extends` wins, and declaring neither does not count. Those three are the dialects the literals below were run on. `mssql` and `oracle` are left out because nothing was run there (SQL Server may need `N'…'` for Unicode text).
+
+| Type | Accepted value | Written into the SQL as |
+|------|----------------|-------------------------|
+| Text | any text; the empty string is a value | a string literal in the driver's `string_escape` style |
+| Number | digits with an optional leading `-` and fraction (`42`, `-0.10`); no exponent, no `+`, no locale separators | the digits as typed, a negative number in parentheses; never converted to a float |
+| Boolean | true or false | `TRUE` / `FALSE`, or `1` / `0` with `boolean_literals: "numeric"` |
+| Date | a calendar date, `YYYY-MM-DD` | a quoted string (`'2026-01-31'`), with no `DATE` keyword |
+| List | one of the options configured on the parameter | a string literal, as Text |
+| Any type with NULL ticked | | `NULL` |
+
+A parameter marked Required accepts neither NULL nor an empty text. A date is a date: compare a timestamp column with a range, since engines differ on `timestamp = 'YYYY-MM-DD'`.
+
+A typed reference is replaced only in SQL code. `${name}` inside a string or a quoted identifier stops the cell with an error naming the parameter (remove the quotes, or keep that parameter raw); inside a comment it is left as written. `@name` inside a string or a comment stays text, as it does for a raw parameter.
+
+In the notebook file a typed parameter adds `type` (`text`, `number`, `boolean`, `date` or `select`) and, where set, `isNull`, `required` and `options` to its `name` and `value`. A parameter without `type` is raw. A host that predates typed parameters ignores the new fields and pastes the value as raw text. A `type` the host does not know (a later version may add one) is kept in the file as written: the parameter is shown as unknown, and a cell that references it stops with an error instead of running.
 
 ### Data Types
 
