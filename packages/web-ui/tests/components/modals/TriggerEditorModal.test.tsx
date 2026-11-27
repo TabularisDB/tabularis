@@ -368,6 +368,60 @@ describe('TriggerEditorModal save ordering', () => {
         });
     });
 
+    it.each([
+        ['BEGIN\n  UPDATE counts SET n = n + 1;\nEND', 'AFTER INSERT ON "products"'],
+        [
+            'WHEN NEW.qty > 0\nBEGIN\n  UPDATE counts SET n = n + NEW.qty;\nEND',
+            'AFTER INSERT ON "products"',
+        ],
+        // A quoted column may contain " ON ": the body starts after the real ON clause.
+        [
+            'BEGIN\n  UPDATE counts SET n = n + 1;\nEND',
+            'AFTER UPDATE OF "last ON sale" ON products',
+        ],
+    ])(
+        'keeps the body of a SQLite trigger written without FOR EACH ROW: %s',
+        async (body, header) => {
+            invokeMock.mockImplementation(async (cmd: string) => {
+                if (cmd === 'get_trigger_definition') {
+                    return `CREATE TRIGGER "audit" ${header}\n${body}`;
+                }
+                return '';
+            });
+
+            render(
+                <TriggerEditorModal
+                    isOpen
+                    onClose={vi.fn()}
+                    connectionId="conn-1"
+                    triggerName="audit"
+                    tableName="products"
+                    driver="sqlite"
+                    isNewTrigger={false}
+                    onSuccess={vi.fn()}
+                />,
+            );
+
+            await waitFor(() => {
+                expect(invokeMock).toHaveBeenCalledWith(
+                    'get_trigger_definition',
+                    expect.objectContaining({triggerName: 'audit'}),
+                );
+            });
+
+            fireEvent.click(screen.getByText('triggers.save'));
+
+            await waitFor(() => {
+                const created = invokeMock.mock.calls.filter(([cmd]) => cmd === 'create_trigger');
+                expect(created).toHaveLength(1);
+                const sql = (created[0][1] as {triggerSql: string}).triggerSql;
+                expect(sql).toContain(`FOR EACH ROW\n${body}`);
+                expect(sql).toMatch(/AFTER (INSERT|UPDATE)\b/);
+                expect(sql).not.toContain('-- trigger body');
+            });
+        },
+    );
+
     it('loads and updates a function whose name is quoted apart from its schema', async () => {
         // pg_get_triggerdef quotes each part only when needed: app."AuditLog"().
         invokeMock.mockImplementation(async (cmd: string) => {
