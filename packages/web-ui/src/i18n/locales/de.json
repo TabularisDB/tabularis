@@ -2490,7 +2490,29 @@
       "excludedFromReport": "Vom Bericht ausgeschlossen",
       "reportOutdated": "Veraltet",
       "reportNoOutput": "Noch keine Ausgabe. Führen Sie das Notebook aus, um Ergebnisse zu laden.",
-      "reportEmpty": "Keine Zellen sind in diesem Bericht enthalten."
+      "reportEmpty": "Keine Zellen sind in diesem Bericht enthalten.",
+      "scalarRef": {
+          "syntaxHint": "Tippe {{ um einen SQL-Skalar einzufügen: {{value:cell_1.column}} oder {{value:alias.column}}",
+          "helpLabel": "Hilfe",
+          "helpToggle": "Syntaxhilfe für Skalarreferenzen umschalten",
+          "helpDescription": "Referenziere einen einzeiligen SQL-Zellenwert in Markdown. Nutze cell_N.spalte oder einen eindeutigen Alias.",
+          "helpExample": "Beispiel: {{value:cell_1.total}} oder {{value:revenue_summary.\"total revenue\"}}",
+          "suggestionsLabel": "Vorschläge für Skalarreferenzen",
+          "outdatedShort": "veraltet",
+          "outdatedTooltip": "Die SQL-Abfrage der referenzierten Zelle wurde seit dem letzten Lauf geändert",
+          "notRun": "[{{target}}: nicht ausgeführt]",
+          "loading": "[{{target}}: wird ausgeführt…]",
+          "error": "[{{target}}: Fehler]",
+          "noRows": "[{{target}}: keine Zeilen]",
+          "multipleRows": "[{{target}}: {{count}} Zeilen (1 erwartet)]",
+          "missingColumn": "[{{target}}: Spalte \"{{column}}\" fehlt]",
+          "ambiguousColumn": "[{{target}}: mehrdeutige Spalte \"{{column}}\"]",
+          "missingCell": "[{{target}}: nicht gefunden]",
+          "ambiguousCell": "[{{target}}: mehrdeutiger Zellenname]",
+          "notSqlCell": "[{{target}}: keine SQL-Zelle]",
+          "invalid": "[ungültige Referenz: {{raw}}]",
+          "cellLabel": "Zelle {{number}}"
+      }
     },
     "querySelection": {
       "title": "Abfrage zum Ausführen auswählen",

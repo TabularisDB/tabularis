@@ -1272,6 +1272,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                                 {showLineAt(index) && renderDropLine('top')}
                                 <NotebookCellWrapper
                                     cell={cell}
+                                    cells={cells}
                                     index={index}
                                     totalCells={cells.length}
                                     onUpdate={(partial) => updateCell(cell.id, partial)}

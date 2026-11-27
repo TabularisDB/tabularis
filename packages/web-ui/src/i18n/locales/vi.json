@@ -2529,7 +2529,29 @@
       "excludedFromReport": "Đã loại khỏi báo cáo",
       "reportOutdated": "Đã cũ",
       "reportNoOutput": "Chưa có kết quả. Chạy notebook để tải dữ liệu.",
-      "reportEmpty": "Không có ô nào được bao gồm trong báo cáo này."
+      "reportEmpty": "Không có ô nào được bao gồm trong báo cáo này.",
+      "scalarRef": {
+          "syntaxHint": "Nhập {{ để chèn giá trị vô hướng SQL: {{value:cell_1.column}} hoặc {{value:alias.column}}",
+          "helpLabel": "Trợ giúp",
+          "helpToggle": "Bật/tắt trợ giúp cú pháp tham chiếu vô hướng",
+          "helpDescription": "Tham chiếu giá trị ô SQL một dòng trong Markdown. Dùng cell_N.column hoặc bí danh ô duy nhất.",
+          "helpExample": "Ví dụ: {{value:cell_1.total}} hoặc {{value:revenue_summary.\"total revenue\"}}",
+          "suggestionsLabel": "Gợi ý tham chiếu vô hướng",
+          "outdatedShort": "lỗi thời",
+          "outdatedTooltip": "Truy vấn của ô SQL được tham chiếu đã thay đổi kể từ lần chạy cuối",
+          "notRun": "[{{target}}: chưa chạy]",
+          "loading": "[{{target}}: đang chạy…]",
+          "error": "[{{target}}: lỗi]",
+          "noRows": "[{{target}}: không có dòng]",
+          "multipleRows": "[{{target}}: {{count}} dòng (cần 1)]",
+          "missingColumn": "[{{target}}: thiếu cột \"{{column}}\"]",
+          "ambiguousColumn": "[{{target}}: cột \"{{column}}\" mơ hồ]",
+          "missingCell": "[{{target}}: không tìm thấy]",
+          "ambiguousCell": "[{{target}}: tên ô mơ hồ]",
+          "notSqlCell": "[{{target}}: không phải ô SQL]",
+          "invalid": "[tham chiếu không hợp lệ: {{raw}}]",
+          "cellLabel": "Ô {{number}}"
+      }
     },
     "querySelection": {
       "title": "Chọn truy vấn để chạy",

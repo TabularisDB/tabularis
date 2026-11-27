@@ -2518,7 +2518,29 @@
       "excludedFromReport": "Nakabukod sa ulat",
       "reportOutdated": "Luma na",
       "reportNoOutput": "Wala pang output. Patakbuhin ang notebook upang mag-load ng mga resulta.",
-      "reportEmpty": "Walang mga cell na kasama sa ulat na ito."
+      "reportEmpty": "Walang mga cell na kasama sa ulat na ito.",
+      "scalarRef": {
+          "syntaxHint": "I-type ang {{ para maglagay ng SQL scalar: {{value:cell_1.column}} o {{value:alias.column}}",
+          "helpLabel": "Tulong",
+          "helpToggle": "I-toggle ang tulong sa syntax ng scalar reference",
+          "helpDescription": "Mag-reference ng single-row SQL cell value sa Markdown. Gamitin ang cell_N.column o natatanging cell alias.",
+          "helpExample": "Halimbawa: {{value:cell_1.total}} o {{value:revenue_summary.\"total revenue\"}}",
+          "suggestionsLabel": "Mga suhestiyon sa scalar reference",
+          "outdatedShort": "luma na",
+          "outdatedTooltip": "Nagbago ang query ng naka-reference na SQL cell mula noong huling pagtakbo",
+          "notRun": "[{{target}}: hindi pa tumakbo]",
+          "loading": "[{{target}}: tumatakbo…]",
+          "error": "[{{target}}: error]",
+          "noRows": "[{{target}}: walang row]",
+          "multipleRows": "[{{target}}: {{count}} row (1 lang ang inaasahan)]",
+          "missingColumn": "[{{target}}: nawawalang column \"{{column}}\"]",
+          "ambiguousColumn": "[{{target}}: malabong column \"{{column}}\"]",
+          "missingCell": "[{{target}}: hindi mahanap]",
+          "ambiguousCell": "[{{target}}: malabong pangalan ng cell]",
+          "notSqlCell": "[{{target}}: hindi SQL cell]",
+          "invalid": "[maling reference: {{raw}}]",
+          "cellLabel": "Cell {{number}}"
+      }
     },
     "querySelection": {
       "title": "Pumili ng Query na Isasakatuparan",

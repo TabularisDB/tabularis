@@ -158,7 +158,7 @@ export function NotebookReportView({
                     <div className="space-y-4">
                         {includedCells.map((cell) =>
                             cell.type === 'markdown' ? (
-                                <MarkdownCell key={cell.id} cell={cell} readOnly />
+                                <MarkdownCell key={cell.id} cell={cell} cells={cells} readOnly />
                             ) : (
                                 <ReportSqlCell
                                     key={cell.id}

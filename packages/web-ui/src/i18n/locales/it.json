@@ -2552,7 +2552,29 @@
       "excludedFromReport": "Escluso dal report",
       "reportOutdated": "Obsoleto",
       "reportNoOutput": "Nessun risultato ancora. Esegui il notebook per caricare i dati.",
-      "reportEmpty": "Nessuna cella è inclusa in questo report."
+      "reportEmpty": "Nessuna cella è inclusa in questo report.",
+      "scalarRef": {
+          "syntaxHint": "Digita {{ per inserire uno scalare SQL: {{value:cell_1.column}} o {{value:alias.column}}",
+          "helpLabel": "Aiuto",
+          "helpToggle": "Mostra o nascondi la guida alla sintassi dei riferimenti scalari",
+          "helpDescription": "Fai riferimento a un valore SQL a riga singola in Markdown. Usa cell_N.colonna o un alias univoco.",
+          "helpExample": "Esempio: {{value:cell_1.total}} o {{value:revenue_summary.\"total revenue\"}}",
+          "suggestionsLabel": "Suggerimenti per riferimenti scalari",
+          "outdatedShort": "obsoleto",
+          "outdatedTooltip": "La query della cella SQL è cambiata dall’ultima esecuzione",
+          "notRun": "[{{target}}: non eseguita]",
+          "loading": "[{{target}}: in esecuzione…]",
+          "error": "[{{target}}: errore]",
+          "noRows": "[{{target}}: nessuna riga]",
+          "multipleRows": "[{{target}}: {{count}} righe (attesa 1)]",
+          "missingColumn": "[{{target}}: colonna \"{{column}}\" mancante]",
+          "ambiguousColumn": "[{{target}}: colonna \"{{column}}\" ambigua]",
+          "missingCell": "[{{target}}: non trovata]",
+          "ambiguousCell": "[{{target}}: nome cella ambiguo]",
+          "notSqlCell": "[{{target}}: non è una cella SQL]",
+          "invalid": "[riferimento non valido: {{raw}}]",
+          "cellLabel": "Cella {{number}}"
+      }
     },
     "querySelection": {
       "title": "Seleziona la query da eseguire",

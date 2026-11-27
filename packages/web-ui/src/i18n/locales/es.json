@@ -2465,7 +2465,29 @@
       "excludedFromReport": "Excluido del informe",
       "reportOutdated": "Desactualizado",
       "reportNoOutput": "Sin resultados aún. Ejecuta el cuaderno para cargarlos.",
-      "reportEmpty": "No hay celdas incluidas en este informe."
+      "reportEmpty": "No hay celdas incluidas en este informe.",
+      "scalarRef": {
+          "syntaxHint": "Escribe {{ para insertar un escalar SQL: {{value:cell_1.column}} o {{value:alias.column}}",
+          "helpLabel": "Ayuda",
+          "helpToggle": "Mostrar u ocultar la ayuda de sintaxis de referencias escalares",
+          "helpDescription": "Referencia un valor SQL de una sola fila en Markdown. Usa cell_N.columna o un alias único.",
+          "helpExample": "Ejemplo: {{value:cell_1.total}} o {{value:revenue_summary.\"total revenue\"}}",
+          "suggestionsLabel": "Sugerencias de referencias escalares",
+          "outdatedShort": "desactualizado",
+          "outdatedTooltip": "La consulta de la celda SQL cambió desde su última ejecución",
+          "notRun": "[{{target}}: no ejecutada]",
+          "loading": "[{{target}}: ejecutando…]",
+          "error": "[{{target}}: error]",
+          "noRows": "[{{target}}: sin filas]",
+          "multipleRows": "[{{target}}: {{count}} filas (se esperaba 1)]",
+          "missingColumn": "[{{target}}: falta la columna \"{{column}}\"]",
+          "ambiguousColumn": "[{{target}}: columna ambigua \"{{column}}\"]",
+          "missingCell": "[{{target}}: no encontrada]",
+          "ambiguousCell": "[{{target}}: nombre de celda ambiguo]",
+          "notSqlCell": "[{{target}}: no es una celda SQL]",
+          "invalid": "[referencia inválida: {{raw}}]",
+          "cellLabel": "Celda {{number}}"
+      }
     },
     "querySelection": {
       "title": "Seleccionar consulta a ejecutar",

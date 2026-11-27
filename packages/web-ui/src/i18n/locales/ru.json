@@ -2506,7 +2506,29 @@
       "excludedFromReport": "Исключено из отчёта",
       "reportOutdated": "Устарело",
       "reportNoOutput": "Пока нет результатов. Запустите блокнот для загрузки данных.",
-      "reportEmpty": "В этот отчёт не включено ни одной ячейки."
+      "reportEmpty": "В этот отчёт не включено ни одной ячейки.",
+      "scalarRef": {
+          "syntaxHint": "Введите {{ для вставки скалярного значения SQL: {{value:cell_1.column}} или {{value:alias.column}}",
+          "helpLabel": "Справка",
+          "helpToggle": "Показать или скрыть справку по синтаксису скалярных ссылок",
+          "helpDescription": "Ссылайтесь на однострочное значение SQL-ячейки в Markdown. Используйте cell_N.колонка или уникальный псевдоним.",
+          "helpExample": "Пример: {{value:cell_1.total}} или {{value:revenue_summary.\"total revenue\"}}",
+          "suggestionsLabel": "Подсказки скалярных ссылок",
+          "outdatedShort": "устарело",
+          "outdatedTooltip": "Запрос SQL-ячейки изменился после последнего запуска",
+          "notRun": "[{{target}}: не выполнялась]",
+          "loading": "[{{target}}: выполняется…]",
+          "error": "[{{target}}: ошибка]",
+          "noRows": "[{{target}}: нет строк]",
+          "multipleRows": "[{{target}}: {{count}} строк (ожидалась 1)]",
+          "missingColumn": "[{{target}}: столбец \"{{column}}\" не найден]",
+          "ambiguousColumn": "[{{target}}: неоднозначный столбец \"{{column}}\"]",
+          "missingCell": "[{{target}}: не найдена]",
+          "ambiguousCell": "[{{target}}: неоднозначное имя ячейки]",
+          "notSqlCell": "[{{target}}: не SQL-ячейка]",
+          "invalid": "[некорректная ссылка: {{raw}}]",
+          "cellLabel": "Ячейка {{number}}"
+      }
     },
     "querySelection": {
       "title": "Выбрать запрос для выполнения",

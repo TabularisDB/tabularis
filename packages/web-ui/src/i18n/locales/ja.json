@@ -2498,7 +2498,29 @@
       "excludedFromReport": "レポートから除外されています",
       "reportOutdated": "古い結果",
       "reportNoOutput": "まだ出力がありません。ノートブックを実行して結果を読み込んでください。",
-      "reportEmpty": "このレポートに含まれるセルがありません。"
+      "reportEmpty": "このレポートに含まれるセルがありません。",
+      "scalarRef": {
+          "syntaxHint": "{{ を入力して SQL スカラー値を挿入: {{value:cell_1.column}} または {{value:alias.column}}",
+          "helpLabel": "ヘルプ",
+          "helpToggle": "スカラー参照構文のヘルプを切り替え",
+          "helpDescription": "Markdown 内で 1 行の SQL セル値を参照します。cell_N.column または一意のセルエイリアスを使用します。",
+          "helpExample": "例: {{value:cell_1.total}} または {{value:revenue_summary.\"total revenue\"}}",
+          "suggestionsLabel": "スカラー参照の候補",
+          "outdatedShort": "古い結果",
+          "outdatedTooltip": "参照先の SQL セルのクエリが前回の実行から変更されています",
+          "notRun": "[{{target}}: 未実行]",
+          "loading": "[{{target}}: 実行中…]",
+          "error": "[{{target}}: エラー]",
+          "noRows": "[{{target}}: 行なし]",
+          "multipleRows": "[{{target}}: {{count}} 行 (1 行のみ有効)]",
+          "missingColumn": "[{{target}}: 列 \"{{column}}\" がありません]",
+          "ambiguousColumn": "[{{target}}: 列 \"{{column}}\" が曖昧です]",
+          "missingCell": "[{{target}}: 見つかりません]",
+          "ambiguousCell": "[{{target}}: セル名が曖昧です]",
+          "notSqlCell": "[{{target}}: SQL セルではありません]",
+          "invalid": "[無効な参照: {{raw}}]",
+          "cellLabel": "セル {{number}}"
+      }
     },
     "querySelection": {
       "title": "実行するクエリを選択",

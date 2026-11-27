@@ -2451,7 +2451,29 @@
       "excludedFromReport": "보고서에서 제외됨",
       "reportOutdated": "만료됨",
       "reportNoOutput": "아직 출력이 없습니다. 노트북을 실행하여 결과를 불러오세요.",
-      "reportEmpty": "이 보고서에 포함된 셀이 없습니다."
+      "reportEmpty": "이 보고서에 포함된 셀이 없습니다.",
+      "scalarRef": {
+          "syntaxHint": "{{ 를 입력해 SQL 스칼라 값을 삽입하세요: {{value:cell_1.column}} 또는 {{value:alias.column}}",
+          "helpLabel": "도움말",
+          "helpToggle": "스칼라 참조 구문 도움말 토글",
+          "helpDescription": "Markdown에서 단일 행 SQL 셀 값을 참조합니다. cell_N.column 또는 고유한 셀 별칭을 사용하세요.",
+          "helpExample": "예: {{value:cell_1.total}} 또는 {{value:revenue_summary.\"total revenue\"}}",
+          "suggestionsLabel": "스칼라 참조 추천",
+          "outdatedShort": "오래됨",
+          "outdatedTooltip": "참조된 SQL 셀 쿼리가 마지막 실행 이후 변경되었습니다",
+          "notRun": "[{{target}}: 실행 안 됨]",
+          "loading": "[{{target}}: 실행 중…]",
+          "error": "[{{target}}: 오류]",
+          "noRows": "[{{target}}: 행 없음]",
+          "multipleRows": "[{{target}}: {{count}}개 행 (1개 필요)]",
+          "missingColumn": "[{{target}}: \"{{column}}\" 열 없음]",
+          "ambiguousColumn": "[{{target}}: 모호한 열 \"{{column}}\"]",
+          "missingCell": "[{{target}}: 찾을 수 없음]",
+          "ambiguousCell": "[{{target}}: 모호한 셀 이름]",
+          "notSqlCell": "[{{target}}: SQL 셀이 아님]",
+          "invalid": "[잘못된 참조: {{raw}}]",
+          "cellLabel": "셀 {{number}}"
+      }
     },
     "querySelection": {
       "title": "실행할 쿼리 선택",
