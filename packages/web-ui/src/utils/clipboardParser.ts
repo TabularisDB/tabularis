@@ -97,19 +97,30 @@ function parseTsv(text: string): string[][] {
     return rows;
 }
 
+// A quote opens a quoted CSV field only at the start of the field, after any
+// blanks, as spreadsheets read it. Elsewhere it is plain text (`55" screen`),
+// and treating it as an opening quote would swallow the separators and line
+// breaks that follow.
 function parseCsv(text: string): string[][] {
+    // A UTF-8 BOM (common in spreadsheet exports) would sit before the first
+    // field's opening quote and make it read as plain text.
+    const input = text.replace(/^\uFEFF/, '').trim();
     let commas = 0;
     let semicolons = 0;
     let quoted = false;
-    for (let i = 0; i < text.length; i++) {
-        const ch = text[i];
-        if (ch === '"') {
-            if (quoted && text[i + 1] === '"') i++;
+    let atFieldStart = true;
+    for (let i = 0; i < input.length; i++) {
+        const ch = input[i];
+        if (ch === '"' && (quoted || atFieldStart)) {
+            if (quoted && input[i + 1] === '"') i++;
             else quoted = !quoted;
+            atFieldStart = false;
         } else if (!quoted) {
             if (ch === '\r' || ch === '\n') break;
             if (ch === ',') commas++;
             if (ch === ';') semicolons++;
+            if (ch === ',' || ch === ';') atFieldStart = true;
+            else if (ch !== ' ' && ch !== '\t') atFieldStart = false;
         }
     }
     const separator = semicolons > commas ? ';' : ',';
@@ -119,10 +130,9 @@ function parseCsv(text: string): string[][] {
     let current = '';
     let inQuotes = false;
     // Keep quote state across physical lines: a quoted newline is cell data.
-    const input = text.trim();
     for (let i = 0; i < input.length; i++) {
         const ch = input[i];
-        if (ch === '"') {
+        if (ch === '"' && (inQuotes || current.trim() === '')) {
             if (inQuotes && input[i + 1] === '"') {
                 current += '"';
                 i++;
@@ -150,10 +160,24 @@ function parseJsonArray(text: string): {headers: string[]; rows: string[][]} | n
         const parsed = JSON.parse(text.trim());
         const arr = Array.isArray(parsed) ? parsed : [parsed];
         if (arr.length === 0 || typeof arr[0] !== 'object') return null;
-        const headers = Object.keys(arr[0]);
-        const rows = arr.map((obj: Record<string, unknown>) =>
+        // Every key of every object, in order of first appearance: exports
+        // often leave out a key whose value is null, so the first object alone
+        // can miss columns that later objects have.
+        const headers = [
+            ...new Set(
+                arr.flatMap((obj: unknown) =>
+                    obj !== null && typeof obj === 'object' ? Object.keys(obj) : [],
+                ),
+            ),
+        ];
+        const rows = arr.map((obj: Record<string, unknown> | null) =>
             headers.map((h) => {
-                const v = obj[h];
+                // Only the object's own keys: a missing `constructor` or
+                // `toString` must not read the inherited Object.prototype value.
+                const v =
+                    obj !== null && typeof obj === 'object' && Object.hasOwn(obj, h)
+                        ? obj[h]
+                        : undefined;
                 if (v === null || v === undefined) return '';
                 if (typeof v === 'object') return JSON.stringify(v);
                 return String(v);

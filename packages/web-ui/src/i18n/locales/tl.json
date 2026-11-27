@@ -1572,6 +1572,8 @@
     "save": "I-save",
     "failSave": "Nabigong i-save ang connection",
     "selectSshConnection": "Pumili ng SSH Connection",
+    "sshUserOverride": "I-override ang SSH User (opsyonal)",
+    "sshUserOverrideHint": "Iwanang blangko upang gamitin ang default na user ng napiling SSH connection.",
     "useSshConnection": "Gumamit ng Umiiral na SSH Connection",
     "createInlineSsh": "I-configure ang SSH Inline",
     "manageSshConnections": "Pamahalaan ang mga SSH Connection",
@@ -2392,7 +2394,8 @@
           "number": "Numero",
           "boolean": "Boolean",
           "date": "Petsa",
-          "select": "Listahan"
+          "select": "Listahan",
+          "unknown": "Hindi kilala"
         },
         "issues": {
           "invalidNumber": "Maglagay ng numero gaya ng 42 o -0.5",
@@ -2402,7 +2405,8 @@
           "noOptions": "Magdagdag ng kahit isang opsyon",
           "required": "Kailangan ng value",
           "emptyNeedsNull": "Maglagay ng value o i-check ang NULL",
-          "cellReference": "Hindi maaaring maglaman ng reference sa cell ang typed na value"
+          "cellReference": "Hindi maaaring maglaman ng reference sa cell ang typed na value",
+          "unknownType": "Hindi kilala ng bersyong ito ng Tabularis ang uri na ito"
         },
         "errors": {
           "invalid": "Hindi maipadala ang parameter na @{{name}}: {{reason}}",

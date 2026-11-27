@@ -69,4 +69,29 @@ describe('BooleanInput', () => {
         });
         expect(onKeyDown).toHaveBeenCalled();
     });
+
+    it('marks the checkbox as invalid and names the text that describes it', () => {
+        render(
+            <>
+                <BooleanInput
+                    name="enabled"
+                    value={null}
+                    ariaInvalid
+                    ariaDescribedBy="enabled-error"
+                    onChange={vi.fn()}
+                />
+                <p id="enabled-error">Must be true or false</p>
+            </>,
+        );
+        const checkbox = screen.getByRole('checkbox', {name: 'enabled'});
+        expect(checkbox).toBeInvalid();
+        expect(checkbox).toHaveAccessibleDescription('Must be true or false');
+    });
+
+    it('sets neither attribute while the value is valid', () => {
+        render(<BooleanInput name="enabled" value={true} ariaInvalid={false} onChange={vi.fn()} />);
+        const checkbox = screen.getByRole('checkbox', {name: 'enabled'});
+        expect(checkbox).not.toHaveAttribute('aria-invalid');
+        expect(checkbox).not.toHaveAttribute('aria-describedby');
+    });
 });

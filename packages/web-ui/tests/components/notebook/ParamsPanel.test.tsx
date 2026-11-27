@@ -53,6 +53,10 @@ const valueOf = (name: string) => row(name).getByRole('textbox', {name: `${K}.va
 const typeOf = (name: string) => row(name).getByRole('combobox', {name: `${K}.type`});
 const applyButton = () => screen.getByRole('button', {name: `${K}.apply`});
 const pendingStatus = () => screen.queryByText(`${K}.unapplied`);
+/** The id of the message a row names, through its group's `aria-describedby`. */
+const messageId = (name: string) =>
+    screen.getByRole('group', {name: `@${name}`}).getAttribute('aria-describedby');
+const messageOf = (name: string) => document.getElementById(messageId(name) ?? '');
 
 describe('ParamsPanel', () => {
     describe('raw parameters', () => {
@@ -150,13 +154,13 @@ describe('ParamsPanel', () => {
             fireEvent.click(applyButton());
             expect(onParamsChange).not.toHaveBeenCalled();
 
-            const alert = row('limit').getByRole('alert');
-            expect(alert).toHaveTextContent(`${K}.issues.invalidNumber`);
+            expect(messageOf('limit')).toHaveTextContent(`${K}.issues.invalidNumber`);
             expect(valueOf('limit')).toHaveAttribute('aria-invalid', 'true');
-            expect(valueOf('limit')).toHaveAttribute('aria-describedby', alert.id);
+            expect(valueOf('limit')).toHaveAttribute('aria-describedby', messageId('limit'));
 
             fireEvent.change(valueOf('limit'), {target: {value: '1000'}});
-            expect(row('limit').queryByRole('alert')).not.toBeInTheDocument();
+            expect(messageId('limit')).toBeNull();
+            expect(valueOf('limit')).not.toHaveAttribute('aria-describedby');
             expect(valueOf('limit')).not.toHaveAttribute('aria-invalid');
             expect(applyButton()).toBeEnabled();
         });
@@ -180,7 +184,7 @@ describe('ParamsPanel', () => {
             fireEvent.change(typeOf('since'), {target: {value: 'number'}});
 
             expect(onParamsChange).not.toHaveBeenCalled();
-            expect(row('since').getByRole('alert')).toHaveTextContent(`${K}.issues.invalidNumber`);
+            expect(messageOf('since')).toHaveTextContent(`${K}.issues.invalidNumber`);
             expect(applyButton()).toBeDisabled();
         });
 
@@ -244,7 +248,7 @@ describe('ParamsPanel', () => {
             expect(nullBox()).not.toBeInTheDocument();
             expect(valueOf('note')).toBeEnabled();
             fireEvent.change(valueOf('note'), {target: {value: ''}});
-            expect(row('note').getByRole('alert')).toHaveTextContent(`${K}.issues.required`);
+            expect(messageOf('note')).toHaveTextContent(`${K}.issues.required`);
 
             fireEvent.click(required);
             fireEvent.click(nullBox()!);
@@ -259,7 +263,7 @@ describe('ParamsPanel', () => {
 
             fireEvent.change(valueOf('limit'), {target: {value: ''}});
 
-            expect(row('limit').getByRole('alert')).toHaveTextContent(`${K}.issues.emptyNeedsNull`);
+            expect(messageOf('limit')).toHaveTextContent(`${K}.issues.emptyNeedsNull`);
             expect(applyButton()).toBeDisabled();
             expect(valueOf('limit')).toHaveAttribute('inputmode', 'decimal');
         });
@@ -293,16 +297,15 @@ describe('ParamsPanel', () => {
         it('flags a date it cannot read and lets the user accept the one on screen', () => {
             renderPanel([{name: 'start', value: '2025-02-29', type: 'date'}]);
 
-            const alert = row('start').getByRole('alert');
-            expect(alert).toHaveTextContent(`${K}.issues.invalidDate`);
+            expect(messageOf('start')).toHaveTextContent(`${K}.issues.invalidDate`);
             expect(row('start').getByRole('group', {name: `${K}.value`})).toHaveAttribute(
                 'aria-describedby',
-                alert.id,
+                messageId('start'),
             );
 
             fireEvent.click(row('start').getByRole('button', {name: 'dateInput.useShownValue'}));
 
-            expect(row('start').queryByRole('alert')).not.toBeInTheDocument();
+            expect(messageId('start')).toBeNull();
             expect(applyButton()).toBeEnabled();
         });
 
@@ -318,7 +321,7 @@ describe('ParamsPanel', () => {
             expect(pendingStatus()).not.toBeInTheDocument();
 
             fireEvent.change(options, {target: {value: 'US\n APAC \nUS'}});
-            expect(row('region').getByRole('alert')).toHaveTextContent(`${K}.issues.invalidOption`);
+            expect(messageOf('region')).toHaveTextContent(`${K}.issues.invalidOption`);
             expect(value()).toHaveAttribute('aria-invalid', 'true');
             expect(applyButton()).toBeDisabled();
 
@@ -334,7 +337,120 @@ describe('ParamsPanel', () => {
 
             fireEvent.change(typeOf('p'), {target: {value: 'select'}});
 
-            expect(row('p').getByRole('alert')).toHaveTextContent(`${K}.issues.noOptions`);
+            expect(messageOf('p')).toHaveTextContent(`${K}.issues.noOptions`);
+        });
+
+        it('reads a quoted true when a raw row becomes a boolean', () => {
+            renderPanel([{name: 'flag', value: "'true'"}]);
+
+            fireEvent.change(typeOf('flag'), {target: {value: 'boolean'}});
+
+            expect(row('flag').getByRole('checkbox', {name: `${K}.value`})).toBeChecked();
+            expect(messageId('flag')).toBeNull();
+        });
+
+        it('flags a value it cannot read as a boolean instead of showing false', () => {
+            const onParamsChange = renderPanel([{name: 'flag', value: 'abc'}]);
+            const box = () =>
+                row('flag').getByRole<HTMLInputElement>('checkbox', {name: `${K}.value`});
+
+            fireEvent.change(typeOf('flag'), {target: {value: 'boolean'}});
+
+            expect(box()).not.toBeChecked();
+            expect(box().indeterminate).toBe(true);
+            expect(row('flag').getByText('abc')).toBeInTheDocument();
+            expect(messageOf('flag')).toHaveTextContent(`${K}.issues.invalidBoolean`);
+            expect(applyButton()).toBeDisabled();
+
+            fireEvent.click(box());
+            fireEvent.click(applyButton());
+            expect(onParamsChange).toHaveBeenCalledExactlyOnceWith([
+                {name: 'flag', value: 'true', type: 'boolean'},
+            ]);
+        });
+
+        it('marks an unreadable boolean on its checkbox and names the message there', () => {
+            renderPanel([{name: 'active', value: 'abc', type: 'boolean'}]);
+            const box = () => row('active').getByRole('checkbox', {name: `${K}.value`});
+
+            expect(messageOf('active')).toHaveTextContent(`${K}.issues.invalidBoolean`);
+            expect(box()).toHaveAttribute('aria-invalid', 'true');
+            expect(box()).toHaveAttribute('aria-describedby', messageId('active'));
+
+            fireEvent.click(box());
+            expect(messageId('active')).toBeNull();
+            expect(box()).not.toHaveAttribute('aria-invalid');
+            expect(box()).not.toHaveAttribute('aria-describedby');
+        });
+    });
+
+    describe('messages', () => {
+        it('does not announce every invalid row at once when a notebook opens with several', () => {
+            renderPanel([
+                {name: 'limit', value: '1e3', type: 'number'},
+                {name: 'active', value: 'abc', type: 'boolean'},
+            ]);
+
+            expect(screen.queryAllByRole('alert')).toHaveLength(0);
+            // Each row names its own message, whichever of its controls takes focus.
+            expect(messageOf('limit')).toHaveTextContent(`${K}.issues.invalidNumber`);
+            expect(messageOf('active')).toHaveTextContent(`${K}.issues.invalidBoolean`);
+        });
+
+        it('names no message on a row that has none', () => {
+            renderPanel([limit, table]);
+
+            expect(messageId('limit')).toBeNull();
+            expect(messageId('tbl')).toBeNull();
+        });
+    });
+
+    describe('a type this build does not know', () => {
+        const since = {
+            name: 'since',
+            value: '2026-01-01 10:00',
+            type: 'datetime',
+            isNull: true,
+        } as unknown as NotebookParam;
+
+        it('shows the row as found, with the reason and no control it cannot honor', () => {
+            renderPanel([since, limit]);
+
+            const selected = within(typeOf('since')).getByRole<HTMLOptionElement>('option', {
+                selected: true,
+            });
+            expect(selected).toHaveTextContent(`${K}.types.unknown (datetime)`);
+            expect(selected).toBeDisabled();
+            expect(valueOf('since')).toHaveValue('2026-01-01 10:00');
+            expect(valueOf('since')).toHaveAttribute('readonly');
+            expect(valueOf('since')).toHaveAttribute('aria-describedby', messageId('since'));
+            expect(row('since').queryByRole('checkbox')).not.toBeInTheDocument();
+            expect(messageOf('since')).toHaveTextContent(`${K}.issues.unknownType`);
+        });
+
+        it('does not read a type named raw as a raw parameter', () => {
+            renderPanel([{name: 'p', value: '1', type: 'raw'} as unknown as NotebookParam]);
+
+            expect(within(typeOf('p')).getByRole('option', {selected: true})).toHaveTextContent(
+                `${K}.types.unknown (raw)`,
+            );
+            expect(messageOf('p')).toHaveTextContent(`${K}.issues.unknownType`);
+        });
+
+        it('keeps Apply disabled until the row is converted, and applies the conversion', () => {
+            const onParamsChange = renderPanel([since, limit]);
+
+            fireEvent.change(valueOf('limit'), {target: {value: '50'}});
+            expect(applyButton()).toBeDisabled();
+
+            fireEvent.change(typeOf('since'), {target: {value: 'text'}});
+            expect(messageId('since')).toBeNull();
+            fireEvent.click(applyButton());
+
+            expect(onParamsChange).toHaveBeenCalledExactlyOnceWith([
+                {name: 'since', value: '2026-01-01 10:00', type: 'text', isNull: true},
+                {name: 'limit', value: '50', type: 'number'},
+            ]);
         });
     });
 
@@ -355,7 +471,7 @@ describe('ParamsPanel', () => {
         it('flags a typed row and only lets it go back to raw', () => {
             const onParamsChange = renderPanel([limit], false);
 
-            expect(row('limit').getByRole('alert')).toHaveTextContent(`${K}.unsupportedDriver`);
+            expect(messageOf('limit')).toHaveTextContent(`${K}.unsupportedDriver`);
             expect(typeOf('limit')).toBeEnabled();
             const enabled = within(typeOf('limit'))
                 .getAllByRole<HTMLOptionElement>('option')

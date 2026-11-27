@@ -455,6 +455,14 @@ pub fn delete_k8s_connection(runtime: &RuntimeContext, id: &str) -> Result<(), S
     save_json(&path, &connections)
 }
 
+pub fn resolve_ssh_user(override_user: Option<&str>, profile_user: &str) -> String {
+    override_user
+        .map(str::trim)
+        .filter(|user| !user.is_empty())
+        .unwrap_or(profile_user)
+        .to_string()
+}
+
 pub fn expand_connection_params(
     runtime: &RuntimeContext,
     params: &ConnectionParams,
@@ -465,7 +473,7 @@ pub fn expand_connection_params(
             let ssh = get_ssh_connection(runtime, id, true)?;
             expanded.ssh_host = Some(ssh.host);
             expanded.ssh_port = Some(ssh.port);
-            expanded.ssh_user = Some(ssh.user);
+            expanded.ssh_user = Some(resolve_ssh_user(expanded.ssh_user.as_deref(), &ssh.user));
             expanded.ssh_password = ssh.password;
             expanded.ssh_key_file = ssh.key_file;
             expanded.ssh_key_passphrase = ssh.key_passphrase;
