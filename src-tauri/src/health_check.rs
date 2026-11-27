@@ -30,6 +30,27 @@ pub async fn unregister_connection(connection_id: &str) {
     ACTIVE_CONNECTIONS.write().await.remove(connection_id);
 }
 
+/// Unregister a connection ID if `orphaned` says no one holds it, deciding under
+/// the registry lock. Returns whether it was orphaned.
+///
+/// Web sessions record a connection before they register it, so a session whose
+/// `register_connection` has already run is always seen by `orphaned`, and one
+/// that registers later re-adds the ID after it is removed here. Checking first
+/// and unregistering separately could remove the ID a reopening session just
+/// registered.
+pub async fn unregister_connection_if(
+    connection_id: &str,
+    orphaned: impl FnOnce() -> bool,
+) -> bool {
+    let mut active = ACTIVE_CONNECTIONS.write().await;
+    if !orphaned() {
+        return false;
+    }
+    log::info!("Health check: unregistering connection {}", connection_id);
+    active.remove(connection_id);
+    true
+}
+
 /// Event broadcast to every window whenever the set of active (open)
 /// connections changes. Payload is the full list of active connection ids so
 /// each window can reconcile its cross-window view in one shot.

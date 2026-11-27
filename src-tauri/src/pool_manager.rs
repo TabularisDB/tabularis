@@ -1584,11 +1584,7 @@ async fn close_pools_with_prefix<P: PoolClose>(
         let mut pools = pools.write().await;
         remove_pools_with_prefix(&mut pools, prefix)
     };
-    for (key, pool) in removed {
-        log::info!("Closing {label} connection pool (key: {key})");
-        pool.close_pool().await;
-        log::info!("{label} connection pool closed (key: {key})");
-    }
+    close_removed_pools(removed, label).await;
 }
 
 /// Close every pool belonging to a saved connection, including the
@@ -1626,6 +1622,67 @@ pub async fn close_pools_for_connection_id_within(
     let close =
         tokio::spawn(async move { close_pools_for_connection_id(&driver, &connection_id).await });
     tokio::time::timeout(limit, close).await.is_ok()
+}
+
+/// Pools of one saved connection that have left the registry but are not
+/// closed yet. See [`retire_pools_for_connection_id`].
+pub(crate) enum RetiredPools {
+    MySql(Vec<(String, Pool<MySql>)>),
+    Postgres(Vec<(String, PgPool)>),
+    Sqlite(Vec<(String, Pool<Sqlite>)>),
+    None,
+}
+
+/// Take every pool of a saved connection out of the registry without closing
+/// it. A pool opened for the connection afterwards is a new one, so closing
+/// the returned pools later never closes it.
+pub(crate) async fn retire_pools_for_connection_id(
+    driver: &str,
+    connection_id: &str,
+) -> RetiredPools {
+    let prefix = connection_pool_prefix(driver, connection_id);
+    match driver {
+        "mysql" => RetiredPools::MySql(remove_pools_with_prefix(
+            &mut *MYSQL_POOLS.write().await,
+            &prefix,
+        )),
+        "postgres" => RetiredPools::Postgres(remove_pools_with_prefix(
+            &mut *POSTGRES_POOLS.write().await,
+            &prefix,
+        )),
+        "sqlite" => RetiredPools::Sqlite(remove_pools_with_prefix(
+            &mut *SQLITE_POOLS.write().await,
+            &prefix,
+        )),
+        _ => RetiredPools::None,
+    }
+}
+
+async fn close_removed_pools<P: PoolClose>(removed: Vec<(String, P)>, label: &str) {
+    for (key, pool) in removed {
+        log::info!("Closing {label} connection pool (key: {key})");
+        pool.close_pool().await;
+        log::info!("{label} connection pool closed (key: {key})");
+    }
+}
+
+impl RetiredPools {
+    async fn close(self) {
+        match self {
+            Self::MySql(pools) => close_removed_pools(pools, "MySQL").await,
+            Self::Postgres(pools) => close_removed_pools(pools, "PostgreSQL").await,
+            Self::Sqlite(pools) => close_removed_pools(pools, "SQLite").await,
+            Self::None => {}
+        }
+    }
+
+    /// Close the retired pools, waiting at most `limit`. A pool with a
+    /// connection still checked out finishes closing in the background once it
+    /// is returned. Returns false when `limit` passed first.
+    pub(crate) async fn close_within(self, limit: std::time::Duration) -> bool {
+        let close = tokio::spawn(self.close());
+        tokio::time::timeout(limit, close).await.is_ok()
+    }
 }
 
 /// Close all connection pools (useful on app shutdown)

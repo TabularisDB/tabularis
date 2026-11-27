@@ -1,7 +1,8 @@
+use crate::application::connection_health::{is_builtin_driver, ping_resolved, reconnect};
 use crate::application::connection_lifecycle::{
-    auto_reconnect_for_tick, tunnel_discards, ConnectionLifecycle, ConnectionLifecycleEvent,
-    HealthTracker, PingOutcome, PingVerdict, TickPing, CONNECTION_LIFECYCLE_EVENT,
-    POOL_CLOSE_TIMEOUT, RECONNECT_TIMEOUT,
+    auto_reconnect_for_tick, plan_tick, ConnectionLifecycle, ConnectionLifecycleEvent,
+    HealthTracker, PingOutcome, TickPing, CONNECTION_LIFECYCLE_EVENT, POOL_CLOSE_TIMEOUT,
+    RECONNECT_TIMEOUT,
 };
 use crate::application::tunnels::{discard_ssh_tunnel, ssh_tunnel_lease, TunnelLease};
 pub(crate) use crate::health_check::*;
@@ -112,8 +113,8 @@ async fn ping_all_connections(app: &tauri::AppHandle, tracker: &mut HealthTracke
             .auto_reconnect
             .unwrap_or(false)
     });
-    let mut on_discarded_tunnel = std::collections::HashSet::new();
-    for discard in tunnel_discards(&tick, auto_reconnect) {
+    let plan = plan_tick(tick, auto_reconnect, tracker);
+    for discard in &plan.discards {
         if discard_ssh_tunnel(&discard.lease) {
             log::warn!(
                 "Health check: discarding half-open SSH tunnel (generation {}), {} connections affected",
@@ -121,24 +122,13 @@ async fn ping_all_connections(app: &tauri::AppHandle, tracker: &mut HealthTracke
                 discard.recover.len()
             );
         }
-        on_discarded_tunnel.extend(discard.recover);
     }
 
-    for ping in tick {
-        let conn_id = ping.connection_id;
-        let Some(err) = ping.outcome.error() else {
-            continue;
-        };
-        log::warn!("Health check: ping failed for {}: {}", conn_id, err);
-        if ping.verdict != PingVerdict::Failed {
-            if !on_discarded_tunnel.contains(&conn_id) {
-                continue;
-            }
-            tracker.forget(&conn_id);
-        }
-        if !auto_reconnect {
+    for failed in plan.failed {
+        let conn_id = failed.connection_id;
+        if !failed.recover {
             log::error!("Health check: connection {} failed, disconnecting", conn_id);
-            handle_connection_failure(app, &conn_id, err).await;
+            handle_connection_failure(app, &conn_id, &failed.error).await;
             continue;
         }
         recover_connection(app, &conn_id).await;
@@ -194,29 +184,6 @@ async fn recover_connection(app: &tauri::AppHandle, connection_id: &str) {
     }
 }
 
-fn is_builtin_driver(driver: &str) -> bool {
-    matches!(driver, "mysql" | "postgres" | "sqlite")
-}
-
-/// Open a fresh pool for a built-in driver and ping through it. Plugin drivers
-/// own their connections, so for them this is one more `ping`.
-async fn reconnect(
-    params: &crate::models::ConnectionParams,
-    connection_id: &str,
-) -> Result<(), String> {
-    let id = Some(connection_id);
-    match params.driver.as_str() {
-        "postgres" => drop(crate::pool_manager::get_postgres_pool_with_id(params, id).await?),
-        "mysql" => drop(crate::pool_manager::get_mysql_pool_with_id(params, id).await?),
-        "sqlite" => drop(crate::pool_manager::get_sqlite_pool_with_id(params, id).await?),
-        _ => {}
-    }
-    let driver = crate::drivers::registry::get_driver(&params.driver)
-        .await
-        .ok_or_else(|| format!("Driver not found: {}", params.driver))?;
-    driver.ping(params).await
-}
-
 fn emit_lifecycle(app: &tauri::AppHandle, connection_id: &str, lifecycle: ConnectionLifecycle) {
     let event = ConnectionLifecycleEvent {
         connection_id: connection_id.to_string(),
@@ -268,26 +235,7 @@ async fn ping_single_connection(
         Err(err) => return (None, PingOutcome::Error(err)),
     };
 
-    // Check if pool exists before attempting ping (avoid creating new pools).
-    if is_builtin_driver(&params.driver)
-        && !crate::pool_manager::has_pool(&params, Some(connection_id)).await
-    {
-        return (
-            lease,
-            PingOutcome::Error("No active connection pool".into()),
-        );
-    }
-
-    let Some(driver) = crate::drivers::registry::get_driver(&params.driver).await else {
-        let err = format!("Driver not found: {}", params.driver);
-        return (lease, PingOutcome::Error(err));
-    };
-
-    let outcome = match tokio::time::timeout(PING_TIMEOUT, driver.ping(&params)).await {
-        Ok(Ok(())) => PingOutcome::Ok,
-        Ok(Err(err)) => PingOutcome::Error(err),
-        Err(_) => PingOutcome::TimedOut,
-    };
+    let outcome = ping_resolved(&params, connection_id).await;
     (lease, outcome)
 }
 

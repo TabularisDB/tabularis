@@ -1827,6 +1827,7 @@ mod bounded_close_tests {
     use crate::models::{ConnectionParams, DatabaseSelection};
     use crate::pool_manager::{
         close_pools_for_connection_id_within, get_sqlite_pool_with_id, has_pool,
+        retire_pools_for_connection_id,
     };
     use std::time::Duration;
     use tempfile::NamedTempFile;
@@ -1865,6 +1866,36 @@ mod bounded_close_tests {
         assert_eq!(one, 1);
 
         drop(checked_out);
+        assert!(
+            close_pools_for_connection_id_within("sqlite", &conn_id, Duration::from_secs(5)).await
+        );
+    }
+
+    #[tokio::test]
+    async fn closing_retired_pools_leaves_a_pool_opened_after_them() {
+        let file = NamedTempFile::new().expect("temp file");
+        let conn_id = format!("retired-close-{}", ulid::Ulid::new());
+        let params = ConnectionParams {
+            driver: "sqlite".to_string(),
+            database: DatabaseSelection::Single(file.path().to_str().unwrap().to_string()),
+            ..Default::default()
+        };
+        let old_pool = get_sqlite_pool_with_id(&params, Some(&conn_id))
+            .await
+            .unwrap();
+
+        let retired = retire_pools_for_connection_id("sqlite", &conn_id).await;
+        assert!(!has_pool(&params, Some(&conn_id)).await);
+        assert!(!old_pool.is_closed(), "retiring does not close");
+
+        let fresh_pool = get_sqlite_pool_with_id(&params, Some(&conn_id))
+            .await
+            .unwrap();
+        assert!(retired.close_within(Duration::from_secs(5)).await);
+        assert!(old_pool.is_closed());
+        assert!(!fresh_pool.is_closed());
+        assert!(has_pool(&params, Some(&conn_id)).await);
+
         assert!(
             close_pools_for_connection_id_within("sqlite", &conn_id, Duration::from_secs(5)).await
         );
