@@ -69,6 +69,88 @@ fn fixture() -> (tempfile::TempDir, RuntimeContext, Arc<ApplicationState>) {
     (temp, runtime, Arc::new(ApplicationState::default()))
 }
 
+#[test]
+fn mcp_approval_overrides_survive_reload_and_can_be_cleared_independently() {
+    use crate::models::McpApprovalMode::{All, Off, WritesOnly};
+
+    let (dir, runtime, state) = fixture();
+    let legacy_params = serde_json::json!({"driver": "sqlite", "database": "scratch.db"});
+    let create = |name: &str, params: Value| {
+        save_connection(
+            &runtime,
+            &state,
+            name.into(),
+            serde_json::from_value(params).unwrap(),
+            Default::default(),
+            None,
+            None,
+        )
+        .unwrap()
+    };
+    let inherited = create("Inherited", legacy_params.clone());
+    let overridden: Vec<_> = [("all", All), ("writes_only", WritesOnly), ("off", Off)]
+        .into_iter()
+        .map(|(value, mode)| {
+            let mut params = legacy_params.clone();
+            params["mcp_approval_mode"] = serde_json::json!(value);
+            (create(value, params), mode)
+        })
+        .collect();
+
+    let restarted = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(dir.path().into(), dir.path().into())),
+        Arc::new(NoopRuntimeEvents),
+        Arc::new(MemorySecrets::default()),
+    );
+    let file = load_file(&restarted).unwrap();
+    assert!(find_connection(&file, &inherited.id)
+        .unwrap()
+        .params
+        .mcp_approval_mode
+        .is_none());
+    for (connection, mode) in &overridden {
+        let saved = find_connection(&file, &connection.id).unwrap();
+        assert_eq!(saved.params.mcp_approval_mode, Some(Some(*mode)));
+    }
+
+    let (selected, _) = &overridden[2];
+    let restarted_state = Arc::new(ApplicationState::default());
+    let update = |params: Value| {
+        update_connection(
+            &restarted,
+            &restarted_state,
+            selected.id.clone(),
+            "Renamed".into(),
+            serde_json::from_value(params).unwrap(),
+            Default::default(),
+            None,
+            None,
+        )
+        .unwrap()
+    };
+    assert_eq!(
+        update(legacy_params.clone()).params.mcp_approval_mode,
+        Some(Some(Off))
+    );
+    let mut clear = legacy_params;
+    clear["mcp_approval_mode"] = Value::Null;
+    assert!(update(clear).params.mcp_approval_mode.is_none());
+
+    let file = load_file(&restarted).unwrap();
+    let saved = &find_connection(&file, &selected.id).unwrap().params;
+    assert!(serde_json::to_value(saved)
+        .unwrap()
+        .get("mcp_approval_mode")
+        .is_none());
+    assert_eq!(
+        find_connection(&file, &overridden[0].0.id)
+            .unwrap()
+            .params
+            .mcp_approval_mode,
+        Some(Some(All))
+    );
+}
+
 fn connection_params(password: &str) -> ConnectionParams {
     ConnectionParams {
         driver: "postgres".to_string(),

@@ -33,6 +33,8 @@ import {
 } from '@/types/proxy';
 import {TagSelector} from './NewConnectionModal/TagSelector';
 import {EnvironmentSelect} from './NewConnectionModal/EnvironmentSelect';
+import {McpApprovalSelect} from './NewConnectionModal/McpApprovalSelect';
+import type {McpApprovalMode} from '@/types/ai';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {useCanManageCredentialProfiles} from '@/hooks/useCanManageCredentialProfiles';
 import {choosePlatformSavePath, choosePlatformServerPath} from '@/platform/dialogs';
@@ -151,6 +153,7 @@ const paradigmAccent = (p: string): string => PARADIGM_ACCENT[p] ?? '#64748b';
 interface ConnectionParams {
     driver: string;
     read_only?: boolean;
+    mcp_approval_mode?: McpApprovalMode | null;
     host?: string;
     port?: number;
     username?: string;
@@ -2557,6 +2560,7 @@ export const NewConnectionModal = ({
                       // credentials from the hidden standard connection form.
                       ...initialConnection?.params,
                       driver,
+                      mcp_approval_mode: formData.mcp_approval_mode,
                       // Initialization projects multi-database selections into UI state;
                       // provider metadata edits must keep the original binding intact.
                       database: initialConnection?.params.database ?? formData.database,
@@ -3580,6 +3584,15 @@ export const NewConnectionModal = ({
         </div>
     ) : null;
 
+    const mcpApprovalField = (
+        <McpApprovalSelect
+            value={formData.mcp_approval_mode}
+            globalMode={settings.mcpApprovalMode}
+            readOnly={formData.read_only === true || activeDriver?.capabilities.readonly === true}
+            onChange={(mode) => updateField('mcp_approval_mode', mode)}
+        />
+    );
+
     // ── rendered Advanced tab content (driver-specific options + startup SQL) ──
     const advancedTabContent = (
         <div className="space-y-4">
@@ -3609,6 +3622,7 @@ export const NewConnectionModal = ({
                     )}
                 </p>
             </div>
+            {mcpApprovalField}
             {/* MySQL: PIPES_AS_CONCAT compatibility (Vitess/PlanetScale) */}
             {driver === 'mysql' && (
                 <div className="flex flex-col gap-1">
@@ -5293,9 +5307,12 @@ export const NewConnectionModal = ({
                                         .filter(
                                             (tab) =>
                                                 !hasPluginSetup ||
-                                                ['general', 'appearance', 'privacy'].includes(
-                                                    tab.id,
-                                                ),
+                                                [
+                                                    'general',
+                                                    'advanced',
+                                                    'appearance',
+                                                    'privacy',
+                                                ].includes(tab.id),
                                         )
                                         .map((tab) => (
                                             <button
@@ -5381,7 +5398,11 @@ export const NewConnectionModal = ({
                             ) : activeTab === 'ssh' ? (
                                 sshTabContent
                             ) : activeTab === 'advanced' ? (
-                                advancedTabContent
+                                hasPluginSetup ? (
+                                    mcpApprovalField
+                                ) : (
+                                    advancedTabContent
+                                )
                             ) : activeTab === 'privacy' ? (
                                 privacyTabContent
                             ) : (

@@ -1514,6 +1514,9 @@
         "configError": "請在設定中設定 AI 提供者並輸入提示詞。"
     },
     "newConnection": {
+        "mcpApprovalMode": "MCP 查詢核准",
+        "mcpApprovalInherit": "繼承全域設定（{{mode}}）",
+        "mcpApprovalReadOnly": "此唯讀連線在所有核准模式下都會阻擋寫入。",
         "socketPath": "Socket 路徑（選填）",
         "socketPathHint": "透過此電腦上的 Unix socket 連線，取代主機與連接埠。",
         "socketPathActive": "此連線使用這個 socket，取代主機與連接埠。資料庫 TLS 已關閉，因為本機 socket 流量不會離開此電腦。",

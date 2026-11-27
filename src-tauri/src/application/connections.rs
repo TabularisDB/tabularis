@@ -1273,6 +1273,7 @@ fn save_connection(
     environment: Option<String>,
 ) -> Result<SavedConnection, String> {
     let id = Uuid::new_v4().to_string();
+    params.mcp_approval_mode = params.mcp_approval_mode.flatten().map(Some);
     let environment = validate_environment(environment)?;
     let connection = modify_connections_file(runtime, state, |file, writes| {
         params.connection_id = None;
@@ -1439,6 +1440,11 @@ fn update_connection(
                 .position(|connection| connection.id == id)
                 .ok_or_else(|| "Connection not found".to_string())?;
             let existing = file.connections[index].clone();
+            params.mcp_approval_mode = params
+                .mcp_approval_mode
+                .or(existing.params.mcp_approval_mode)
+                .flatten()
+                .map(Some);
             let environment = validate_environment(environment)?;
             params.connection_id = None;
             validate_credential_profile_reference(file, &id, &params)?;

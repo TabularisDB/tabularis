@@ -7,6 +7,39 @@ use axum::http::HeaderValue;
 use uuid::Uuid;
 
 #[test]
+fn connection_rpc_preserves_missing_null_and_explicit_mcp_approval() {
+    use crate::models::McpApprovalMode::WritesOnly;
+
+    let mut payload = serde_json::json!({
+        "id": "saved-db",
+        "name": "Database",
+        "params": {"driver": "sqlite", "database": "scratch.db"}
+    });
+    let decode = |command, payload: &Value| {
+        decode_connection_command(command, None, &serde_json::to_vec(payload).unwrap())
+    };
+    assert!(matches!(
+        decode(ConnectionRpcCommand::UpdateConnection, &payload).unwrap(),
+        ConnectionCommand::UpdateConnection { params, .. } if params.mcp_approval_mode.is_none()
+    ));
+    payload["params"]["mcp_approval_mode"] = Value::Null;
+    assert!(matches!(
+        decode(ConnectionRpcCommand::UpdateConnection, &payload).unwrap(),
+        ConnectionCommand::UpdateConnection { params, .. } if params.mcp_approval_mode == Some(None)
+    ));
+
+    payload.as_object_mut().unwrap().remove("id");
+    payload["params"]["mcp_approval_mode"] = serde_json::json!("writes_only");
+    assert!(matches!(
+        decode(ConnectionRpcCommand::SaveConnection, &payload).unwrap(),
+        ConnectionCommand::SaveConnection { params, .. }
+            if params.mcp_approval_mode == Some(Some(WritesOnly))
+    ));
+    payload["params"]["mcp_approval_mode"] = serde_json::json!("invalid");
+    assert!(decode(ConnectionRpcCommand::SaveConnection, &payload).is_err());
+}
+
+#[test]
 fn database_sql_import_preserves_creation_and_rejects_browser_server_paths() {
     let command=decode_database_transfer_command(DatabaseTransferRpcCommand::Import,br#"{"connectionId":"source","uploadToken":"upload","database":"/server/new.fdb","createDatabase":true}"#).unwrap();
     assert!(

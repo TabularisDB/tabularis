@@ -1454,6 +1454,9 @@
     "configError": "Bitte konfiguriere einen KI-Anbieter in den Einstellungen und gib einen Prompt ein."
   },
   "newConnection": {
+    "mcpApprovalMode": "MCP-Abfragefreigabe",
+    "mcpApprovalInherit": "Globale Einstellung übernehmen ({{mode}})",
+    "mcpApprovalReadOnly": "Diese schreibgeschützte Verbindung blockiert Schreibvorgänge in allen Freigabemodi.",
     "ssmForwardHint": "Wird zu {{document}} aufgelöst - leitet über den verwalteten Knoten an {{host}}:{{port}} weiter. Die Zieladresse wird im Tab „Allgemein“ geändert; ein Loopback-Host bedeutet den Knoten selbst.",
     "ssmIamHint": "Erfordert ssm:StartSession für das Ziel und für das aufgelöste Dokument.",
     "ssmNotAvailable": "AWS SSM ist für diesen Treiber nicht verfügbar.",

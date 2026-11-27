@@ -1426,6 +1426,9 @@
     "configError": "请在设置中配置 AI 提供商并输入提示词。"
   },
   "newConnection": {
+    "mcpApprovalMode": "MCP 查询审批",
+    "mcpApprovalInherit": "继承全局设置（{{mode}}）",
+    "mcpApprovalReadOnly": "此只读连接在所有审批模式下都会拦截写入。",
     "ssmForwardHint": "解析为 {{document}}：通过托管节点转发到 {{host}}:{{port}}。在“常规”选项卡中修改目标地址；回环地址表示节点自身。",
     "ssmIamHint": "需要对目标和解析出的文档具有 ssm:StartSession 权限。",
     "ssmNotAvailable": "此驱动不支持 AWS SSM。",

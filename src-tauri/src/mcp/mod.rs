@@ -3,8 +3,8 @@ use crate::ai_approval::{self, PendingApproval, PollOutcome};
 use crate::commands;
 use crate::config::{
     self, AppConfig, DEFAULT_AI_AUDIT_ENABLED, DEFAULT_AI_AUDIT_MAX_ENTRIES,
-    DEFAULT_AI_SESSION_GAP_MINUTES, DEFAULT_MCP_APPROVAL_MODE,
-    DEFAULT_MCP_APPROVAL_TIMEOUT_SECONDS, DEFAULT_MCP_PREFLIGHT_EXPLAIN,
+    DEFAULT_AI_SESSION_GAP_MINUTES, DEFAULT_MCP_APPROVAL_TIMEOUT_SECONDS,
+    DEFAULT_MCP_PREFLIGHT_EXPLAIN,
 };
 use crate::credential_cache;
 use crate::drivers::driver_trait::{DatabaseDriver, SqlDialect};
@@ -22,6 +22,7 @@ use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 
+mod approval;
 mod cooldown;
 mod database_scope;
 pub mod install;
@@ -30,6 +31,7 @@ mod output;
 pub mod preflight;
 pub mod protocol;
 mod termination;
+use approval::{query_approval, QueryApproval};
 use cooldown::{DISABLE_CHECK_COOLDOWN, RELOAD_COOLDOWN};
 use database_scope::apply_database_override;
 use keychain::{read_stored_secret, StoredSecret};
@@ -1255,24 +1257,18 @@ async fn tool_run_query(
         });
     }
 
-    // Approval gate
-    let approval_mode = config
-        .mcp_approval_mode
-        .clone()
-        .unwrap_or_else(|| DEFAULT_MCP_APPROVAL_MODE.to_string());
-    let needs_approval = match approval_mode.as_str() {
-        "off" => false,
-        "all" => true,
-        // writes_only — anything that isn't a clean select.
-        _ => kind != "select",
-    };
+    let approval = query_approval(
+        config.mcp_approval_mode.as_deref(),
+        conn.params.mcp_approval_mode.flatten(),
+        kind,
+    );
 
     // What will run, and what it was classified as. An edit made during
     // approval replaces both, so the two never describe different texts.
     let mut effective_query: String = query.to_string();
     let mut effective_kind = kind;
 
-    if needs_approval {
+    if approval == QueryApproval::Required {
         // Fail fast if the GUI is not running — otherwise we'd queue a
         // pending approval that nobody can approve and wait the full
         // `mcp_approval_timeout_seconds` (default 120s) for nothing.
@@ -1441,7 +1437,7 @@ async fn tool_run_query(
         })?;
     let run_read_only = db_params.read_only
         || config::is_connection_readonly(config, &conn.id)
-        || (approval_mode != "off" && !needs_approval);
+        || approval == QueryApproval::ProtectedRead;
     let result = if run_read_only {
         driver
             .execute_read_only_query(&db_params, &effective_query, Some(max_rows), 1, None)

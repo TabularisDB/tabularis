@@ -1469,6 +1469,9 @@
     "configError": "設定で AI プロバイダを構成し、プロンプトを入力してください。"
   },
   "newConnection": {
+    "mcpApprovalMode": "MCP クエリの承認",
+    "mcpApprovalInherit": "グローバル設定を継承（{{mode}}）",
+    "mcpApprovalReadOnly": "この読み取り専用接続では、承認モードにかかわらず書き込みがブロックされます。",
     "ssmForwardHint": "{{document}} に解決されます。マネージドノード経由で {{host}}:{{port}} に転送します。転送先アドレスは「一般」タブで変更します。ループバックホストはノード自身を意味します。",
     "ssmIamHint": "対象と解決されたドキュメントに対する ssm:StartSession 権限が必要です。",
     "ssmNotAvailable": "AWS SSM はこのドライバーでは利用できません。",

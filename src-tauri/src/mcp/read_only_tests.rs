@@ -66,6 +66,7 @@ async fn document_store(id: &str, read_only_queries: bool) -> Plugin {
     manifest.capabilities.query_classification = true;
     manifest.capabilities.read_only_queries = read_only_queries;
     let driver = test_driver_with_manifest(manifest, move |rpc| {
+        assert!(rpc.params["params"].get("mcp_approval_mode").is_none());
         let query = rpc.params["query"].as_str().unwrap_or_default().to_string();
         log.lock()
             .unwrap()
@@ -214,6 +215,7 @@ async fn read_only_policies_hold_for_plugins_that_classify_their_own_language() 
 
     mcp_read_only_mode(&guarded).await;
     saved_read_only_connection(&guarded).await;
+    connection_approval_overrides(&guarded).await;
     approval_gate_without_an_approver(&guarded, &classifier_only).await;
     approval_edits(&guarded).await;
     legacy_sql_plugins(&legacy).await;
@@ -292,6 +294,61 @@ async fn saved_read_only_connection(plugin: &Plugin) {
     let writable = run_query(&config, plugin, "doc", WRITE).await;
     assert!(writable.text("writable connection").contains("alice"));
     assert_eq!(writable.methods(), ["classify_query", "execute_query"]);
+}
+
+async fn connection_approval_overrides(plugin: &Plugin) {
+    heartbeat::clear().unwrap();
+    let all = app_config(false, "all");
+    let off = app_config(false, "off");
+
+    // An override affects only the selected connection.
+    let run = run_query(&all, plugin, "doc-off", WRITE).await;
+    assert!(run.text("off overrides all").contains("alice"));
+    assert_eq!(run.methods(), ["classify_query", "execute_query"]);
+    let inherited = run_query(&all, plugin, "doc", WRITE).await;
+    assert!(inherited.error("inherits all").contains("not running"));
+    assert_eq!(inherited.methods(), ["classify_query"]);
+
+    let held = run_query(&off, plugin, "doc-all", READ).await;
+    assert!(held.error("all overrides off").contains("not running"));
+    assert_eq!(held.methods(), ["classify_query"]);
+    let read = run_query(&all, plugin, "doc-writes", READ).await;
+    assert!(read.text("writes_only overrides all").contains("alice"));
+    assert_eq!(
+        read.methods(),
+        ["classify_query", "execute_read_only_query"]
+    );
+    let held = run_query(&off, plugin, "doc-writes", WRITE).await;
+    assert!(held
+        .error("writes_only overrides off")
+        .contains("not running"));
+    assert_eq!(held.methods(), ["classify_query"]);
+
+    for connection in ["doc-saved-ro", "doc-ro-all", "doc-ro-writes", "doc-ro-off"] {
+        for config in [&all, &off, &app_config(false, "writes_only")] {
+            for query in [WRITE, DDL, UNKNOWN] {
+                let blocked = run_query(config, plugin, connection, query).await;
+                assert_eq!(blocked.error(connection), WRITE_BLOCKED);
+                assert_eq!(blocked.audit.status, "blocked_readonly");
+                assert_eq!(blocked.methods(), ["classify_query"]);
+            }
+        }
+    }
+
+    let protected = run_query(&all, plugin, "doc-ro-off", READ).await;
+    assert!(protected
+        .text("off permits a protected read")
+        .contains("alice"));
+    assert_eq!(
+        protected.methods(),
+        ["classify_query", "execute_read_only_query"]
+    );
+
+    let blocked = run_query(&app_config(true, "all"), plugin, "doc-off", WRITE).await;
+    assert!(blocked
+        .error("MCP read-only overrides off")
+        .contains("read-only mode"));
+    assert_eq!(blocked.methods(), ["classify_query"]);
 }
 
 /// The default approval mode with nobody to approve: what is not a trusted
@@ -409,14 +466,21 @@ async fn run_in_isolated_storage() {
     let config_dir = fixture.path().join("config");
     std::fs::create_dir(&config_dir).unwrap();
 
+    use crate::models::McpApprovalMode::{All, Off, WritesOnly};
     let connections: Vec<Value> = [
-        ("doc", GUARDED, false),
-        ("doc-saved-ro", GUARDED, true),
-        ("classifier-only", CLASSIFIER_ONLY, false),
-        ("legacy-sql", LEGACY_SQL, false),
+        ("doc", GUARDED, false, None),
+        ("doc-saved-ro", GUARDED, true, None),
+        ("classifier-only", CLASSIFIER_ONLY, false, None),
+        ("legacy-sql", LEGACY_SQL, false, None),
+        ("doc-all", GUARDED, false, Some(All)),
+        ("doc-writes", GUARDED, false, Some(WritesOnly)),
+        ("doc-off", GUARDED, false, Some(Off)),
+        ("doc-ro-all", GUARDED, true, Some(All)),
+        ("doc-ro-writes", GUARDED, true, Some(WritesOnly)),
+        ("doc-ro-off", GUARDED, true, Some(Off)),
     ]
     .into_iter()
-    .map(|(id, driver, read_only)| {
+    .map(|(id, driver, read_only, mode)| {
         json!({
             "id": id,
             "name": id,
@@ -424,6 +488,7 @@ async fn run_in_isolated_storage() {
                 driver: driver.to_string(),
                 database: DatabaseSelection::Single("app".to_string()),
                 read_only,
+                mcp_approval_mode: mode.map(Some),
                 ..Default::default()
             }
         })

@@ -106,6 +106,8 @@ pub async fn execute(
                         writes,
                     )?;
                     persist_secrets_for_create(runtime, &id, &mut input.params, writes)?;
+                    input.params.mcp_approval_mode =
+                        input.params.mcp_approval_mode.flatten().map(Some);
                     let connection = SavedConnection {
                         id: id.clone(),
                         name: input.name,

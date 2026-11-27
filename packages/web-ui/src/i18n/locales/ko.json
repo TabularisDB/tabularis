@@ -1419,6 +1419,9 @@
     "configError": "설정에서 AI 제공자를 구성하고 프롬프트를 입력하세요."
   },
   "newConnection": {
+    "mcpApprovalMode": "MCP 쿼리 승인",
+    "mcpApprovalInherit": "전역 설정 상속 ({{mode}})",
+    "mcpApprovalReadOnly": "이 읽기 전용 연결에서는 승인 모드와 관계없이 쓰기 작업이 차단됩니다.",
     "ssmForwardHint": "{{document}}(으)로 확인됩니다. 관리형 노드를 통해 {{host}}:{{port}}(으)로 전달합니다. 대상 주소는 일반 탭에서 변경하세요. 루프백 호스트는 노드 자체를 의미합니다.",
     "ssmIamHint": "대상과 확인된 문서에 대한 ssm:StartSession 권한이 필요합니다.",
     "ssmNotAvailable": "이 드라이버에서는 AWS SSM을 사용할 수 없습니다.",
