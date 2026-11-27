@@ -142,6 +142,7 @@
     "charactersHint": "Điểm mã Unicode, không phải cụm grapheme"
   },
   "common": {
+    "clear": "Xóa",
     "save": "Lưu",
     "close": "Đóng",
     "resizeColumn": "Đổi kích thước cột",
@@ -3758,6 +3759,28 @@
     "diff": "Khác biệt của tệp đã xem lại",
     "choose": "Chọn tập lệnh để xem lại khác biệt trước khi bao gồm.",
     "message": "Thông điệp commit"
+  },
+  "linkedFolderSearch": {
+    "title": "Tìm kiếm trong {{name}}",
+    "buttonLabel": "Tìm kiếm thư mục",
+    "inputPlaceholder": "Tìm kiếm tệp SQL…",
+    "clearInput": "Xóa tìm kiếm",
+    "matchCase": "Phân biệt chữ hoa/thường",
+    "matchesSummary": "{{matches}} trong {{files}}",
+    "matchesCount_one": "{{count}} kết quả khớp",
+    "matchesCount_other": "{{count}} kết quả khớp",
+    "filesCount_one": "{{count}} tệp",
+    "filesCount_other": "{{count}} tệp",
+    "skippedFiles": "Đã bỏ qua {{count}}",
+    "truncatedWarning": "Kết quả bị cắt bớt (đã đạt giới hạn)",
+    "typeToSearch": "Nhập để tìm kiếm trong các tệp SQL của thư mục này",
+    "noMatchesTitle": "Không tìm thấy kết quả",
+    "noMatchesMessage": "Không tìm thấy \"{{query}}\" trong thư mục này.",
+    "resultsListLabel": "Kết quả tìm kiếm",
+    "openInEditor": "Mở trong Trình soạn thảo",
+    "selectToPreview": "Chọn một kết quả để xem trước",
+
+    "linesOmitted": "... đã ẩn {{count}} dòng ..."
   },
   "aiInline": {
     "title": "Hoàn thành AI nội tuyến",

@@ -142,6 +142,7 @@
     "charactersHint": "Mga Unicode code point, hindi grapheme cluster"
   },
   "common": {
+    "clear": "I-clear",
     "save": "I-save",
     "close": "Isara",
     "resizeColumn": "Baguhin ang laki ng column",
@@ -3706,6 +3707,28 @@
     "diff": "Mga pagkakaiba ng nasuring file",
     "choose": "Pumili ng script at suriin ang mga pagkakaiba bago ito isama.",
     "message": "Mensahe ng commit"
+  },
+  "linkedFolderSearch": {
+    "title": "Maghanap sa {{name}}",
+    "buttonLabel": "Maghanap sa folder",
+    "inputPlaceholder": "Maghanap sa mga SQL file…",
+    "clearInput": "I-clear ang paghahanap",
+    "matchCase": "Itugma ang case",
+    "matchesSummary": "{{matches}} sa {{files}}",
+    "matchesCount_one": "{{count}} tugma",
+    "matchesCount_other": "{{count}} tugma",
+    "filesCount_one": "{{count}} file",
+    "filesCount_other": "{{count}} mga file",
+    "skippedFiles": "{{count}} nilaktawan",
+    "truncatedWarning": "Pinutol ang mga resulta (naabot ang limitasyon)",
+    "typeToSearch": "Mag-type para maghanap sa mga SQL file sa folder na ito",
+    "noMatchesTitle": "Walang nahanap na tugma",
+    "noMatchesMessage": "Walang natagpuang \"{{query}}\" sa folder na ito.",
+    "resultsListLabel": "Mga resulta ng paghahanap",
+    "openInEditor": "Buksan sa Editor",
+    "selectToPreview": "Pumili ng tugma sa listahan upang i-preview",
+
+    "linesOmitted": "... {{count}} linya ang nilaktawan ..."
   },
   "aiInline": {
     "title": "AI inline completion",

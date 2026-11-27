@@ -138,6 +138,7 @@ export interface Tab {
     pageSize?: number; // Per-tab rows-per-page override; 0 = fetch all rows (no pagination); unset = follow the global setting
     queryParams?: Record<string, string>; // Saved values for query parameters
     schema?: string; // Schema name (PostgreSQL) for query reconstruction
+    pendingLocation?: {lineNumber: number; columnNumber: number};
     /** Database name for a schema-based multi-db driver browsing several
      * databases on one connection (see isSchemaBasedMultiDb). Distinct from
      * `schema` — unlike MySQL's flat multi-db mode, which reuses `schema` to

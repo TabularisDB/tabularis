@@ -142,6 +142,7 @@
     "charactersHint": "Unicode コードポイント数(書記素クラスターではありません)"
   },
   "common": {
+    "clear": "クリア",
     "save": "保存",
     "close": "閉じる",
     "resizeColumn": "列のサイズを変更",
@@ -3708,6 +3709,28 @@
     "diff": "確認したファイルの差分",
     "choose": "スクリプトを選択し、含める前に差分を確認してください。",
     "message": "コミットメッセージ"
+  },
+  "linkedFolderSearch": {
+    "title": "{{name}} 内を検索",
+    "buttonLabel": "フォルダー内を検索",
+    "inputPlaceholder": "SQLファイルを検索…",
+    "clearInput": "検索をクリア",
+    "matchCase": "大文字と小文字を区別",
+    "matchesSummary": "{{files}} で {{matches}}",
+    "matchesCount_one": "{{count}} 件の一致",
+    "matchesCount_other": "{{count}} 件の一致",
+    "filesCount_one": "{{count}} 個のファイル",
+    "filesCount_other": "{{count}} 個のファイル",
+    "skippedFiles": "{{count}} 件スキップ",
+    "truncatedWarning": "結果が切り詰められました（上限に達しました）",
+    "typeToSearch": "このフォルダー内のSQLファイルを検索するキーワードを入力",
+    "noMatchesTitle": "一致するものが見つかりません",
+    "noMatchesMessage": "このフォルダー内に「{{query}}」は見つかりませんでした。",
+    "resultsListLabel": "検索結果",
+    "openInEditor": "エディタで開く",
+    "selectToPreview": "プレビューする項目をリストから選択",
+
+    "linesOmitted": "... {{count}} 行省略 ..."
   },
   "aiInline": {
     "title": "AIインライン補完",

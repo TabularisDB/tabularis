@@ -142,6 +142,7 @@
     "charactersHint": "Unicode code points, not grapheme clusters"
   },
   "common": {
+    "clear": "Clear",
     "save": "Save",
     "close": "Close",
     "resizeColumn": "Resize column",
@@ -3825,6 +3826,28 @@
     "diff": "Reviewed file diff",
     "choose": "Select a script to review its diff before including it.",
     "message": "Commit message"
+  },
+  "linkedFolderSearch": {
+    "title": "Search in {{name}}",
+    "buttonLabel": "Search folder",
+    "inputPlaceholder": "Search SQL files…",
+    "clearInput": "Clear search",
+    "matchCase": "Match case",
+    "matchesSummary": "{{matches}} in {{files}}",
+    "matchesCount_one": "{{count}} match",
+    "matchesCount_other": "{{count}} matches",
+    "filesCount_one": "{{count}} file",
+    "filesCount_other": "{{count}} files",
+    "skippedFiles": "{{count}} skipped",
+    "truncatedWarning": "Results truncated (limit reached)",
+    "typeToSearch": "Type to search across SQL files in this folder",
+    "noMatchesTitle": "No matches found",
+    "noMatchesMessage": "No occurrences of \"{{query}}\" found in this folder.",
+    "resultsListLabel": "Search results",
+    "openInEditor": "Open in Editor",
+    "selectToPreview": "Select a match from the list to preview",
+
+    "linesOmitted": "... {{count}} lines omitted ..."
   },
   "aiInline": {
     "title": "AI inline completion",

@@ -146,6 +146,7 @@
     "charactersHint": "Punti di codice Unicode, non cluster di grafemi"
   },
   "common": {
+    "clear": "Cancella",
     "save": "Salva",
     "close": "Chiudi",
     "resizeColumn": "Ridimensiona colonna",
@@ -3621,6 +3622,28 @@
     "diff": "Differenze del file esaminato",
     "choose": "Seleziona uno script per esaminarne le differenze prima di includerlo.",
     "message": "Messaggio del commit"
+  },
+  "linkedFolderSearch": {
+    "title": "Cerca in {{name}}",
+    "buttonLabel": "Cerca nella cartella",
+    "inputPlaceholder": "Cerca nei file SQL…",
+    "clearInput": "Cancella ricerca",
+    "matchCase": "Maiuscole/minuscole",
+    "matchesSummary": "{{matches}} in {{files}}",
+    "matchesCount_one": "{{count}} corrispondenza",
+    "matchesCount_other": "{{count}} corrispondenze",
+    "filesCount_one": "{{count}} file",
+    "filesCount_other": "{{count}} file",
+    "skippedFiles": "{{count}} ignorati",
+    "truncatedWarning": "Risultati troncati (limite raggiunto)",
+    "typeToSearch": "Digita per cercare nei file SQL di questa cartella",
+    "noMatchesTitle": "Nessuna corrispondenza trovata",
+    "noMatchesMessage": "Nessuna occorrenza di \"{{query}}\" trovata in questa cartella.",
+    "resultsListLabel": "Risultati della ricerca",
+    "openInEditor": "Apri nell'editor",
+    "selectToPreview": "Seleziona una corrispondenza per visualizzare l'anteprima",
+
+    "linesOmitted": "... {{count}} righe omesse ..."
   },
   "aiInline": {
     "title": "Completamento IA in linea",
