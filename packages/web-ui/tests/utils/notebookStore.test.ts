@@ -255,6 +255,68 @@ describe('notebookStore', () => {
             ]);
         });
 
+        it('prevents reopen and late saves until deletion finishes, only for the deleted notebook', async () => {
+            const id = 'deleting';
+            await seedConnection(id);
+            await seedConnection('other');
+            const saving = Promise.withResolvers<void>();
+            const removing = Promise.withResolvers<void>();
+            const deleteStarted = Promise.withResolvers<void>();
+            call.mockClear().mockImplementation(async (cmd, args) => {
+                if (args.notebookId !== id) return;
+                if (cmd === 'save_notebook') await saving.promise;
+                if (cmd === 'delete_notebook') {
+                    deleteStarted.resolve();
+                    await removing.promise;
+                }
+            });
+            setNotebookState(id, makeState('SELECT 1'));
+            await vi.advanceTimersByTimeAsync(1500);
+            const deleting = deleteNotebook(id, CONN, client);
+            await expect(loadNotebook(id, CONN, client)).rejects.toThrow();
+            setNotebookState(id, makeState('SELECT 2'));
+            setNotebookState('other', makeState('SELECT 3'));
+            await vi.advanceTimersByTimeAsync(1500);
+            expect(call).toHaveBeenCalledWith('save_notebook', {
+                connectionId: CONN,
+                notebookId: 'other',
+                content: expect.stringContaining('SELECT 3'),
+            });
+            saving.resolve();
+            await deleteStarted.promise;
+            await expect(loadNotebook(id, CONN, client)).rejects.toThrow();
+            setNotebookState(id, makeState('SELECT 4'));
+            await evictFromCache(id);
+            removing.resolve();
+            await deleting;
+            await vi.runAllTimersAsync();
+            expect(getNotebookState(id)).toBeUndefined();
+            expect(
+                call.mock.calls.filter(([, args]) => args.notebookId === id).map(([cmd]) => cmd),
+            ).toEqual(['save_notebook', 'delete_notebook']);
+        });
+
+        it('keeps the document editable and persists its latest edit if deletion fails', async () => {
+            const id = 'delete-failed';
+            await seedConnection(id);
+            const removing = Promise.withResolvers<void>();
+            call.mockReturnValueOnce(removing.promise);
+            const deleting = deleteNotebook(id, CONN, client);
+            const edit = makeState('SELECT 42');
+            setNotebookState(id, edit);
+            await vi.advanceTimersByTimeAsync(1500);
+            const failure = expect(deleting).rejects.toThrow('disk busy');
+            removing.reject(new Error('disk busy'));
+            await failure;
+            await vi.advanceTimersByTimeAsync(1500);
+            expect(call).toHaveBeenLastCalledWith('save_notebook', {
+                connectionId: CONN,
+                notebookId: id,
+                content: expect.stringContaining('SELECT 42'),
+            });
+            expect(await loadNotebook(id, CONN, client)).toBe(edit);
+        });
+
         it('evicts from cache and deletes file', async () => {
             setNotebookState('del-1', makeState());
             setNotebookTitle('del-1', 'To Delete');

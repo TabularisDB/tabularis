@@ -75,6 +75,7 @@ import {
     createNotebookFromState,
     hasUnconfirmedNotebookWrite,
     setUnconfirmedNotebookWrite,
+    isNotebookDeleting,
     subscribeNotebookState,
     restoreNotebookDocument,
     updateNotebookRuntime,
@@ -221,7 +222,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
 
     // Load notebook from disk when not already cached
     useEffect(() => {
-        if (notebookId && !readNotebook()) {
+        if (notebookId && !readNotebook() && !isNotebookDeleting(notebookId)) {
             void loadNotebook(notebookId, connectionId, client);
         }
     }, [client, connectionId, notebookId, readNotebook]);

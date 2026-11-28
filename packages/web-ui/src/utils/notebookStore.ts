@@ -23,6 +23,7 @@ const cache = new Map<string, NotebookState>();
 const pendingLoads = new Map<string, Promise<NotebookState>>();
 const evicting = new Map<string, Promise<void>>();
 const pendingSaves = new Map<string, Promise<void>>();
+const pendingDeletes = new Map<string, Promise<void>>();
 const stateListeners = new Map<string, Set<() => void>>();
 type UnconfirmedWrite = {fingerprints: Set<string>; explicitlyRemoved: boolean};
 const unconfirmedWrites = new Map<string, Map<string, UnconfirmedWrite>>();
@@ -55,6 +56,7 @@ function serializeForDisk(notebookId: string, state: NotebookState): string {
 
 /** Persist a notebook, or skip (with a warning) if its connection is unknown. */
 function persist(notebookId: string, content: string): Promise<void> {
+    if (pendingDeletes.has(notebookId)) return Promise.resolve();
     const connectionId = connectionIdCache.get(notebookId);
     const client = clientCache.get(notebookId);
     if (!connectionId || !client) {
@@ -254,6 +256,7 @@ export async function loadNotebook(
     connectionId: string,
     client: TypedCommandCaller,
 ): Promise<NotebookState> {
+    if (isNotebookDeleting(notebookId)) throw new Error('Notebook is being deleted');
     resumeNotebook(notebookId);
     connectionIdCache.set(notebookId, connectionId);
     clientCache.set(notebookId, client);
@@ -329,28 +332,44 @@ export async function createNotebookFromState(
     return {notebookId};
 }
 
-/** Delete a notebook file and evict from cache. */
-export async function deleteNotebook(
+export function isNotebookDeleting(notebookId: string): boolean {
+    return pendingDeletes.has(notebookId);
+}
+
+/** Drain earlier saves; keep the live document until deletion succeeds. */
+export function deleteNotebook(
     notebookId: string,
     connectionId: string,
     client: TypedCommandCaller,
 ): Promise<void> {
-    const timer = saveTimers.get(notebookId);
-    if (timer) {
-        clearTimeout(timer);
-        saveTimers.delete(notebookId);
-    }
-    pendingLoads.delete(notebookId);
-    cache.delete(notebookId);
-    titleCache.delete(notebookId);
-    connectionIdCache.delete(notebookId);
-    clientCache.delete(notebookId);
-    // An already queued save must not recreate the file after deletion.
+    const existing = pendingDeletes.get(notebookId);
+    if (existing) return existing;
+
+    const remove = () => client.call('delete_notebook', {connectionId, notebookId});
     const pending = pendingSaves.get(notebookId);
-    if (pending) await pending.catch(() => {});
-    await client.call('delete_notebook', {connectionId, notebookId});
-    unconfirmedWrites.delete(notebookId);
-    notifyNotebooksChanged();
+    const deletion = (pending ? pending.then(remove, remove) : remove())
+        .then(
+            () => {
+                // Edits made during a slow delete can still have a debounce timer.
+                clearTimeout(saveTimers.get(notebookId));
+                saveTimers.delete(notebookId);
+                pendingLoads.delete(notebookId);
+                cache.delete(notebookId);
+                titleCache.delete(notebookId);
+                connectionIdCache.delete(notebookId);
+                clientCache.delete(notebookId);
+                unconfirmedWrites.delete(notebookId);
+                notifyNotebooksChanged();
+            },
+            (error: unknown) => {
+                // A debounce may have fired while saves were suspended.
+                if (cache.has(notebookId)) scheduleSave(notebookId);
+                throw error;
+            },
+        )
+        .finally(() => pendingDeletes.delete(notebookId));
+    pendingDeletes.set(notebookId, deletion);
+    return deletion;
 }
 
 /** List saved notebooks for a connection (metadata only, read from disk). */
@@ -384,6 +403,7 @@ export async function renameNotebook(
 
 /** Flush pending save and remove from cache (on tab close). */
 export async function evictFromCache(notebookId: string): Promise<void> {
+    if (pendingDeletes.has(notebookId)) return;
     pendingLoads.delete(notebookId);
     const closing = flushSave(notebookId);
     evicting.set(notebookId, closing);
@@ -415,6 +435,7 @@ export function _resetForTesting(): void {
     stateListeners.clear();
     pendingLoads.clear();
     pendingSaves.clear();
+    pendingDeletes.clear();
     unconfirmedWrites.clear();
     cache.clear();
     titleCache.clear();

@@ -136,6 +136,7 @@ import {
 } from '@/utils/linkedFolders';
 import {
     renameNotebook,
+    isNotebookDeleting,
     deleteNotebook,
     listNotebooks,
     NOTEBOOKS_CHANGED_EVENT,
@@ -642,7 +643,7 @@ export const ExplorerSidebar = ({
     // The Notebooks section only lists the active connection's notebooks, so all
     // actions stay within activeConnectionId.
     const handleOpenNotebook = (nb: NotebookMetadata) => {
-        if (!activeConnectionId) return;
+        if (!activeConnectionId || isNotebookDeleting(nb.id)) return;
         openNotebook(activeConnectionId, nb.id, nb.title);
         navigate('/editor');
     };
@@ -673,7 +674,7 @@ export const ExplorerSidebar = ({
     };
 
     const handleRenameNotebook = async (notebookId: string, title: string) => {
-        if (!activeConnectionId) return;
+        if (!activeConnectionId || isNotebookDeleting(notebookId)) return;
         await renameNotebook(notebookId, activeConnectionId, title, client);
         const open = tabs.find((tb) => tb.notebookId === notebookId);
         if (open) updateTab(open.id, {title});
@@ -681,7 +682,6 @@ export const ExplorerSidebar = ({
 
     const handleDeleteNotebook = async (notebookId: string) => {
         if (!activeConnectionId) return;
-        // Clears cache + timers first, so closing the tab below won't re-save it.
         await deleteNotebook(notebookId, activeConnectionId, client);
         const open = tabs.find((tb) => tb.notebookId === notebookId);
         if (open) closeTab(open.id);
