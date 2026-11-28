@@ -20,6 +20,7 @@ function build(
         cells,
         request,
         prepare: (text) => resolveParams(text, params),
+        canReuse: () => true,
     });
 }
 

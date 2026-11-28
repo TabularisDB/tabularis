@@ -1,5 +1,5 @@
 import type {TypedCommandCaller} from '@/api/contract';
-import type {NotebookMetadata, NotebookState} from '@/types/notebook';
+import type {NotebookCell, NotebookMetadata, NotebookState} from '@/types/notebook';
 import {createDefaultNotebookState} from './notebook';
 import {serializeNotebook, deserializeNotebook} from './notebookFile';
 
@@ -20,6 +20,10 @@ function notifyNotebooksChanged(): void {
 
 // Module-level session cache
 const cache = new Map<string, NotebookState>();
+const evicting = new Set<string>();
+const runtimeListeners = new Map<string, Set<(state: NotebookState) => void>>();
+// A discarded/ambiguous write result must survive closing and reopening a tab.
+const unconfirmedWrites = new Map<string, Map<string, string>>();
 const titleCache = new Map<string, string>();
 // Notebooks are persisted per connection (`notebooks/<connectionId>/<id>`), so
 // every save/load/delete needs the owning connection id. It is captured when a
@@ -101,6 +105,84 @@ export function getNotebookState(notebookId: string): NotebookState | undefined 
 export function setNotebookState(notebookId: string, state: NotebookState): void {
     cache.set(notebookId, state);
     scheduleSave(notebookId);
+}
+
+/** Runtime updates are shared across views but never persisted to the notebook file. */
+export function updateNotebookRuntime(
+    notebookId: string,
+    update: (state: NotebookState) => NotebookState,
+): boolean {
+    const previous = cache.get(notebookId);
+    if (!previous || evicting.has(notebookId)) return false;
+    const next = update(previous);
+    if (next === previous) return false;
+    cache.set(notebookId, next);
+    runtimeListeners.get(notebookId)?.forEach((listener) => listener(next));
+    return true;
+}
+
+export function subscribeNotebookRuntime(
+    notebookId: string,
+    listener: (state: NotebookState) => void,
+): () => void {
+    const listeners = runtimeListeners.get(notebookId) ?? new Set();
+    runtimeListeners.set(notebookId, listeners);
+    listeners.add(listener);
+    return () => {
+        listeners.delete(listener);
+        if (!listeners.size) runtimeListeners.delete(notebookId);
+    };
+}
+
+function unconfirmedWriteId(
+    notebookId: string,
+    cell: NotebookCell,
+    document: NotebookCell[],
+): string | undefined {
+    const writes = unconfirmedWrites.get(notebookId);
+    if (writes?.has(cell.id)) return cell.id;
+    // A saved notebook regenerates cell IDs on reload. Match an orphaned
+    // record by source in that case so eviction cannot enable an automatic retry.
+    for (const [id, source] of writes ?? []) {
+        if (cell.content.trim() === source && !document.some((item) => item.id === id)) return id;
+    }
+}
+
+export function hasUnconfirmedNotebookWrite(
+    notebookId: string,
+    cell: NotebookCell,
+    document: NotebookCell[],
+): boolean {
+    return unconfirmedWriteId(notebookId, cell, document) !== undefined;
+}
+
+export function setUnconfirmedNotebookWrite(
+    notebookId: string,
+    cell: NotebookCell,
+    document: NotebookCell[],
+    unconfirmed: boolean,
+): void {
+    const writes = unconfirmedWrites.get(notebookId) ?? new Map<string, string>();
+    const priorId = unconfirmedWriteId(notebookId, cell, document);
+    if (priorId !== undefined) writes.delete(priorId);
+    if (unconfirmed) writes.set(cell.id, cell.content.trim());
+    if (writes.size) unconfirmedWrites.set(notebookId, writes);
+    else unconfirmedWrites.delete(notebookId);
+}
+
+/** Restore document fields without reviving the execution state in the snapshot. */
+export function restoreNotebookDocument(
+    snapshot: NotebookState,
+    live: NotebookState | null,
+): NotebookState {
+    const byId = new Map(live?.cells.map((cell) => [cell.id, cell]));
+    return {
+        ...snapshot,
+        cells: snapshot.cells.map((cell) => {
+            const {result, error, executionTime, history, isLoading} = byId.get(cell.id) ?? {};
+            return {...cell, result, error, executionTime, history, isLoading};
+        }),
+    };
 }
 
 /** Get the cached title for a notebook. */
@@ -203,6 +285,7 @@ export async function deleteNotebook(
     connectionIdCache.delete(notebookId);
     clientCache.delete(notebookId);
     await client.call('delete_notebook', {connectionId, notebookId});
+    unconfirmedWrites.delete(notebookId);
     notifyNotebooksChanged();
 }
 
@@ -237,11 +320,16 @@ export async function renameNotebook(
 
 /** Flush pending save and remove from cache (on tab close). */
 export async function evictFromCache(notebookId: string): Promise<void> {
-    await flushSave(notebookId);
-    cache.delete(notebookId);
-    titleCache.delete(notebookId);
-    connectionIdCache.delete(notebookId);
-    clientCache.delete(notebookId);
+    evicting.add(notebookId);
+    try {
+        await flushSave(notebookId);
+        cache.delete(notebookId);
+        titleCache.delete(notebookId);
+        connectionIdCache.delete(notebookId);
+        clientCache.delete(notebookId);
+    } finally {
+        evicting.delete(notebookId);
+    }
 }
 
 /** Flush all pending saves immediately (on app close). */
@@ -254,6 +342,9 @@ export async function flushAllPendingSaves(): Promise<void> {
 export function _resetForTesting(): void {
     for (const timer of saveTimers.values()) clearTimeout(timer);
     saveTimers.clear();
+    evicting.clear();
+    runtimeListeners.clear();
+    unconfirmedWrites.clear();
     cache.clear();
     titleCache.clear();
     connectionIdCache.clear();

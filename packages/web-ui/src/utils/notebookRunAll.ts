@@ -6,9 +6,12 @@ import {
     type PlannedCell,
 } from './notebookExecutionPlan';
 import {extractCellReferences} from './notebookVariables';
-import {isReadOnlyQuery} from './sqlAnalysis';
 
 const activeNotebooks = new Set<string>();
+
+export function isNotebookRunActive(notebookId: string): boolean {
+    return activeNotebooks.has(notebookId);
+}
 
 /** A confirmation dialog or in-flight query owns the notebook until it settles. */
 export function acquireNotebookRun(notebookId: string): (() => void) | undefined {
@@ -32,7 +35,9 @@ export function findDisabledPrerequisites(
 ): number[] {
     const disabled = new Set<number>();
     const visited = new Set<number>();
-    const visit = (text: string) => {
+    const pending = [sql];
+    while (pending.length) {
+        const text = pending.pop()!;
         for (const {cellIndex} of extractCellReferences(text)) {
             const target = cells[cellIndex];
             if (!target || target.type !== 'sql') continue;
@@ -42,10 +47,9 @@ export function findDisabledPrerequisites(
             }
             if (visited.has(cellIndex)) continue;
             visited.add(cellIndex);
-            if (!target.result || target.error) visit(prepare(target.content.trim()));
+            if (!target.result || target.error) pending.push(prepare(target.content.trim()));
         }
-    };
-    visit(sql);
+    }
     return Array.from(disabled).sort((a, b) => a - b);
 }
 
@@ -75,10 +79,54 @@ export type CellRunOutcome =
     | {kind: 'changed'}
     | {kind: 'blocked'; prerequisite: number};
 
-const laneKey = ({schema}: PlannedCell) => schema?.trim() ?? '';
-
 function permitsParallelRead(node: PlannedCell): boolean {
-    return !!node.cell.isParallel && isReadOnlyQuery(node.sql);
+    return !!node.cell.isParallel && node.parallelRead;
+}
+
+/** Check executable fields and the full positional binding chain. */
+export function checkNotebookInputs(
+    {cells, nodes}: NotebookExecutionPlan,
+    node: PlannedCell,
+    live: NotebookCell[],
+    {
+        unavailable,
+        allowDisabledCell = false,
+    }: {
+        unavailable?: ReadonlySet<number>;
+        allowDisabledCell?: boolean;
+    } = {},
+): Extract<CellRunOutcome, {kind: 'changed' | 'blocked'}> | undefined {
+    const current =
+        live[node.index]?.id === node.cell.id
+            ? live[node.index]
+            : live.find((cell) => cell.id === node.cell.id);
+    if (
+        !current ||
+        (!allowDisabledCell && current.isDisabled) ||
+        !sameNotebookCellInput(node.cell, current)
+    ) {
+        return {kind: 'changed'};
+    }
+    // A move of the executing cell is fine, but moves in the binding chain
+    // must not silently bind the same positional reference to another cell.
+    const checked = new Set<number>();
+    for (const prerequisite of node.prerequisites) {
+        const pending = [prerequisite];
+        while (pending.length) {
+            const index = pending.pop()!;
+            if (checked.has(index)) continue;
+            checked.add(index);
+            const bound = live[index];
+            if (
+                unavailable?.has(index) ||
+                !bound ||
+                bound.isDisabled ||
+                !sameNotebookCellInput(cells[index], bound)
+            )
+                return {kind: 'blocked', prerequisite};
+            for (const dependency of nodes.get(index)!.prerequisites) pending.push(dependency);
+        }
+    }
 }
 
 /**
@@ -102,48 +150,22 @@ export async function executeNotebookPlan(
         ) => Promise<CellRunOutcome>;
     },
 ): Promise<RunAllResult> {
-    const {cells, nodes, steps} = plan;
+    const {cells, steps} = plan;
     const summary = createRunAllResult(plan.mode, steps.length + plan.skipped, plan.skipped);
     const inputs = [...cells];
     const unavailable = new Set<number>();
     const stopped = new Set<string>();
     const location = (index: number) => ({cellId: cells[index].id, cellIndex: index});
 
-    function checkInput(node: PlannedCell) {
-        const live = readCells();
-        const byId = new Map(live.map((cell) => [cell.id, cell]));
-        const unchanged = (original: NotebookCell) => {
-            const current = byId.get(original.id);
-            return current && !current.isDisabled && sameNotebookCellInput(original, current);
-        };
-        if (!unchanged(node.cell)) return {kind: 'changed'} as const;
-
-        // Check bindings as well as input fields. A deletion or move must not
-        // let the same positional reference silently point at another cell.
-        const checked = new Set<number>();
-        function validPrerequisite(index: number): boolean {
-            if (checked.has(index)) return true;
-            checked.add(index);
-            return (
-                !unavailable.has(index) &&
-                live[index]?.id === cells[index].id &&
-                !!unchanged(cells[index]) &&
-                (nodes.get(index)?.prerequisites.every(validPrerequisite) ?? true)
-            );
-        }
-        const prerequisite = node.prerequisites.find((index) => !validPrerequisite(index));
-        if (prerequisite !== undefined) return {kind: 'blocked', prerequisite} as const;
-    }
-
     for (let cursor = 0; cursor < steps.length;) {
         const first = steps[cursor++];
         const batch = [first];
         if (permitsParallelRead(first)) {
-            const lanes = new Set([laneKey(first)]);
+            const lanes = new Set([first.databaseLane]);
             const indices = new Set([first.index]);
             for (; cursor < steps.length; cursor++) {
                 const next = steps[cursor];
-                const lane = laneKey(next);
+                const lane = next.databaseLane;
                 if (
                     !permitsParallelRead(next) ||
                     lanes.has(lane) ||
@@ -158,10 +180,10 @@ export async function executeNotebookPlan(
 
         const outcomes = await Promise.all(
             batch.map(async (node) => {
-                const check = () => checkInput(node);
+                const check = () => checkNotebookInputs(plan, node, readCells(), {unavailable});
                 const issue = check();
                 if (issue) return issue;
-                if (stopped.has(laneKey(node))) return {kind: 'stopped'} as const;
+                if (stopped.has(node.databaseLane)) return {kind: 'stopped'} as const;
                 return execute(node, inputs, check);
             }),
         );
@@ -181,7 +203,7 @@ export async function executeNotebookPlan(
                     if (outcome.sent) summary.executed++;
                     summary.failed++;
                     summary.errors.push({...location(node.index), error: outcome.error});
-                    if (stopOnError) stopped.add(laneKey(node));
+                    if (stopOnError) stopped.add(node.databaseLane);
                     break;
                 case 'blocked':
                     summary.blocked++;

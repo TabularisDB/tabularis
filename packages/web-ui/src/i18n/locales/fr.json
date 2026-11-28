@@ -2360,6 +2360,7 @@
         "missing": "{{cell}} référence {{reference}}, qui doit pointer vers une cellule SQL non vide.",
         "disabled": "{{cell}} dépend de {{reference}}, qui est désactivée. Activez-la et réessayez.",
         "guardDenied": "La requête n’a pas été approuvée.",
+        "unconfirmedWrite": "Le résultat de l’écriture n’a pas pu être confirmé. Vérifiez la base de données avant de relancer cette cellule.",
         "blockedBy": "est bloquée par",
         "changed": "a été ignorée car elle a été modifiée, désactivée ou supprimée."
       },
@@ -2434,7 +2435,6 @@
           "noOptions": "Ajoutez au moins une option",
           "required": "Une valeur est requise",
           "emptyNeedsNull": "Saisissez une valeur ou cochez NULL",
-          "cellReference": "Une valeur typée ne peut pas contenir de référence à une cellule",
           "unknownType": "Cette version de Tabularis ne connaît pas ce type"
         },
         "errors": {

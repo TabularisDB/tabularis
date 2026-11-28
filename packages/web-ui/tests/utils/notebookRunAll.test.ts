@@ -1,4 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
+import {resolveQueryVariables} from '@/utils/notebookVariables';
+import {resolveSqlSyntax} from '@/utils/sqlSyntax';
 import type {NotebookCell} from '@/types/notebook';
 import {buildNotebookExecutionPlan, type NotebookRunRequest} from '@/utils/notebookExecutionPlan';
 import {
@@ -21,6 +23,9 @@ function plan(cells: NotebookCell[], request: NotebookRunRequest = {mode: 'all'}
         request,
         prepare: (sql) => ({sql, errors: []}),
         fallbackSchema: 'main',
+        schemaIsDatabase: true,
+        canReuse: () => true,
+        syntax: resolveSqlSyntax({sql_dialect: 'mysql'}),
     });
     if (outcome.kind !== 'ready') throw new Error(JSON.stringify(outcome.issues));
     return outcome.plan;
@@ -49,6 +54,66 @@ describe('notebookRunAll', () => {
     });
 
     describe('executeNotebookPlan', () => {
+        it('plans an 8,000-cell forward chain and checks its cached bindings before dispatch', async () => {
+            const size = 8_000;
+            const cells = Array.from({length: size}, (_, i) =>
+                makeCell({
+                    id: String(i),
+                    content: i === size - 1 ? 'SELECT 1 AS n' : `SELECT * FROM {{cell_${i + 2}}}`,
+                }),
+            );
+            const request = {mode: 'cell', cellId: '0'} as const;
+            expect(plan(cells, request).steps.map(({index}) => index)).toEqual(
+                Array.from({length: size}, (_, index) => size - 1 - index),
+            );
+
+            const cached = cells.map((cell) => ({...cell, result: cachedResult}));
+            const built = buildNotebookExecutionPlan({
+                cells: cached,
+                request,
+                fallbackSchema: 'main',
+                connectionId: 'db',
+                canReuse: () => true,
+                prepare: (sql) => ({sql, errors: []}),
+            });
+            expect(built.kind).toBe('ready');
+            if (built.kind !== 'ready') return;
+            const call = vi.fn().mockResolvedValue(cachedResult);
+            const run = () =>
+                executeNotebookPlan(built.plan, {
+                    stopOnError: false,
+                    readCells: () => cached,
+                    execute: async (node, inputs, checkBeforeSend) => {
+                        expect(checkBeforeSend()).toBeUndefined();
+                        const {sql} = resolveQueryVariables(
+                            node.sql,
+                            inputs,
+                            undefined,
+                            node.references,
+                        );
+                        const result = await call('execute_query', {
+                            connectionId: 'db',
+                            schema: node.schema,
+                            query: sql,
+                            limit: 37,
+                            page: 1,
+                        });
+                        return {kind: 'success', result};
+                    },
+                });
+            expect(await run()).toMatchObject({executed: 1, succeeded: 1});
+            expect(call).toHaveBeenCalledExactlyOnceWith('execute_query', {
+                connectionId: 'db',
+                schema: 'main',
+                limit: 37,
+                page: 1,
+                query: 'WITH cell_2 AS (\n  SELECT 1 AS "n"\n)\nSELECT * FROM cell_2',
+            });
+            cached[size - 1] = {...cached[size - 1], content: 'SELECT 2 AS n'};
+            expect(await run()).toMatchObject({executed: 0, blocked: 1});
+            expect(call).toHaveBeenCalledTimes(1);
+        });
+
         it('executes and counts a diamond prerequisite once, passing the fresh result to both consumers', async () => {
             const cells = [
                 makeCell({id: 'a', result: cachedResult}),

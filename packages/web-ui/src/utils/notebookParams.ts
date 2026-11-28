@@ -1,6 +1,5 @@
 import type {NotebookParam, NotebookParamType} from '@/types/notebook';
 import {daysInMonth} from './dateInput';
-import {hasCellReferences} from './notebookVariables';
 import {booleanLiteralWithStyle, quoteSqlStringWithStyle} from './sqlLiteral';
 import {scanNonCodeSpans, type DialectInput} from './sqlSplitter';
 import type {SqlSyntax} from './sqlSyntax';
@@ -114,7 +113,6 @@ export type ParamIssue =
     | 'noOptions'
     | 'required'
     | 'emptyNeedsNull'
-    | 'cellReference'
     | 'unknownType';
 
 /**
@@ -172,9 +170,6 @@ export function validateParam(param: NotebookParam): ParamIssue | null {
     const whenEmpty: ParamIssue = param.required ? 'required' : 'emptyNeedsNull';
     switch (param.type) {
         case 'text':
-            // Cell references are expanded by a plain pattern after parameters
-            // are resolved, so one inside a literal would be rewritten there.
-            if (hasCellReferences(value)) return 'cellReference';
             return param.required && value === '' ? 'required' : null;
         case 'number':
             if (value.trim() === '') return whenEmpty;
@@ -187,7 +182,6 @@ export function validateParam(param: NotebookParam): ParamIssue | null {
         case 'select': {
             const options = normalizeParamOptions(param.options ?? []);
             if (options.length === 0) return 'noOptions';
-            if (options.some(hasCellReferences)) return 'cellReference';
             if (value === '') return whenEmpty;
             return options.includes(value) ? null : 'invalidOption';
         }

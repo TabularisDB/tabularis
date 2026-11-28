@@ -2367,6 +2367,7 @@
               "missing": "{{cell}} 參照了 {{reference}}，但目標必須是非空白的 SQL 儲存格。",
               "disabled": "{{cell}} 需要已停用的 {{reference}}。請啟用該儲存格後再試。",
               "guardDenied": "查詢未獲准執行。",
+              "unconfirmedWrite": "無法確認寫入結果。請先檢查資料庫，再重新執行此儲存格。",
               "blockedBy": "受此儲存格阻擋：",
               "changed": "已被略過，因為它已編輯、停用或移除。"
             },
@@ -2441,7 +2442,6 @@
                     "noOptions": "請至少新增一個選項",
                     "required": "必須提供值",
                     "emptyNeedsNull": "請輸入值或勾選 NULL",
-                    "cellReference": "帶類型的值不能包含儲存格引用",
                     "unknownType": "此版本的 Tabularis 無法辨識此類型"
                 },
                 "errors": {

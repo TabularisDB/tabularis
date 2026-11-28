@@ -1,13 +1,14 @@
 import type {ComponentProps} from 'react';
 import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {NotebookView} from '@/components/notebook/NotebookView';
 import type {NotebookCellWrapper} from '@/components/notebook/NotebookCellWrapper';
 import type {NotebookToolbar} from '@/components/notebook/NotebookToolbar';
 import type {QueryResult, Tab} from '@/types/editor';
 import type {NotebookCell, NotebookParam, NotebookState} from '@/types/notebook';
 import type {DriverCapabilities} from '@/types/plugins';
+import {_resetForTesting, getNotebookState, setNotebookState} from '@/utils/notebookStore';
 import {deserializeNotebook} from '@/utils/notebookFile';
 import {chooseNotebookImport} from '@/utils/notebookTransfer';
 
@@ -17,7 +18,6 @@ vi.mock('lucide-react', async (importOriginal) => await importOriginal());
 vi.mock('@/hooks/useTabularisClient', () => import('../../support/tauriBackedHooks'));
 vi.mock('@/hooks/usePlatformCapabilities', () => import('../../support/tauriBackedHooks'));
 const fixtures = vi.hoisted(() => ({
-    notebooks: new Map<string, NotebookState>(),
     database: {
         activeDriver: 'plugin-driver',
         activeSchema: null as string | null,
@@ -48,15 +48,16 @@ vi.mock('@/hooks/useQueryGuards', () => ({
 vi.mock('@/hooks/useSqlAutocompleteRegistration', () => ({
     useSqlAutocompleteRegistration: vi.fn(),
 }));
-vi.mock('@/utils/notebookStore', () => ({
-    getNotebookState: vi.fn((id: string) => fixtures.notebooks.get(id)),
-    setNotebookState: vi.fn((id: string, state: NotebookState) => {
-        fixtures.notebooks.set(id, state);
-    }),
-    loadNotebook: vi.fn(),
-    setNotebookTitle: vi.fn(),
-    createNotebookFromState: vi.fn().mockResolvedValue({notebookId: 'imported'}),
-}));
+vi.mock('@/utils/notebookStore', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@/utils/notebookStore')>();
+    return {
+        ...actual,
+        setNotebookState: vi.fn(actual.setNotebookState),
+        loadNotebook: vi.fn(),
+        setNotebookTitle: vi.fn(),
+        createNotebookFromState: vi.fn().mockResolvedValue({notebookId: 'imported'}),
+    };
+});
 vi.mock('@/utils/notebookTransfer', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@/utils/notebookTransfer')>()),
     chooseNotebookImport: vi.fn(),
@@ -127,7 +128,10 @@ function sqlCell(id: string, content: string, partial: Partial<NotebookCell> = {
 }
 
 function renderNotebook(state: NotebookState) {
-    fixtures.notebooks.set(notebookId, state);
+    if (state) {
+        setNotebookState(notebookId, state);
+        vi.mocked(setNotebookState).mockClear();
+    }
     const tab: Tab = {
         id: 'tab-1',
         title: 'Notebook',
@@ -147,7 +151,7 @@ function renderNotebook(state: NotebookState) {
     );
 }
 
-const saved = () => fixtures.notebooks.get(notebookId) as NotebookState;
+const saved = () => getNotebookState(notebookId) as NotebookState;
 const savedCell = (id: string) => saved().cells.find((cell) => cell.id === id) as NotebookCell;
 const executedQueries = () =>
     mockInvoke.mock.calls
@@ -169,9 +173,10 @@ const messageOf = (name: string) =>
     );
 
 describe('NotebookView typed parameters', () => {
+    afterEach(_resetForTesting);
+
     beforeEach(() => {
         vi.clearAllMocks();
-        fixtures.notebooks.clear();
         fixtures.database.activeCapabilities = sqliteDriver;
         fixtures.guardQuery.mockReset().mockResolvedValue(true);
         mockInvoke.mockReset().mockResolvedValue(queryResult);
@@ -209,8 +214,82 @@ describe('NotebookView typed parameters', () => {
         await click('Run q');
 
         await waitFor(() => expect(executedQueries()).toEqual([expected]));
-        expect(fixtures.guardQuery).toHaveBeenCalledExactlyOnceWith(expected);
+        expect(fixtures.guardQuery).toHaveBeenCalledExactlyOnceWith(
+            expected,
+            expect.any(AbortSignal),
+        );
         expect(savedCell('q').error).toBeUndefined();
+    });
+
+    it('dispatches typed reference-like text literally but binds a raw table reference', async () => {
+        const literal = "SELECT '{{cell_1}}'";
+        const expanded = 'WITH cell_1 AS (\n  SELECT 1 AS "id"\n)\nSELECT * FROM cell_1';
+        renderNotebook({
+            params: [
+                {name: 'text', type: 'text', value: '{{cell_1}}'},
+                {name: 'source', value: '{{cell_1}}'},
+            ],
+            cells: [sqlCell('source', 'SELECT @text'), sqlCell('use', 'SELECT * FROM @source')],
+        });
+        await click('Run source');
+        await click('Run use');
+        expect(fixtures.guardQuery.mock.calls).toEqual([
+            [literal, expect.any(AbortSignal)],
+            [expanded, expect.any(AbortSignal)],
+        ]);
+        expect(mockInvoke.mock.calls).toEqual(
+            [literal, expanded].map((query) => [
+                'execute_query',
+                {connectionId, query, limit: 37, page: 1},
+            ]),
+        );
+    });
+
+    it('does not resend a successful write after applying an unused parameter, but refreshes a changed input', async () => {
+        const insert = (n: number) => `INSERT INTO audit(n) VALUES (${n}) RETURNING n`;
+        const consume = (n: number) =>
+            `WITH cell_1 AS (\n  SELECT ${n} AS "n"\n)\nSELECT * FROM cell_1`;
+        const output = (n: number): QueryResult => ({
+            columns: ['n'],
+            rows: [[n]],
+            affected_rows: 1,
+        });
+        mockInvoke
+            .mockResolvedValueOnce(output(1))
+            .mockResolvedValueOnce(output(1))
+            .mockResolvedValueOnce(output(2))
+            .mockResolvedValueOnce(output(2));
+        renderNotebook({
+            params: [
+                {name: 'used', type: 'number', value: '1'},
+                {name: 'unused', type: 'number', value: '10'},
+            ],
+            cells: [
+                sqlCell('write', 'INSERT INTO audit(n) VALUES (@used) RETURNING n', {
+                    schema: 'audit',
+                }),
+                sqlCell('use', 'SELECT * FROM {{cell_1}}'),
+            ],
+        });
+        const request = (query: string, schema?: string) => [
+            'execute_query',
+            {connectionId, query, limit: 37, page: 1, ...(schema ? {schema} : {})},
+        ];
+        await click('Run write');
+        fireEvent.change(valueOf('unused'), {target: {value: '50'}});
+        await click(`${K}.apply`);
+        await click('Run use');
+        expect(mockInvoke.mock.calls).toEqual([request(insert(1), 'audit'), request(consume(1))]);
+
+        fireEvent.change(valueOf('used'), {target: {value: '2'}});
+        await click(`${K}.apply`);
+        await click('Run use');
+        expect(mockInvoke.mock.calls).toEqual([
+            request(insert(1), 'audit'),
+            request(consume(1)),
+            request(insert(2), 'audit'),
+            request(consume(2)),
+        ]);
     });
 
     it('stops the cell and its query plan when a typed reference sits inside quotes', async () => {

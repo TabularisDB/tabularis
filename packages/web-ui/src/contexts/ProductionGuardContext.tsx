@@ -42,9 +42,26 @@ export function ProductionGuardProvider({children}: {children: ReactNode}) {
     // One dialog. A second write asked for while it is open waits, instead of
     // replacing the first resolver and leaving that caller pending forever.
     const request = useCallback<GuardRequest>(
-        (connectionId, connectionName, sql) => {
+        (connectionId, connectionName, sql, signal) => {
+            if (signal?.aborted) return Promise.resolve(false);
             return new Promise<boolean>((resolve) => {
-                const prompt = {connectionId, connectionName, sql, resolve};
+                const abort = () => {
+                    const index = queueRef.current.indexOf(prompt);
+                    if (index < 0) return;
+                    queueRef.current.splice(index, 1);
+                    prompt.resolve(false);
+                    if (index === 0) show(queueRef.current[0] ?? null);
+                };
+                const prompt: PendingPrompt = {
+                    connectionId,
+                    connectionName,
+                    sql,
+                    resolve: (ok) => {
+                        signal?.removeEventListener('abort', abort);
+                        resolve(ok);
+                    },
+                };
+                signal?.addEventListener('abort', abort, {once: true});
                 queueRef.current.push(prompt);
                 if (queueRef.current.length === 1) show(prompt);
             });
@@ -61,8 +78,10 @@ export function ProductionGuardProvider({children}: {children: ReactNode}) {
     }, [pending, remaining]);
 
     const finish = (ok: boolean) => {
-        const current = queueRef.current.shift();
-        if (!current) return;
+        // A click/close from a prior render must not resolve the next owner
+        // if the displayed prompt was just aborted.
+        if (!pending || queueRef.current[0] !== pending) return;
+        const current = queueRef.current.shift()!;
         if (ok && snooze && current.connectionId) {
             snoozedConnectionIds.add(current.connectionId);
         }

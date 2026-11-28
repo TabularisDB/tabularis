@@ -2323,6 +2323,7 @@
         "missing": "{{cell}} verweist auf {{reference}}. Der Verweis muss auf eine nicht leere SQL-Zelle zeigen.",
         "disabled": "{{cell}} benötigt {{reference}}, aber diese Zelle ist deaktiviert. Aktiviere sie und versuche es erneut.",
         "guardDenied": "Die Abfrage wurde nicht freigegeben.",
+        "unconfirmedWrite": "Das Ergebnis des Schreibvorgangs ist unklar. Prüfe die Datenbank, bevor du diese Zelle erneut ausführst.",
         "blockedBy": "wurde blockiert durch",
         "changed": "wurde übersprungen, weil sie bearbeitet, deaktiviert oder entfernt wurde."
       },
@@ -2397,7 +2398,6 @@
           "noOptions": "Füge mindestens eine Option hinzu",
           "required": "Ein Wert ist erforderlich",
           "emptyNeedsNull": "Gib einen Wert ein oder aktiviere NULL",
-          "cellReference": "Ein typisierter Wert darf keinen Zellverweis enthalten",
           "unknownType": "Diese Version von Tabularis kennt diesen Typ nicht"
         },
         "errors": {

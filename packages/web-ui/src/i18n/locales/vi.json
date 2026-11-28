@@ -2362,6 +2362,7 @@
         "missing": "{{cell}} tham chiếu đến {{reference}}, nhưng đích phải là một ô SQL không trống.",
         "disabled": "{{cell}} cần {{reference}}, nhưng ô này đang bị tắt. Hãy bật ô đó rồi thử lại.",
         "guardDenied": "Truy vấn không được chấp thuận.",
+        "unconfirmedWrite": "Không thể xác nhận kết quả ghi. Hãy kiểm tra cơ sở dữ liệu trước khi chạy lại ô này.",
         "blockedBy": "bị chặn bởi",
         "changed": "đã bị bỏ qua vì được sửa, tắt hoặc xóa."
       },
@@ -2436,7 +2437,6 @@
           "noOptions": "Thêm ít nhất một tùy chọn",
           "required": "Cần có giá trị",
           "emptyNeedsNull": "Nhập giá trị hoặc chọn NULL",
-          "cellReference": "Giá trị có kiểu không được chứa tham chiếu ô",
           "unknownType": "Phiên bản Tabularis này không nhận biết được kiểu này"
         },
         "errors": {

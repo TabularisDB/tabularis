@@ -2297,6 +2297,7 @@
         "missing": "{{cell}} hace referencia a {{reference}}, que debe apuntar a una celda SQL no vacía.",
         "disabled": "{{cell}} necesita {{reference}}, que está desactivada. Actívala y vuelve a intentarlo.",
         "guardDenied": "La consulta no se aprobó.",
+        "unconfirmedWrite": "No se pudo confirmar el resultado de la escritura. Revisa la base de datos antes de volver a ejecutar esta celda.",
         "blockedBy": "se bloqueó por",
         "changed": "se omitió porque se editó, desactivó o eliminó."
       },
@@ -2371,7 +2372,6 @@
           "noOptions": "Añade al menos una opción",
           "required": "Se requiere un valor",
           "emptyNeedsNull": "Introduce un valor o marca NULL",
-          "cellReference": "Un valor con tipo no puede contener una referencia a una celda",
           "unknownType": "Esta versión de Tabularis no conoce este tipo"
         },
         "errors": {

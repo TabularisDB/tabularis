@@ -20,6 +20,9 @@ describe('notebook execution translations', () => {
         'defines every message and interpolation token in %s',
         (_file, catalog) => {
             const {notebook} = (catalog as typeof en).editor;
+            expect(Object.keys(notebook.execution).sort()).toEqual(
+                Object.keys(en.editor.notebook.execution).sort(),
+            );
             for (const [key, template] of Object.entries(en.editor.notebook.execution)) {
                 const message = notebook.execution[key as keyof typeof notebook.execution];
                 expect(message, key).toBeTypeOf('string');

@@ -36,15 +36,13 @@ import {isTypingTarget} from '@/utils/keyboardEvents';
 import {flushPendingEditorChanges} from '@/utils/pendingEditorChanges';
 import {
     acquireNotebookRun,
+    checkNotebookInputs,
+    isNotebookRunActive,
     createRunAllResult,
     executeNotebookPlan,
     type CellRunOutcome,
 } from '@/utils/notebookRunAll';
-import {
-    buildNotebookExecutionPlan,
-    sameNotebookCellInput,
-    type NotebookRunRequest,
-} from '@/utils/notebookExecutionPlan';
+import {buildNotebookExecutionPlan, type NotebookRunRequest} from '@/utils/notebookExecutionPlan';
 import {resolveQueryVariables, variableOptionsForDriver} from '@/utils/notebookVariables';
 import {
     resolveParams,
@@ -69,6 +67,11 @@ import {
     loadNotebook,
     setNotebookTitle,
     createNotebookFromState,
+    hasUnconfirmedNotebookWrite,
+    setUnconfirmedNotebookWrite,
+    subscribeNotebookRuntime,
+    restoreNotebookDocument,
+    updateNotebookRuntime,
 } from '@/utils/notebookStore';
 import {useDatabase} from '@/hooks/useDatabase';
 import {useSqlAutocompleteRegistration} from '@/hooks/useSqlAutocompleteRegistration';
@@ -91,11 +94,13 @@ import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 
 interface CachedRunInputs {
-    cell: NotebookCell;
+    cellId: string;
+    sourceSql: string;
     connectionId: string;
     sql: string;
     schema: string | null | undefined;
-    params: string;
+    dialectFingerprint: string;
+    limit: number;
     prerequisites: Array<{id: string; result: NotebookCell['result']}>;
 }
 
@@ -119,8 +124,11 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const sqlDialect = resolveSqlSyntax(activeCapabilities);
     const typedParamsSupported = supportsTypedParams(sqlDialect);
     const variableOptions = useMemo(
-        () => variableOptionsForDriver(activeCapabilities ?? activeDriver, activeDriver),
-        [activeCapabilities, activeDriver],
+        () => ({
+            ...variableOptionsForDriver(activeCapabilities ?? activeDriver, activeDriver),
+            dialect: sqlDialect,
+        }),
+        [activeCapabilities, activeDriver, sqlDialect],
     );
     const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
     const effectiveSchema = tab.schema || activeSchema || (isMultiDb ? selectedDatabases[0] : null);
@@ -142,9 +150,12 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const [notebook, setNotebook] = useState<NotebookState | null>(() => {
         const cached = tab.notebookId ? getNotebookState(tab.notebookId) : undefined;
         if (!cached) return null;
-        // A previous view may have closed with an RPC still in flight. It
-        // retains the run lock until the RPC settles, not this view's spinners.
-        if (!cached.cells.some((cell) => cell.isLoading)) return cached;
+        // Only a live run owns spinners; legacy/migrated state may contain stale ones.
+        if (
+            isNotebookRunActive(tab.notebookId ?? tab.id) ||
+            !cached.cells.some((cell) => cell.isLoading)
+        )
+            return cached;
         return {...cached, cells: cached.cells.map((cell) => ({...cell, isLoading: false}))};
     });
     const [isLoadingNotebook, setIsLoadingNotebook] = useState(!notebook);
@@ -167,7 +178,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const autoScrollRafRef = useRef<number | null>(null);
     const notebookIdRef = useRef(tab.notebookId);
     const activeRunRef = useRef<AbortController | null>(null);
-    useEffect(() => () => activeRunRef.current?.abort(), []);
+    useEffect(() => () => activeRunRef.current?.abort(), [tab.notebookId]);
 
     // Undo/redo history (autosave means edits are otherwise irreversible).
     const notebookRef = useRef<NotebookState | null>(notebook);
@@ -178,14 +189,29 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const canUndo = history.past.length > 0;
     const canRedo = history.future.length > 0;
 
-    // Keep refs in sync
-    useEffect(() => {
-        notebookIdRef.current = tab.notebookId;
-    }, [tab.notebookId]);
+    const syncNotebook = useCallback((state: NotebookState) => {
+        notebookRef.current = state;
+        cellsRef.current = state.cells;
+        setNotebook(state);
+    }, []);
 
+    // An already-sent RPC can settle into the store after its view unmounts.
     useEffect(() => {
-        notebookRef.current = notebook;
-    }, [notebook]);
+        const id = tab.notebookId;
+        notebookIdRef.current = id;
+        if (!id) return;
+        const unsubscribe = subscribeNotebookRuntime(id, syncNotebook);
+        const latest = getNotebookState(id);
+        if (latest && latest !== notebookRef.current) {
+            if (!isNotebookRunActive(id) && latest.cells.some((cell) => cell.isLoading)) {
+                updateNotebookRuntime(id, (state) => ({
+                    ...state,
+                    cells: state.cells.map((cell) => ({...cell, isLoading: false})),
+                }));
+            } else syncNotebook(latest);
+        }
+        return unsubscribe;
+    }, [syncNotebook, tab.notebookId]);
 
     useEffect(() => {
         isActiveRef.current = isActive;
@@ -213,14 +239,13 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         let cancelled = false;
         loadNotebook(tab.notebookId, connectionId, client).then((state) => {
             if (cancelled) return;
-            setNotebook(state);
-            cellsRef.current = state.cells;
+            syncNotebook(getNotebookState(tab.notebookId!) ?? state);
             setIsLoadingNotebook(false);
         });
         return () => {
             cancelled = true;
         };
-    }, [client, connectionId, notebook, tab.notebookId]);
+    }, [client, connectionId, notebook, syncNotebook, tab.notebookId]);
 
     // Sync tab title to notebook store
     useEffect(() => {
@@ -272,14 +297,16 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     );
 
     /** Apply a state from the history without recording a new entry. */
-    const applyHistoryState = useCallback((state: NotebookState) => {
-        cellsRef.current = state.cells;
-        notebookRef.current = state;
-        setNotebook(state);
-        if (notebookIdRef.current) {
-            storeSetState(notebookIdRef.current, state);
-        }
-    }, []);
+    const applyHistoryState = useCallback(
+        (snapshot: NotebookState) => {
+            const state = restoreNotebookDocument(snapshot, notebookRef.current);
+            syncNotebook(state);
+            if (notebookIdRef.current) {
+                storeSetState(notebookIdRef.current, state);
+            }
+        },
+        [syncNotebook],
+    );
 
     const handleUndo = useCallback(() => {
         const current = notebookRef.current;
@@ -400,9 +427,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const runPlan = useCallback(
         async (request: NotebookRunRequest) => {
             const notebookId = notebookIdRef.current;
-            const release = activeRunRef.current
-                ? undefined
-                : acquireNotebookRun(notebookId ?? tab.id);
+            const runKey = notebookId ?? tab.id;
+            const release = activeRunRef.current ? undefined : acquireNotebookRun(runKey);
             if (!release) {
                 showAlert(t('editor.notebook.execution.busy'), {kind: 'info'});
                 return;
@@ -418,23 +444,41 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 const state = notebookRef.current;
                 const runParams = state?.params ?? [];
                 const paramSignature = JSON.stringify(runParams);
+                const requestedLimit = Math.floor(settings.resultPageSize);
+                const limit =
+                    Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 100;
+                const {identifierQuote, escapeBackslashes, backslashLiterals, booleanLiterals} =
+                    variableOptions;
+                const dialectFingerprint = JSON.stringify([
+                    sqlDialect.dialect,
+                    sqlDialect.options,
+                    identifierQuote,
+                    escapeBackslashes,
+                    backslashLiterals,
+                    booleanLiterals,
+                ]);
                 const planned = buildNotebookExecutionPlan({
                     cells: cellsRef.current,
                     request,
                     fallbackSchema: effectiveSchema,
+                    connectionId,
+                    schemaIsDatabase: isMultiDb,
+                    syntax: sqlDialect,
                     prepare: (sql) =>
                         runParams.length
                             ? resolveParams(sql, runParams, sqlDialect)
                             : {sql, errors: []},
                     canReuse: (node, snapshot) => {
                         const prior = node.cell.result && cachedRunInputs.get(node.cell.result);
-                        if (!prior) return true;
+                        if (!prior) return false;
                         return (
-                            sameNotebookCellInput(node.cell, prior.cell) &&
+                            node.cell.id === prior.cellId &&
+                            node.cell.content === prior.sourceSql &&
                             connectionId === prior.connectionId &&
                             node.schema === prior.schema &&
                             node.sql === prior.sql &&
-                            paramSignature === prior.params &&
+                            dialectFingerprint === prior.dialectFingerprint &&
+                            limit === prior.limit &&
                             node.prerequisites.length === prior.prerequisites.length &&
                             node.prerequisites.every(
                                 (index, i) =>
@@ -482,11 +526,33 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 const readCells = () => {
                     if (signal.aborted || notebookIdRef.current !== notebookId) return [];
                     flushPendingEditorChanges();
-                    return cellsRef.current;
+                    return (
+                        (notebookId ? getNotebookState(notebookId)?.cells : cellsRef.current) ?? []
+                    );
                 };
-                const unmounted = new Promise<false>((resolve) =>
-                    signal.addEventListener('abort', () => resolve(false), {once: true}),
-                );
+                const patchRuntime = (
+                    id: string,
+                    patch: (live: NotebookState) => Partial<NotebookCell> | undefined,
+                ) => {
+                    const update = (live: NotebookState) => {
+                        if (!live.cells.some((item) => item.id === id)) return live;
+                        const partial = patch(live);
+                        if (!partial) return live;
+                        return {...live, cells: updateCellInCells(live.cells, id, partial)};
+                    };
+                    if (notebookId) return updateNotebookRuntime(notebookId, update);
+                    const live = notebookRef.current;
+                    if (!live || signal.aborted) return false;
+                    const next = update(live);
+                    if (next === live) return false;
+                    syncNotebook(next);
+                    return true;
+                };
+                let onAbort: () => void;
+                const unmounted = new Promise<false>((resolve) => {
+                    onAbort = () => resolve(false);
+                    signal.addEventListener('abort', onAbort, {once: true});
+                });
                 const result = await executeNotebookPlan(plan, {
                     stopOnError: state?.stopOnError ?? false,
                     readCells,
@@ -497,14 +563,31 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                             error: string,
                             keepOutput = false,
                         ): CellRunOutcome => {
-                            updateCell(id, {error, ...(keepOutput ? {} : {result: null})});
+                            patchRuntime(id, () => ({
+                                error,
+                                ...(keepOutput ? {} : {result: null}),
+                            }));
                             return {kind: 'failed', error, sent: false};
                         };
-                        updateCell(id, {isLoading: true});
+                        patchRuntime(id, () => ({isLoading: true}));
                         try {
+                            if (
+                                hasUnconfirmedNotebookWrite(runKey, cell, plan.cells) &&
+                                !(request.mode === 'cell' && request.cellId === id)
+                            ) {
+                                return failBeforeSend(
+                                    t('editor.notebook.execution.unconfirmedWrite'),
+                                    true,
+                                );
+                            }
                             if (node.paramErrors.length)
                                 return failBeforeSend(describeParamErrors(node.paramErrors));
-                            const resolved = resolveQueryVariables(sql, inputs, variableOptions);
+                            const resolved = resolveQueryVariables(
+                                sql,
+                                inputs,
+                                variableOptions,
+                                node.references,
+                            );
                             if (resolved.unresolvedRefs.length) {
                                 return failBeforeSend(
                                     t('editor.notebook.execution.missing', {
@@ -518,7 +601,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                             }
 
                             const allowed = await Promise.race([
-                                guardQueryExecution(resolved.sql),
+                                guardQueryExecution(resolved.sql, signal),
                                 unmounted,
                             ]);
                             const changed = checkBeforeSend();
@@ -529,15 +612,16 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                                     true,
                                 );
 
-                            updateCell(id, {error: undefined, result: null});
+                            patchRuntime(id, () => ({error: undefined, result: null}));
                             const start = performance.now();
+                            if (!node.parallelRead)
+                                setUnconfirmedNotebookWrite(runKey, cell, plan.cells, true);
                             let outcome: Extract<CellRunOutcome, {kind: 'success' | 'failed'}>;
                             try {
                                 const response = await client.call('execute_query', {
                                     connectionId,
                                     query: resolved.sql,
-                                    limit:
-                                        settings.resultPageSize > 0 ? settings.resultPageSize : 100,
+                                    limit,
                                     page: 1,
                                     ...(schema ? {schema} : {}),
                                 });
@@ -550,52 +634,65 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                                 };
                             }
 
-                            const live = readCells();
-                            const current = live.find((item) => item.id === id);
-                            if (
-                                current &&
-                                sameNotebookCellInput(cell, current) &&
-                                node.prerequisites.every(
-                                    (index) => live[index]?.id === inputs[index].id,
+                            // Flush the current editor before checking the captured input, even
+                            // if a different view now owns the notebook.
+                            flushPendingEditorChanges();
+                            const committed = patchRuntime(id, (live) => {
+                                if (
+                                    checkNotebookInputs(plan, node, live.cells, {
+                                        allowDisabledCell: true,
+                                    }) ||
+                                    node.prerequisites.some(
+                                        (index) =>
+                                            live.cells[index].result !== inputs[index].result,
+                                    )
                                 )
-                            ) {
+                                    return;
+                                const current = live.cells.find((item) => item.id === id)!;
                                 const executionTime = performance.now() - start;
                                 const response = outcome.kind === 'success' ? outcome.result : null;
                                 const error = outcome.kind === 'failed' ? outcome.error : undefined;
-                                const entry = createHistoryEntry(
-                                    cell.content.trim(),
-                                    response,
-                                    error,
-                                    executionTime,
-                                );
-                                updateCell(id, {
-                                    result: response,
-                                    error,
-                                    executionTime,
-                                    history: addHistoryEntry(current.history ?? [], entry),
-                                });
-                                setExecutedParamsByCell((prev) => ({
-                                    ...prev,
-                                    [id]: paramSignature,
-                                }));
                                 if (response) {
                                     cachedRunInputs.set(response, {
-                                        cell: {
-                                            id,
-                                            type: cell.type,
-                                            content: cell.content,
-                                            schema: cell.schema,
-                                        },
+                                        cellId: id,
+                                        sourceSql: cell.content,
                                         connectionId,
                                         schema,
                                         sql,
-                                        params: paramSignature,
+                                        dialectFingerprint,
+                                        limit,
                                         prerequisites: node.prerequisites.map((index) => ({
                                             id: inputs[index].id,
                                             result: inputs[index].result,
                                         })),
                                     });
                                 }
+                                return {
+                                    result: response,
+                                    error,
+                                    executionTime,
+                                    history: addHistoryEntry(
+                                        current.history ?? [],
+                                        createHistoryEntry(
+                                            cell.content.trim(),
+                                            response,
+                                            error,
+                                            executionTime,
+                                        ),
+                                    ),
+                                };
+                            });
+                            if (committed && !signal.aborted) {
+                                setExecutedParamsByCell((prev) => ({
+                                    ...prev,
+                                    [id]: paramSignature,
+                                }));
+                            }
+                            // A transport failure or a result that cannot be attached to the
+                            // captured revision can leave a write applied. Only an explicit
+                            // Run Cell may retry it, never an automatic dependency refresh.
+                            if (committed && outcome.kind === 'success') {
+                                setUnconfirmedNotebookWrite(runKey, cell, plan.cells, false);
                             }
                             return outcome;
                         } catch (error) {
@@ -607,22 +704,16 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                                 )
                             );
                         } finally {
-                            if (
-                                !signal.aborted &&
-                                notebookIdRef.current === notebookId &&
-                                cellsRef.current.some((item) => item.id === id)
-                            ) {
-                                updateCell(id, {isLoading: false});
-                            }
+                            patchRuntime(id, () => ({isLoading: false}));
                         }
                     },
-                });
+                }).finally(() => signal.removeEventListener('abort', onAbort));
                 if (!signal.aborted && notebookIdRef.current === notebookId)
                     setRunAllResult(result);
             } finally {
                 release();
                 activeRunRef.current = null;
-                if (!signal.aborted) setIsRunning(false);
+                setIsRunning(false);
                 updateTab(tab.id, {isLoading: false});
             }
         },
@@ -632,12 +723,13 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             describeParamErrors,
             effectiveSchema,
             guardQueryExecution,
+            isMultiDb,
             settings.resultPageSize,
             showAlert,
             sqlDialect,
             t,
             tab.id,
-            updateCell,
+            syncNotebook,
             updateTab,
             variableOptions,
         ],

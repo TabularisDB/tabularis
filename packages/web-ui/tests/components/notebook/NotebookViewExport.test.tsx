@@ -63,7 +63,8 @@ vi.mock('@/components/ui/LazyMonaco', () => ({
         />
     ),
 }));
-vi.mock('@/utils/notebookStore', () => ({
+vi.mock('@/utils/notebookStore', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@/utils/notebookStore')>()),
     getNotebookState: vi.fn((id: string) => fixtures.notebooks.get(id)),
     setNotebookState: vi.fn((id: string, state: NotebookState) => {
         fixtures.notebooks.set(id, state);

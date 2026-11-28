@@ -48,7 +48,6 @@ describe('notebook parameter translations', () => {
                 'errors.invalid',
                 'errors.quoted',
                 'errors.unsupported',
-                'issues.cellReference',
                 'issues.emptyNeedsNull',
                 'issues.invalidBoolean',
                 'issues.invalidDate',

@@ -2289,6 +2289,7 @@
         "missing": "{{cell}} 引用了 {{reference}}，但目标必须是非空的 SQL 单元格。",
         "disabled": "{{cell}} 依赖的 {{reference}} 已禁用。请启用该单元格后重试。",
         "guardDenied": "查询未获准执行。",
+        "unconfirmedWrite": "无法确认写入结果。请先检查数据库，再重新运行此单元格。",
         "blockedBy": "被以下单元格阻止：",
         "changed": "因被编辑、禁用或移除而跳过。"
       },
@@ -2363,7 +2364,6 @@
           "noOptions": "请至少添加一个选项",
           "required": "必须提供值",
           "emptyNeedsNull": "请输入值或勾选 NULL",
-          "cellReference": "带类型的值不能包含单元格引用",
           "unknownType": "此版本的 Tabularis 无法识别该类型"
         },
         "errors": {

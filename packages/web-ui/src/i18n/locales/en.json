@@ -2397,6 +2397,7 @@
         "missing": "{{cell}} references {{reference}}, which must point to a non-empty SQL cell.",
         "disabled": "{{cell}} needs {{reference}}, which is disabled. Enable it and try again.",
         "guardDenied": "The query was not approved.",
+        "unconfirmedWrite": "The write outcome could not be confirmed. Check the database before running this cell again.",
         "blockedBy": "was blocked by",
         "changed": "was skipped because it was edited, disabled, or removed."
       },
@@ -2471,7 +2472,6 @@
           "noOptions": "Add at least one option",
           "required": "A value is required",
           "emptyNeedsNull": "Enter a value or tick NULL",
-          "cellReference": "A typed value cannot contain a cell reference",
           "unknownType": "This version of Tabularis does not know this type"
         },
         "errors": {

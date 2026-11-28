@@ -8,7 +8,7 @@ import {passQueryGuards} from '@/utils/queryGuard';
 interface QueryGuards {
     pending: PendingDangerousQuery | null;
     isPending: boolean;
-    guardQuery: (sqlOrQueries: string | string[]) => Promise<boolean>;
+    guardQuery: (sqlOrQueries: string | string[], signal?: AbortSignal) => Promise<boolean>;
     resolve: (confirmed: boolean) => void;
 }
 
@@ -29,14 +29,18 @@ export function useQueryGuards(connectionId: string | null | undefined): QueryGu
     const guardProductionWrite = useProductionGuard();
 
     const guardQuery = useCallback(
-        (sqlOrQueries: string | string[]) => {
+        (sqlOrQueries: string | string[], signal?: AbortSignal) => {
             const productionSql = Array.isArray(sqlOrQueries)
                 ? sqlOrQueries.join(';\n')
                 : sqlOrQueries;
 
             return passQueryGuards({
-                guardProduction: () => guardProductionWrite(connectionId, productionSql),
-                guardDangerousQuery: () => guardDangerousQuery(sqlOrQueries),
+                guardProduction: () =>
+                    signal
+                        ? guardProductionWrite(connectionId, productionSql, signal)
+                        : guardProductionWrite(connectionId, productionSql),
+                guardDangerousQuery: () =>
+                    signal?.aborted ? Promise.resolve(false) : guardDangerousQuery(sqlOrQueries),
             });
         },
         [connectionId, guardDangerousQuery, guardProductionWrite],

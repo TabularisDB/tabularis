@@ -2351,6 +2351,7 @@
         "missing": "Tumutukoy ang {{cell}} sa {{reference}}, na dapat ay isang SQL cell na may laman.",
         "disabled": "Kailangan ng {{cell}} ang {{reference}}, na naka-disable. I-enable ito at subukang muli.",
         "guardDenied": "Hindi inaprubahan ang query.",
+        "unconfirmedWrite": "Hindi nakumpirma ang resulta ng pagsusulat. Suriin ang database bago muling patakbuhin ang cell na ito.",
         "blockedBy": "ay naharang dahil sa",
         "changed": "ay nilaktawan dahil inedit, na-disable, o inalis ito."
       },
@@ -2425,7 +2426,6 @@
           "noOptions": "Magdagdag ng kahit isang opsyon",
           "required": "Kailangan ng value",
           "emptyNeedsNull": "Maglagay ng value o i-check ang NULL",
-          "cellReference": "Hindi maaaring maglaman ng reference sa cell ang typed na value",
           "unknownType": "Hindi kilala ng bersyong ito ng Tabularis ang uri na ito"
         },
         "errors": {
