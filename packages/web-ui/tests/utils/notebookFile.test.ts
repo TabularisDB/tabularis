@@ -27,6 +27,34 @@ function makeCells(): NotebookCell[] {
 }
 
 describe('notebookFile utils', () => {
+    it('only restores cell identity for local saves and repairs duplicate or missing IDs', () => {
+        const saved = serializeNotebook(
+            'Saved',
+            [
+                {id: 'write', type: 'sql', content: 'SELECT 1'},
+                {id: 'write', type: 'sql', content: 'SELECT 2'},
+            ],
+            undefined,
+            undefined,
+            'conn',
+            {preserveCellIds: true},
+        );
+        const legacy = {type: 'sql' as const, content: 'SELECT 3'};
+        const json = JSON.stringify({...saved, cells: [...saved.cells, legacy]});
+        const restored = deserializeNotebook(json, {preserveCellIds: true});
+        expect(restored.cells[0].id).toBe('write');
+        expect(new Set(restored.cells.map(({id}) => id)).size).toBe(3);
+        expect(restored.cells.map(({content}) => content)).toEqual([
+            'SELECT 1',
+            'SELECT 2',
+            'SELECT 3',
+        ]);
+        expect(deserializeNotebook(json).cells.map(({id}) => id)).not.toContain('write');
+        expect(
+            serializeNotebook('Export', restored.cells).cells.every(({id}) => id === undefined),
+        ).toBe(true);
+    });
+
     describe('serializeNotebook', () => {
         it('should produce correct structure', () => {
             const result = serializeNotebook('My Notebook', makeCells());

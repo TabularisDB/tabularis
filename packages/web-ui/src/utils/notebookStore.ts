@@ -23,7 +23,7 @@ const cache = new Map<string, NotebookState>();
 const evicting = new Set<string>();
 const runtimeListeners = new Map<string, Set<(state: NotebookState) => void>>();
 // A discarded/ambiguous write result must survive closing and reopening a tab.
-const unconfirmedWrites = new Map<string, Map<string, string>>();
+const unconfirmedWrites = new Map<string, Set<string>>();
 const titleCache = new Map<string, string>();
 // Notebooks are persisted per connection (`notebooks/<connectionId>/<id>`), so
 // every save/load/delete needs the owning connection id. It is captured when a
@@ -46,6 +46,7 @@ function serializeForDisk(notebookId: string, state: NotebookState): string {
         state.params,
         state.stopOnError,
         connectionId,
+        {preserveCellIds: true},
     );
     return JSON.stringify(notebook, null, 2);
 }
@@ -134,40 +135,34 @@ export function subscribeNotebookRuntime(
     };
 }
 
-function unconfirmedWriteId(
-    notebookId: string,
-    cell: NotebookCell,
-    document: NotebookCell[],
-): string | undefined {
-    const writes = unconfirmedWrites.get(notebookId);
-    if (writes?.has(cell.id)) return cell.id;
-    // A saved notebook regenerates cell IDs on reload. Match an orphaned
-    // record by source in that case so eviction cannot enable an automatic retry.
-    for (const [id, source] of writes ?? []) {
-        if (cell.content.trim() === source && !document.some((item) => item.id === id)) return id;
-    }
-}
-
 export function hasUnconfirmedNotebookWrite(
     notebookId: string,
-    cell: NotebookCell,
-    document: NotebookCell[],
+    cellId: string,
+    cells: readonly NotebookCell[],
 ): boolean {
-    return unconfirmedWriteId(notebookId, cell, document) !== undefined;
+    const writes = unconfirmedWrites.get(notebookId);
+    if (!writes) return false;
+    if (writes.has(cellId)) return true;
+    // If a write no longer has an owner (e.g. the file lost its local IDs),
+    // do not guess which cell may replay it. An explicit run can refresh an
+    // individual result, but cannot clear an unrelated orphan.
+    return [...writes].some((id) => !cells.some((cell) => cell.id === id));
 }
 
 export function setUnconfirmedNotebookWrite(
     notebookId: string,
-    cell: NotebookCell,
-    document: NotebookCell[],
+    cellId: string,
     unconfirmed: boolean,
 ): void {
-    const writes = unconfirmedWrites.get(notebookId) ?? new Map<string, string>();
-    const priorId = unconfirmedWriteId(notebookId, cell, document);
-    if (priorId !== undefined) writes.delete(priorId);
-    if (unconfirmed) writes.set(cell.id, cell.content.trim());
-    if (writes.size) unconfirmedWrites.set(notebookId, writes);
-    else unconfirmedWrites.delete(notebookId);
+    if (unconfirmed) {
+        const writes = unconfirmedWrites.get(notebookId) ?? new Set<string>();
+        writes.add(cellId);
+        unconfirmedWrites.set(notebookId, writes);
+    } else {
+        const writes = unconfirmedWrites.get(notebookId);
+        writes?.delete(cellId);
+        if (!writes?.size) unconfirmedWrites.delete(notebookId);
+    }
 }
 
 /** Restore document fields without reviving the execution state in the snapshot. */
@@ -220,7 +215,9 @@ export async function loadNotebook(
         return state;
     }
 
-    const {title, cells, params, stopOnError} = deserializeNotebook(content);
+    const {title, cells, params, stopOnError} = deserializeNotebook(content, {
+        preserveCellIds: true,
+    });
     const state: NotebookState = {cells, params, stopOnError};
     cache.set(notebookId, state);
     titleCache.set(notebookId, title);

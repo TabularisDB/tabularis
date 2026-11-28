@@ -1,10 +1,10 @@
 import type {NotebookCell} from '@/types/notebook';
 import type {QueryResult} from '@/types/editor';
-import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
+import type {BooleanLiteralStyle, DriverCapabilities, PluginManifest} from '@/types/plugins';
 import {getQuoteChar, quoteIdentifierWith} from './identifiers';
 import {optionsFor, type DialectInput} from './sqlSplitter';
 import {collectNonCodeSpans} from './sqlSplitter/nonCodeSpans';
-import type {BooleanLiteralStyle} from '@/types/plugins';
+import {resolveSqlSyntax} from './sqlSyntax';
 import {
     booleanLiteralWithStyle,
     declaredBooleanLiterals,
@@ -31,9 +31,35 @@ function nonCodeSpans(sql: string, dialect: DialectInput) {
     return collectNonCodeSpans(sql, {...options, executableComments: false});
 }
 
+/** Use the same legacy MySQL-family fallback as notebook string serialization. */
+export function resolveNotebookSqlSyntax(
+    capabilities: DriverCapabilities | null | undefined,
+    driverId: string | null | undefined,
+) {
+    const syntax = resolveSqlSyntax(capabilities);
+    return !syntax.declared &&
+        (!syntax.dialect || syntax.dialect === 'generic') &&
+        stringEscapeStyle(capabilities, driverId) === 'mysql'
+        ? resolveSqlSyntax({sql_dialect: 'mysql'})
+        : syntax;
+}
+
 export function extractCellReferences(sql: string, dialect?: DialectInput): CellReferenceToken[] {
     if (!sql.includes('{{cell_')) return [];
     const spans = nonCodeSpans(sql, dialect);
+    if (
+        typeof dialect === 'object' &&
+        !dialect.declared &&
+        (!dialect.dialect || dialect.dialect === 'generic')
+    ) {
+        // Without a concrete syntax, accept a dependency only where none of
+        // the supported lexers see data. A missed binding fails at execution;
+        // a guessed binding could schedule an unrelated write.
+        for (const preset of ['mysql', 'postgres', 'sqlite', 'mssql', 'oracle'] as const) {
+            for (const span of nonCodeSpans(sql, preset)) spans.push(span);
+        }
+        spans.sort((a, b) => a.start - b.start);
+    }
     const refs: CellReferenceToken[] = [];
     let span = 0;
     for (const token of sql.matchAll(CELL_REF_PATTERN)) {

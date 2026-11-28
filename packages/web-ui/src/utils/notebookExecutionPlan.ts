@@ -12,7 +12,7 @@ export interface PlannedCell {
     paramErrors: ParamError[];
     schema: string | null | undefined;
     databaseLane: string;
-    parallelRead: boolean;
+    canRunInParallel: boolean;
     references: CellReferenceToken[];
     prerequisites: number[];
 }
@@ -38,18 +38,15 @@ function isSqlCell(cell: NotebookCell): boolean {
     return cell.type === 'sql' && cell.content.trim() !== '';
 }
 
-// A deliberately small, positive grammar: literals/columns, optional AS
-// aliases and a plain table name. No functions, joins, subqueries, INTO,
-// locking clauses, hints, executable comments, or additional statements.
-const identifier = '[a-z_][a-z_0-9]*';
-const qualifiedName = `${identifier}(?:\\.${identifier})*`;
-const projection = `(?:\\*|${qualifiedName}(?:\\.\\*)?|[0-9]+(?:\\.[0-9]+)?)(?:\\s+AS\\s+${identifier})?`;
-const simpleSelect = new RegExp(
-    `^SELECT\\s+${projection}(?:\\s*,\\s*${projection})*(?:\\s+FROM\\s+${identifier}(?:\\s+AS\\s+${identifier})?)?\\s*;?$`,
+// Only numeric literals with optional aliases. Even a plain projection may
+// evaluate a sequence, a view, a virtual table, or a server-side policy.
+const projection = '[0-9]+(?:\\.[0-9]+)?(?:\\s+AS\\s+[a-z_][a-z_0-9]*)?';
+const constantSelect = new RegExp(
+    `^SELECT\\s+${projection}(?:\\s*,\\s*${projection})*\\s*;?$`,
     'i',
 );
 
-function isSimpleNotebookRead(sql: string, syntax?: SqlSyntax): boolean {
+export function isEffectFreeNotebookQuery(sql: string, syntax?: SqlSyntax): boolean {
     return (
         !!syntax &&
         !syntax.declared &&
@@ -58,7 +55,7 @@ function isSimpleNotebookRead(sql: string, syntax?: SqlSyntax): boolean {
             syntax.dialect === 'sqlite' ||
             syntax.dialect === 'mssql' ||
             syntax.dialect === 'oracle') &&
-        simpleSelect.test(sql.trim())
+        constantSelect.test(sql.trim())
     );
 }
 
@@ -109,7 +106,7 @@ export function buildNotebookExecutionPlan({
                 connectionId,
                 useDatabaseLanes ? schema?.toLowerCase() : null,
             ]),
-            parallelRead: isSimpleNotebookRead(sql, syntax),
+            canRunInParallel: !!cell.isParallel && isEffectFreeNotebookQuery(sql, syntax),
             references,
             prerequisites,
         });

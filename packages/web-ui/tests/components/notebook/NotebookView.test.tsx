@@ -17,12 +17,14 @@ import {resolveParams} from '@/utils/notebookParams';
 import {resolveQueryVariables, type ResolvedQuery} from '@/utils/notebookVariables';
 import {
     _resetForTesting,
+    evictFromCache,
     getNotebookState,
     loadNotebook,
     setNotebookState,
 } from '@/utils/notebookStore';
 import type {DriverCapabilities} from '@/types/plugins';
 import type {SavedConnection} from '@/contexts/DatabaseContext';
+import {tauriBackedClient} from '../../support/tauriBackedHooks';
 import {ProductionGuardProvider} from '@/contexts/ProductionGuardContext';
 import {ProductionGuardContext, snoozedConnectionIds} from '@/hooks/useProductionGuard';
 
@@ -758,6 +760,48 @@ describe('NotebookView', () => {
     });
 
     describe('shared execution plans', () => {
+        it.each(['mariadb', 'unidentified-driver'] as const)(
+            'does not dispatch an unrelated cell marked only by a hash comment on %s',
+            async (driver) => {
+                fixtures.database.activeDriver = driver;
+                fixtures.database.activeCapabilities = {identifier_quote: '`'};
+                const source = 'SELECT 1';
+                renderNotebook({
+                    cells: [
+                        sqlCell('source', source),
+                        sqlCell('unrelated', 'SELECT NEXT VALUE FOR audit_seq AS n # {{cell_1}}'),
+                        sqlCell('consumer', 'SELECT * FROM {{cell_1}}'),
+                    ],
+                });
+                const quote = '`';
+                const consumer = `WITH cell_1 AS (\n  SELECT 7 AS ${quote}id${quote}\n  UNION ALL\n  SELECT 8 AS ${quote}id${quote}\n)\nSELECT * FROM cell_1`;
+                await click('Run affected source');
+                expect(mockInvoke.mock.calls).toEqual([requestSql(source), requestSql(consumer)]);
+                expect(fixtures.guardQuery.mock.calls).toEqual([
+                    [source, expect.any(AbortSignal)],
+                    [consumer, expect.any(AbortSignal)],
+                ]);
+            },
+        );
+
+        it('uses a declared dialect instead of the legacy fallback to parse real edges', async () => {
+            fixtures.database.activeDriver = 'mariadb';
+            fixtures.database.activeCapabilities = {sql_dialect: 'postgres', identifier_quote: '"'};
+            renderNotebook({
+                cells: [
+                    sqlCell('source', 'SELECT 1'),
+                    sqlCell('use', 'SELECT 3 # id FROM {{cell_1}}'),
+                ],
+            });
+            await click('Run affected source');
+            expect(mockInvoke.mock.calls).toEqual([
+                requestSql('SELECT 1'),
+                requestSql(
+                    'WITH cell_1 AS (\n  SELECT 7 AS "id"\n  UNION ALL\n  SELECT 8 AS "id"\n)\nSELECT 3 # id FROM cell_1',
+                ),
+            ]);
+        });
+
         it('ignores comment-only consumers and keeps reference-like literals unchanged on dispatch', async () => {
             const literal = "SELECT '{{cell_1}}'";
             const line = 'SELECT 1 -- {{cell_8}}';
@@ -1113,30 +1157,148 @@ describe('NotebookView', () => {
             expect(mockInvoke.mock.calls).toEqual([requestSql(insert), requestSql(insert)]);
         });
 
-        it('does not replay an in-flight write if the notebook reloads with regenerated cell IDs', async () => {
-            const rpc = Promise.withResolvers<QueryResult>();
-            const insert = 'INSERT INTO audit(id) VALUES (7) RETURNING id';
-            mockInvoke.mockReturnValueOnce(rpc.promise);
-            const view = renderNotebook({cells: [sqlCell('write', insert)]});
-            await click('Run write');
-            view.unmount();
-            // Reloading the file after eviction recreates the cell IDs and has no results.
+        it.each([
+            {suffix: '', loseIds: false},
+            {suffix: ' /* note */', loseIds: false},
+            {suffix: ' /* note */', loseIds: true},
+        ])(
+            'does not replay an in-flight write after eviction and reload (edit: $suffix, lost IDs: $loseIds)',
+            async ({suffix, loseIds}) => {
+                const store =
+                    await vi.importActual<typeof import('@/utils/notebookStore')>(
+                        '@/utils/notebookStore',
+                    );
+                const rpc = Promise.withResolvers<QueryResult>();
+                const insert = 'INSERT INTO audit(id) VALUES (7) RETURNING id';
+                const consume =
+                    'WITH cell_1 AS (\n  SELECT 7 AS "id"\n  UNION ALL\n  SELECT 8 AS "id"\n)\nSELECT * FROM cell_1';
+                let file = JSON.stringify({
+                    version: 2,
+                    title: 'Legacy notebook',
+                    cells: [
+                        {type: 'sql', content: insert},
+                        {type: 'sql', content: 'SELECT * FROM {{cell_1}}'},
+                    ],
+                });
+                let writeCount = 0;
+                mockInvoke.mockImplementation(async (command, args) => {
+                    if (command === 'load_notebook') return file;
+                    if (command === 'save_notebook') {
+                        file = String(args?.content);
+                        return;
+                    }
+                    if (args?.query === insert || (suffix && args?.query === insert + suffix)) {
+                        writeCount++;
+                        if (writeCount === 1) return rpc.promise;
+                    }
+                    return queryResult;
+                });
+                const {cells} = await store.loadNotebook(
+                    notebookId,
+                    connectionId,
+                    tauriBackedClient,
+                );
+                const [write, use] = cells;
+                const view = renderNotebook();
+                await click(`Run ${write.id}`);
+                if (suffix) {
+                    fireEvent.change(screen.getByRole('textbox', {name: `SQL ${write.id}`}), {
+                        target: {value: insert + suffix},
+                    });
+                }
+                view.unmount();
+                await evictFromCache(notebookId);
+                expect(getNotebookState(notebookId)).toBeUndefined();
+                if (loseIds) {
+                    const saved = JSON.parse(file) as {cells: Array<{id?: string}>};
+                    for (const cell of saved.cells) delete cell.id;
+                    file = JSON.stringify(saved);
+                }
+                vi.mocked(loadNotebook).mockImplementationOnce(store.loadNotebook);
+                renderNotebook();
+                await waitFor(() => expect(getNotebookState(notebookId)).toBeDefined());
+                const [reloadedWrite, reloadedUse] = getNotebookState(notebookId)!.cells;
+                if (loseIds) expect(reloadedWrite.id).not.toBe(write.id);
+                else expect([reloadedWrite.id, reloadedUse.id]).toEqual([write.id, use.id]);
+                expect(reloadedWrite).toMatchObject({content: insert + suffix, result: null});
+
+                await act(async () => rpc.resolve(queryResult));
+                await click(`Run ${reloadedUse.id}`);
+                const sqlCalls = () =>
+                    mockInvoke.mock.calls.filter(([command]) => command === 'execute_query');
+                expect(writeCount).toBe(1);
+                if (suffix) {
+                    expect(sqlCalls()).toEqual([requestSql(insert)]);
+                    expect(summary()).toMatchObject({
+                        executed: 0,
+                        blocked: 1,
+                        errors: [
+                            {
+                                cellId: reloadedWrite.id,
+                                error: 'editor.notebook.execution.unconfirmedWrite',
+                            },
+                        ],
+                    });
+                    expect(fixtures.guardQuery).toHaveBeenCalledExactlyOnceWith(
+                        insert,
+                        expect.any(AbortSignal),
+                    );
+
+                    await click(`Run ${reloadedWrite.id}`);
+                    await click(`Run ${reloadedUse.id}`);
+                    expect(sqlCalls()).toEqual([
+                        requestSql(insert),
+                        requestSql(insert + suffix),
+                        requestSql(consume),
+                    ]);
+                    expect(writeCount).toBe(2);
+                } else {
+                    expect(sqlCalls()).toEqual([requestSql(insert), requestSql(consume)]);
+                }
+            },
+        );
+
+        it('requires an explicit retry after losing the reply to an Oracle sequence query', async () => {
+            fixtures.database.activeCapabilities = {sql_dialect: 'oracle'};
+            const sql = 'SELECT audit_seq.NEXTVAL FROM dual';
             renderNotebook({
-                cells: [
-                    sqlCell('reloaded-write', insert),
-                    sqlCell('use', 'SELECT * FROM {{cell_1}}'),
-                ],
+                cells: [sqlCell('source', sql), sqlCell('use', 'SELECT * FROM {{cell_1}}')],
             });
-            await act(async () => rpc.resolve(queryResult));
+            mockInvoke.mockRejectedValueOnce(new Error('reply lost'));
+            await click('Run source');
             await click('Run use');
-            expect(mockInvoke.mock.calls).toEqual([requestSql(insert)]);
+            expect(mockInvoke.mock.calls).toEqual([requestSql(sql)]);
             expect(summary()).toMatchObject({
                 executed: 0,
                 blocked: 1,
-                errors: [
-                    {cellId: 'reloaded-write', error: 'editor.notebook.execution.unconfirmedWrite'},
+                errors: [{cellId: 'source', error: 'editor.notebook.execution.unconfirmedWrite'}],
+            });
+
+            await click('Run source');
+            await click('Run use');
+            expect(mockInvoke.mock.calls.map(([, args]) => args?.query)).toEqual([
+                sql,
+                sql,
+                expect.stringContaining('SELECT * FROM cell_1'),
+            ]);
+        });
+
+        it('can automatically retry a known constant read after a lost reply', async () => {
+            fixtures.database.activeCapabilities = {sql_dialect: 'sqlite'};
+            renderNotebook({
+                cells: [
+                    sqlCell('source', 'SELECT 7 AS id'),
+                    sqlCell('use', 'SELECT * FROM {{cell_1}}'),
                 ],
             });
+            mockInvoke.mockRejectedValueOnce(new Error('reply lost'));
+            await click('Run source');
+            await click('Run use');
+            expect(mockInvoke.mock.calls.map(([, args]) => args?.query)).toEqual([
+                'SELECT 7 AS id',
+                'SELECT 7 AS id',
+                expect.stringContaining('SELECT * FROM cell_1'),
+            ]);
         });
 
         it.each([true, false])(
@@ -2301,6 +2463,7 @@ describe('NotebookView', () => {
         it.each([
             "SELECT nextval('audit_seq')",
             'SELECT custom_fn(id) FROM items',
+            'SELECT n FROM audit_view',
             'SELECT id FROM items FOR UPDATE',
             'SELECT id FROM items FOR SHARE',
             'SELECT id FROM items LOCK IN SHARE MODE',
@@ -2339,16 +2502,16 @@ describe('NotebookView', () => {
             );
             renderNotebook({
                 cells: [
-                    sqlCell('a', 'SELECT a', {schema: 'billing', isParallel: true}),
-                    sqlCell('b', 'SELECT b', {schema: 'orders', isParallel: true}),
-                    sqlCell('a2', 'SELECT a2', {schema: 'billing', isParallel: true}),
+                    sqlCell('a', 'SELECT 1 AS a', {schema: 'billing', isParallel: true}),
+                    sqlCell('b', 'SELECT 2 AS b', {schema: 'orders', isParallel: true}),
+                    sqlCell('a2', 'SELECT 3 AS a2', {schema: 'billing', isParallel: true}),
                 ],
             });
             await click('Run All');
             await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(2));
             expect(mockInvoke.mock.calls).toEqual([
-                requestSql('SELECT a', 'billing'),
-                requestSql('SELECT b', 'orders'),
+                requestSql('SELECT 1 AS a', 'billing'),
+                requestSql('SELECT 2 AS b', 'orders'),
             ]);
 
             await act(async () => {
@@ -2357,9 +2520,9 @@ describe('NotebookView', () => {
             });
             await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(3));
             expect(mockInvoke.mock.calls).toEqual([
-                requestSql('SELECT a', 'billing'),
-                requestSql('SELECT b', 'orders'),
-                requestSql('SELECT a2', 'billing'),
+                requestSql('SELECT 1 AS a', 'billing'),
+                requestSql('SELECT 2 AS b', 'orders'),
+                requestSql('SELECT 3 AS a2', 'billing'),
             ]);
             await act(async () => {
                 pending[2](queryResult);

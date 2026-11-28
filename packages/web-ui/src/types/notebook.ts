@@ -121,6 +121,8 @@ export interface NotebookFile {
     createdAt: string;
     connectionId?: string;
     cells: Array<{
+        /** Stored for saved notebooks; portable exports omit it. */
+        id?: string;
         type: NotebookCellType;
         content: string;
         name?: string;

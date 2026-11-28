@@ -79,10 +79,6 @@ export type CellRunOutcome =
     | {kind: 'changed'}
     | {kind: 'blocked'; prerequisite: number};
 
-function permitsParallelRead(node: PlannedCell): boolean {
-    return !!node.cell.isParallel && node.parallelRead;
-}
-
 /** Check executable fields and the full positional binding chain. */
 export function checkNotebookInputs(
     {cells, nodes}: NotebookExecutionPlan,
@@ -160,14 +156,14 @@ export async function executeNotebookPlan(
     for (let cursor = 0; cursor < steps.length;) {
         const first = steps[cursor++];
         const batch = [first];
-        if (permitsParallelRead(first)) {
+        if (first.canRunInParallel) {
             const lanes = new Set([first.databaseLane]);
             const indices = new Set([first.index]);
             for (; cursor < steps.length; cursor++) {
                 const next = steps[cursor];
                 const lane = next.databaseLane;
                 if (
-                    !permitsParallelRead(next) ||
+                    !next.canRunInParallel ||
                     lanes.has(lane) ||
                     next.prerequisites.some((index) => indices.has(index))
                 )

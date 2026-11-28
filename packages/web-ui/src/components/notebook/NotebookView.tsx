@@ -42,15 +42,22 @@ import {
     executeNotebookPlan,
     type CellRunOutcome,
 } from '@/utils/notebookRunAll';
-import {buildNotebookExecutionPlan, type NotebookRunRequest} from '@/utils/notebookExecutionPlan';
-import {resolveQueryVariables, variableOptionsForDriver} from '@/utils/notebookVariables';
+import {
+    buildNotebookExecutionPlan,
+    isEffectFreeNotebookQuery,
+    type NotebookRunRequest,
+} from '@/utils/notebookExecutionPlan';
+import {
+    resolveNotebookSqlSyntax,
+    resolveQueryVariables,
+    variableOptionsForDriver,
+} from '@/utils/notebookVariables';
 import {
     resolveParams,
     supportsTypedParams,
     type ParamDrafts,
     type ParamError,
 } from '@/utils/notebookParams';
-import {resolveSqlSyntax} from '@/utils/sqlSyntax';
 import {addHistoryEntry, createHistoryEntry} from '@/utils/notebookHistory';
 import {
     createHistory,
@@ -121,7 +128,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const {t} = useTranslation();
     const {activeSchema, activeCapabilities, selectedDatabases, activeDriver} = useDatabase();
     // Lets notebook parameters skip `@name` inside string literals and comments.
-    const sqlDialect = resolveSqlSyntax(activeCapabilities);
+    const sqlDialect = resolveNotebookSqlSyntax(activeCapabilities, activeDriver);
     const typedParamsSupported = supportsTypedParams(sqlDialect);
     const variableOptions = useMemo(
         () => ({
@@ -571,15 +578,6 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                         };
                         patchRuntime(id, () => ({isLoading: true}));
                         try {
-                            if (
-                                hasUnconfirmedNotebookWrite(runKey, cell, plan.cells) &&
-                                !(request.mode === 'cell' && request.cellId === id)
-                            ) {
-                                return failBeforeSend(
-                                    t('editor.notebook.execution.unconfirmedWrite'),
-                                    true,
-                                );
-                            }
                             if (node.paramErrors.length)
                                 return failBeforeSend(describeParamErrors(node.paramErrors));
                             const resolved = resolveQueryVariables(
@@ -600,6 +598,22 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                                 );
                             }
 
+                            // Judge the SQL actually sent, independently of opt-in and batching.
+                            const canAutoRetryOnAmbiguousOutcome = isEffectFreeNotebookQuery(
+                                resolved.sql,
+                                sqlDialect,
+                            );
+                            const hasUnconfirmedWrite = () =>
+                                !canAutoRetryOnAmbiguousOutcome &&
+                                !(request.mode === 'cell' && request.cellId === id) &&
+                                hasUnconfirmedNotebookWrite(runKey, id, cellsRef.current);
+                            const failUnconfirmed = () =>
+                                failBeforeSend(
+                                    t('editor.notebook.execution.unconfirmedWrite'),
+                                    true,
+                                );
+                            if (hasUnconfirmedWrite()) return failUnconfirmed();
+
                             const allowed = await Promise.race([
                                 guardQueryExecution(resolved.sql, signal),
                                 unmounted,
@@ -611,11 +625,12 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                                     t('editor.notebook.execution.guardDenied'),
                                     true,
                                 );
+                            if (hasUnconfirmedWrite()) return failUnconfirmed();
 
                             patchRuntime(id, () => ({error: undefined, result: null}));
                             const start = performance.now();
-                            if (!node.parallelRead)
-                                setUnconfirmedNotebookWrite(runKey, cell, plan.cells, true);
+                            if (!canAutoRetryOnAmbiguousOutcome)
+                                setUnconfirmedNotebookWrite(runKey, id, true);
                             let outcome: Extract<CellRunOutcome, {kind: 'success' | 'failed'}>;
                             try {
                                 const response = await client.call('execute_query', {
@@ -691,8 +706,12 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                             // A transport failure or a result that cannot be attached to the
                             // captured revision can leave a write applied. Only an explicit
                             // Run Cell may retry it, never an automatic dependency refresh.
-                            if (committed && outcome.kind === 'success') {
-                                setUnconfirmedNotebookWrite(runKey, cell, plan.cells, false);
+                            if (
+                                !canAutoRetryOnAmbiguousOutcome &&
+                                committed &&
+                                outcome.kind === 'success'
+                            ) {
+                                setUnconfirmedNotebookWrite(runKey, id, false);
                             }
                             return outcome;
                         } catch (error) {
