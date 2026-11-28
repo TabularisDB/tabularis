@@ -126,7 +126,10 @@ pub async fn duplicate_connection<R: Runtime>(
 ) -> Result<serde_json::Value, String> {
     execute_connection_command(
         &app,
-        crate::application::connections::ConnectionCommand::DuplicateConnection { id },
+        crate::application::connections::ConnectionCommand::DuplicateConnection {
+            id,
+            allow_approval_override: true,
+        },
     )
     .await
 }

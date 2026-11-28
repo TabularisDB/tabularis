@@ -400,18 +400,11 @@ async fn register_drivers_for_mcp() {
     }
 }
 
-/// Resolve the driver for an MCP-known connection. Returns the connection,
-/// the resolved DB params, and the registered driver. Errors with a JSON-RPC
-/// payload: see [`resolve_driver_for_params`] for how a registry miss (e.g.
-/// the plugin failed to load, or was never installed) versus a registered
-/// driver's own resolution failure are each surfaced.
-///
-/// `active_ids` is the caller's already-loaded `active_external_drivers`
-/// (see [`resolve_driver_for_params`]) — passed through rather than
-/// re-reading it here, since every caller already has an `AppConfig` in hand
-/// or loads one anyway.
+/// Resolve the saved connection, validate its database scope, then bind the
+/// driver to the actual target. Connection metadata may tighten its policy.
 async fn resolve_db_driver(
     conn_id: &str,
+    database: Option<&str>,
     active_ids: Option<&[String]>,
 ) -> Result<
     (
@@ -421,75 +414,43 @@ async fn resolve_db_driver(
     ),
     JsonRpcError,
 > {
-    let (conn, db_params) = resolve_db_params(conn_id).await?;
-    let driver = resolve_driver_for_params(&db_params, active_ids).await?;
+    let (conn, mut db_params) = resolve_db_params(conn_id).await?;
+    let driver = resolve_driver_for_params(&mut db_params, database, active_ids).await?;
     Ok((conn, db_params, driver))
 }
 
-/// Resolve the registered driver for `db_params`, rescanning installed
-/// plugins against the latest on-disk config once and retrying on a
-/// registry miss. Split out from [`resolve_db_driver`] so this retry logic
-/// is testable against a bare [`ConnectionParams`], without needing a
-/// resolvable [`crate::models::SavedConnection`].
-///
-/// `active_ids` is the caller's `active_external_drivers` (`None` means "no
-/// explicit preference saved" — see [`plugins::manager::load_plugins`]'s doc
-/// comment). Taken as a parameter rather than read from disk here so this
-/// function stays a pure function of its inputs plus the driver registry —
-/// callers already have an `AppConfig` in hand (or load one anyway), so this
-/// avoids a redundant disk read on every call.
+/// Refresh the registry if needed, then validate the database override before
+/// discovering connection metadata. File/folder/single-database constraints
+/// are static manifest fields; connection metadata cannot change them.
 async fn resolve_driver_for_params(
-    db_params: &ConnectionParams,
+    db_params: &mut ConnectionParams,
+    database: Option<&str>,
     active_ids: Option<&[String]>,
 ) -> Result<Arc<dyn DatabaseDriver>, JsonRpcError> {
-    // Reconciles the registry against `active_ids` before every lookup —
-    // not just on a miss, unlike the rescan-on-miss below. A driver that was
-    // disabled or uninstalled elsewhere keeps resolving successfully, so it
-    // never produces the miss that rescan relies on to notice anything
-    // (issue #787). Gated by its own cooldown, independent of
-    // `RELOAD_COOLDOWN` below: sharing one timer would let a busy reconcile
-    // check consume the cooldown budget a genuine registry-miss rescan needs
-    // to stay responsive.
+    // Reconcile even on a registry hit so a disabled/uninstalled driver stops
+    // resolving. Keep the disable check and the rescan-on-miss throttles separate.
     if DISABLE_CHECK_COOLDOWN.elapsed() {
         driver_registry::reconcile_active_drivers(active_ids).await;
     }
 
-    match driver_registry::get_connection_driver(db_params).await {
-        Ok(driver) => return Ok(driver),
-        // The id has a registered driver, so this failure came from
-        // `for_connection` itself (e.g. a `get_connection_metadata` RPC
-        // error) rather than a registry miss — rescanning plugins on disk
-        // wouldn't change that, so surface the error directly instead of
-        // paying for a pointless rescan and a repeat of the same failing
-        // RPC call.
-        Err(message)
-            if driver_registry::get_driver(&db_params.driver)
-                .await
-                .is_some() =>
-        {
-            return Err(JsonRpcError {
-                code: -32000,
-                message,
-                data: None,
-            });
-        }
-        Err(_) => {}
-    }
-
-    // Not found in the in-memory registry populated at startup: this
-    // subprocess may have been running since before the plugin was
-    // installed/enabled, or before a connection was migrated to it (issue
-    // #783). The GUI hot-registers such changes in-process, but this
-    // standalone subprocess has no way to observe them — rescan installed
-    // plugins against the latest on-disk config once and retry before
-    // giving up. Rate-limited so a connection whose driver id is genuinely
-    // wrong (typo, never-installed plugin) can't force a filesystem scan on
-    // every single call from a tight retry loop.
-    if RELOAD_COOLDOWN.elapsed() {
+    let mut driver = driver_registry::get_driver(&db_params.driver).await;
+    if driver.is_none() && RELOAD_COOLDOWN.elapsed() {
+        // A long-lived MCP process can be older than the installed plugins.
         plugins::manager::reload_plugins_from_disk_config().await;
+        driver = driver_registry::get_driver(&db_params.driver).await;
     }
-    driver_registry::get_connection_driver(db_params)
+    let driver = driver.ok_or_else(|| JsonRpcError {
+        code: -32000,
+        message: format!("Unsupported driver: {}", db_params.driver),
+        data: None,
+    })?;
+    apply_database_override(db_params, database, &driver.manifest().capabilities)?;
+
+    // A failure in discovery is not a registry miss and should not be retried.
+    driver
+        .for_connection(db_params)
         .await
+        .map(|bound| bound.unwrap_or(driver))
         .map_err(|message| JsonRpcError {
             code: -32000,
             message,
@@ -727,7 +688,8 @@ async fn handle_read_resource(params: Option<Value>) -> Result<Value, JsonRpcErr
         // Resolve through the same path as the tools so keychain passwords and
         // SSH tunnels are applied — not just the raw saved params.
         let active_ids = config::load_config_from_disk().active_external_drivers;
-        let (_conn, params, driver) = resolve_db_driver(conn_id, active_ids.as_deref()).await?;
+        let (_conn, params, driver) =
+            resolve_db_driver(conn_id, None, active_ids.as_deref()).await?;
         let schema = resolve_default_schema(&driver, None);
         let tables = driver
             .get_tables(&params, schema)
@@ -1076,12 +1038,11 @@ async fn tool_list_tables(
 
     audit.connection_id = Some(conn_id.to_string());
 
-    let (conn, mut db_params, driver) =
-        resolve_db_driver(conn_id, config.active_external_drivers.as_deref()).await?;
-    audit.connection_name = Some(conn.name.clone());
     let database = database_arg(args);
     audit.database = database.map(str::to_string);
-    apply_database_override(&mut db_params, database, &driver.manifest().capabilities)?;
+    let (conn, db_params, driver) =
+        resolve_db_driver(conn_id, database, config.active_external_drivers.as_deref()).await?;
+    audit.connection_name = Some(conn.name.clone());
 
     let effective_schema = resolve_default_schema(&driver, schema);
     let tables = driver
@@ -1116,7 +1077,7 @@ async fn tool_list_databases(
     audit.connection_id = Some(conn_id.to_string());
 
     let (conn, db_params, driver) =
-        resolve_db_driver(conn_id, config.active_external_drivers.as_deref()).await?;
+        resolve_db_driver(conn_id, None, config.active_external_drivers.as_deref()).await?;
     audit.connection_name = Some(conn.name.clone());
 
     let databases = driver
@@ -1158,12 +1119,11 @@ async fn tool_describe_table(
 
     audit.connection_id = Some(conn_id.to_string());
 
-    let (conn, mut db_params, driver) =
-        resolve_db_driver(conn_id, config.active_external_drivers.as_deref()).await?;
-    audit.connection_name = Some(conn.name.clone());
     let database = database_arg(args);
     audit.database = database.map(str::to_string);
-    apply_database_override(&mut db_params, database, &driver.manifest().capabilities)?;
+    let (conn, db_params, driver) =
+        resolve_db_driver(conn_id, database, config.active_external_drivers.as_deref()).await?;
+    audit.connection_name = Some(conn.name.clone());
 
     let effective_schema = resolve_default_schema(&driver, schema);
     // Run the three metadata fetches concurrently so a slow driver costs one
@@ -1217,13 +1177,12 @@ async fn tool_run_query(
     // connection cannot be resolved; refined below once the driver is known.
     audit.query_kind = Some(ai_activity::classify_query_kind(query).to_string());
 
-    let (conn, mut db_params, driver) =
-        resolve_db_driver(conn_id, config.active_external_drivers.as_deref()).await?;
-    let capabilities = driver.manifest().capabilities.clone();
-    audit.connection_name = Some(conn.name.clone());
     let database = database_arg(args);
     audit.database = database.map(str::to_string);
-    apply_database_override(&mut db_params, database, &capabilities)?;
+    let (conn, db_params, driver) =
+        resolve_db_driver(conn_id, database, config.active_external_drivers.as_deref()).await?;
+    audit.connection_name = Some(conn.name.clone());
+    let capabilities = driver.manifest().capabilities.clone();
 
     // Classified after the database override so a driver that classifies its
     // own language sees the same connection the query will run against. SQL
@@ -1293,7 +1252,7 @@ async fn tool_run_query(
         // Pre-flight EXPLAIN — best effort, never blocks.
         let (explain_plan, explain_error) = if want_explain {
             let outcome =
-                preflight::preflight_explain(&conn.params.driver, &db_params, query, None).await;
+                preflight::preflight_explain(driver.as_ref(), &db_params, query, None).await;
             (outcome.plan, outcome.error)
         } else {
             (None, None)

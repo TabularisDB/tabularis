@@ -193,7 +193,7 @@ async fn backup_approval_round_trip_canonicalizes_inheritance_and_keeps_override
                 .unwrap()
         };
         assert_modes(disk(), 1);
-        duplicate_connection(&runtime, &state, "original").unwrap();
+        duplicate_connection(&runtime, &state, "original", true).unwrap();
         assert_modes(disk(), 2);
         let exported = export_payload(&runtime, false, None).await.unwrap();
         assert_modes(serde_json::to_value(exported).unwrap(), 2);
@@ -370,6 +370,7 @@ async fn connection_groups_tags_ordering_and_duplication_share_one_service() {
         &state,
         ConnectionCommand::DuplicateConnection {
             id: connection_id.clone(),
+            allow_approval_override: true,
         },
     )
     .await
@@ -714,7 +715,7 @@ fn duplicate_clears_a_missing_uri_marker() {
         .secrets
         .delete(&secret_account(&original.id, CONNECTION_URI_SUFFIX))
         .unwrap();
-    let duplicate = duplicate_connection(&runtime, &state, &original.id).unwrap();
+    let duplicate = duplicate_connection(&runtime, &state, &original.id, true).unwrap();
     assert_eq!(duplicate.params.connection_uri_in_keychain, None);
 }
 
@@ -936,7 +937,7 @@ fn plugin_secrets_live_in_the_keychain_for_the_whole_connection_lifecycle() {
         Some("stored-token")
     );
 
-    let duplicate = duplicate_connection(&runtime, &state, &saved.id).unwrap();
+    let duplicate = duplicate_connection(&runtime, &state, &saved.id, true).unwrap();
     assert_eq!(duplicate.plugin_secret_keys, vec!["token"]);
     assert_eq!(
         runtime
@@ -1240,7 +1241,7 @@ fn duplicating_an_iam_connection_does_not_copy_the_token() {
         None,
     )
     .unwrap();
-    let copy = duplicate_connection(&runtime, &state, &saved.id).unwrap();
+    let copy = duplicate_connection(&runtime, &state, &saved.id, true).unwrap();
     assert!(!stored_accounts(&secrets, &copy.id).contains(&format!("{}:db", copy.id)));
 }
 
@@ -3464,7 +3465,7 @@ fn updating_and_duplicating_never_clear_or_copy_the_managed_marker() {
     .unwrap();
     assert!(updated.managed);
 
-    let duplicate = duplicate_connection(&runtime, &state, &saved.id).unwrap();
+    let duplicate = duplicate_connection(&runtime, &state, &saved.id, true).unwrap();
     assert!(!duplicate.managed);
 }
 

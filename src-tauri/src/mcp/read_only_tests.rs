@@ -29,6 +29,7 @@ const GUARDED: &str = "test-mcp-guarded-document-store";
 const CLASSIFIER_ONLY: &str = "test-mcp-classifier-only";
 /// Declares nothing new: a SQL plugin as it was before read-only mode existed.
 const LEGACY_SQL: &str = "test-mcp-legacy-sql";
+const SCOPED_SQL: &str = "test-mcp-scoped-sql";
 
 const READ: &str = "db.users.find({})";
 const EDITED_READ: &str = "db.users.find({ active: true })";
@@ -116,6 +117,31 @@ async fn sql_plugin(id: &str, readonly: bool) -> Plugin {
     Plugin { calls }
 }
 
+/// Reports different read-only capabilities for databases on one connection.
+async fn database_scoped_plugin() -> Plugin {
+    let calls = Calls::default();
+    let log = calls.clone();
+    let mut manifest = test_manifest();
+    manifest.id = SCOPED_SQL.to_string();
+    manifest.capabilities.sql_dialect = Some(SqlDialect::Sqlite);
+    let driver = test_driver_with_manifest(manifest, move |rpc| {
+        let database = rpc.params["params"]["database"].as_str().unwrap();
+        log.lock()
+            .unwrap()
+            .push((rpc.method.clone(), database.to_string()));
+        match rpc.method.as_str() {
+            "get_connection_metadata" => {
+                Ok(json!({"capabilities": {"readonly": database == "archive"}}))
+            }
+            "execute_query" => Ok(json!({ "columns": ["n"], "rows": [[1]], "affected_rows": 0 })),
+            other => Err(format!("unexpected method {other}")),
+        }
+    })
+    .with_connection_metadata(true);
+    crate::drivers::registry::register_driver(driver).await;
+    Plugin { calls }
+}
+
 struct Outcome {
     result: Result<String, JsonRpcError>,
     audit: CallAudit,
@@ -143,8 +169,18 @@ impl Outcome {
 }
 
 async fn run_query(config: &AppConfig, plugin: &Plugin, connection: &str, query: &str) -> Outcome {
+    run_query_on_database(config, plugin, connection, None, query).await
+}
+
+async fn run_query_on_database(
+    config: &AppConfig,
+    plugin: &Plugin,
+    connection: &str,
+    database: Option<&str>,
+    query: &str,
+) -> Outcome {
     plugin.take();
-    let args = json!({ "connection_id": connection, "query": query });
+    let args = json!({ "connection_id": connection, "query": query, "database": database });
     let mut audit = CallAudit::for_tool("run_query");
     let result = dispatch_tool(
         "run_query",
@@ -222,6 +258,7 @@ async fn read_only_policies_hold_for_plugins_that_classify_their_own_language() 
     approval_edits(&guarded).await;
     legacy_sql_plugins(&legacy).await;
     intrinsically_read_only_connections(&readonly).await;
+    readonly_policy_uses_selected_database(&database_scoped_plugin().await).await;
 }
 
 /// The MCP read-only mode, on a connection that is itself writable.
@@ -470,6 +507,70 @@ async fn intrinsically_read_only_connections(plugin: &Plugin) {
     assert!(edited.calls.is_empty());
 }
 
+async fn readonly_policy_uses_selected_database(plugin: &Plugin) {
+    let mut config = app_config(false, "off");
+    config.mcp_preflight_explain = Some(true);
+    heartbeat::write_now().unwrap();
+
+    let blocked = run_query_on_database(
+        &config,
+        plugin,
+        "scoped-all",
+        Some("archive"),
+        "DELETE FROM items",
+    )
+    .await;
+    assert_eq!(blocked.audit.status, "blocked_readonly");
+    assert!(blocked.audit.approval_id.is_none());
+    assert_eq!(
+        blocked.calls,
+        [("get_connection_metadata".into(), "archive".into())]
+    );
+
+    // The saved selection is still checked before any plugin discovery call.
+    let outside =
+        run_query_on_database(&config, plugin, "scoped-all", Some("unlisted"), "SELECT 1").await;
+    assert_eq!(outside.result.unwrap_err().code, -32602);
+    assert!(outside.calls.is_empty());
+
+    config.mcp_preflight_explain = Some(false);
+    let approved = approver(None);
+    let read =
+        run_query_on_database(&config, plugin, "scoped-all", Some("archive"), "SELECT 1").await;
+    approved.await.unwrap();
+    assert!(read.text("selected read-only database").contains('1'));
+    assert!(read.audit.approval_id.is_some());
+    assert_eq!(read.calls, [("execute_query".into(), "archive".into())]);
+
+    let approved = approver(Some("DELETE FROM items"));
+    let edited =
+        run_query_on_database(&config, plugin, "scoped-all", Some("archive"), "SELECT 1").await;
+    approved.await.unwrap();
+    assert_eq!(edited.audit.status, "blocked_readonly");
+    assert!(edited.audit.approval_id.is_some());
+    assert!(edited.calls.is_empty());
+
+    // A read-only primary database must not disallow writes to a different,
+    // configured database whose own metadata says it is writable.
+    let writable = run_query_on_database(
+        &config,
+        plugin,
+        "scoped-off",
+        Some("app"),
+        "INSERT INTO items VALUES (1)",
+    )
+    .await;
+    assert!(writable.result.is_ok());
+    assert!(writable.audit.approval_id.is_none());
+    assert_eq!(
+        writable.calls,
+        [
+            ("get_connection_metadata".into(), "app".into()),
+            ("execute_query".into(), "app".into()),
+        ]
+    );
+}
+
 /// A plugin that declares none of the new capabilities behaves as it did.
 async fn legacy_sql_plugins(plugin: &Plugin) {
     let config = app_config(true, "off");
@@ -513,6 +614,8 @@ async fn run_in_isolated_storage() {
         ("intrinsic-all", "intrinsic-ro", false, Some(All)),
         ("intrinsic-writes", "intrinsic-ro", false, Some(WritesOnly)),
         ("intrinsic-off", "intrinsic-ro", false, Some(Off)),
+        ("scoped-all", SCOPED_SQL, false, Some(All)),
+        ("scoped-off", SCOPED_SQL, false, Some(Off)),
         ("doc-all", GUARDED, false, Some(All)),
         ("doc-writes", GUARDED, false, Some(WritesOnly)),
         ("doc-off", GUARDED, false, Some(Off)),
@@ -522,12 +625,17 @@ async fn run_in_isolated_storage() {
     ]
     .into_iter()
     .map(|(id, driver, read_only, mode)| {
+        let database = match id {
+            "scoped-all" => DatabaseSelection::Multiple(vec!["app".into(), "archive".into()]),
+            "scoped-off" => DatabaseSelection::Multiple(vec!["archive".into(), "app".into()]),
+            _ => DatabaseSelection::Single("app".into()),
+        };
         json!({
             "id": id,
             "name": id,
             "params": ConnectionParams {
                 driver: driver.to_string(),
-                database: DatabaseSelection::Single("app".to_string()),
+                database,
                 read_only,
                 mcp_approval_mode: mode.map(Some),
                 ..Default::default()

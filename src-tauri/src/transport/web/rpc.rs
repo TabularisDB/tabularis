@@ -1938,8 +1938,20 @@ impl RpcDispatcher {
                     .map_err(InvocationError::Application)
             }
             RpcCommand::Connection(command) => {
-                let mut command = decode_connection_command(command, context.session_id, body)
-                    .map_err(InvocationError::InvalidPayload)?;
+                let mut command = decode_connection_command(
+                    command,
+                    context.session_id,
+                    granted_authorization,
+                    body,
+                )
+                .map_err(InvocationError::InvalidPayload)?;
+                let restricted_copy = matches!(
+                    command,
+                    ConnectionCommand::DuplicateConnection {
+                        allow_approval_override: false,
+                        ..
+                    }
+                );
                 connection_policy::authorize(&command, granted_authorization)
                     .map_err(InvocationError::Forbidden)?;
                 connection_policy::authorize_saved_credentials(
@@ -1952,7 +1964,14 @@ impl RpcDispatcher {
                 self.application
                     .execute_connection_command(context, command)
                     .await
-                    .map_err(InvocationError::Application)
+                    .map_err(|error| {
+                        use crate::application::connections::DUPLICATE_APPROVAL_REQUIRES_ADMIN;
+                        if restricted_copy && error.message == DUPLICATE_APPROVAL_REQUIRES_ADMIN {
+                            InvocationError::Forbidden(DUPLICATE_APPROVAL_REQUIRES_ADMIN)
+                        } else {
+                            InvocationError::Application(error)
+                        }
+                    })
             }
             RpcCommand::ConnectionFiles(command) => {
                 let command = decode_connection_files_command(command, body)
@@ -4465,6 +4484,7 @@ fn decode_optional_payload<T: for<'de> Deserialize<'de> + Default>(
 fn decode_connection_command(
     command: ConnectionRpcCommand,
     session_id: Option<uuid::Uuid>,
+    authorization: AuthorizationLevel,
     body: &[u8],
 ) -> Result<ConnectionCommand, String> {
     Ok(match command {
@@ -4510,7 +4530,10 @@ fn decode_connection_command(
         }
         ConnectionRpcCommand::DuplicateConnection => {
             let request: IdRequest = decode_payload(body)?;
-            ConnectionCommand::DuplicateConnection { id: request.id }
+            ConnectionCommand::DuplicateConnection {
+                id: request.id,
+                allow_approval_override: authorization.permits(AuthorizationLevel::LocalAdmin),
+            }
         }
         ConnectionRpcCommand::SetConnectionAppearance => {
             let request: AppearanceRequest = decode_payload(body)?;

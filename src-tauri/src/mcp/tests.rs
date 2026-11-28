@@ -210,11 +210,11 @@ async fn resolve_driver_for_params_does_not_retry_on_a_registered_drivers_own_fa
     );
     driver_registry::register_driver(driver).await;
 
-    let db_params = ConnectionParams {
+    let mut db_params = ConnectionParams {
         driver: driver_id.to_string(),
         ..Default::default()
     };
-    let err = match resolve_driver_for_params(&db_params, None).await {
+    let err = match resolve_driver_for_params(&mut db_params, None, None).await {
         Ok(_) => panic!("expected the for_connection failure to surface"),
         Err(err) => err,
     };

@@ -10,7 +10,7 @@
 
 use serde_json::Value;
 
-use crate::drivers::registry as driver_registry;
+use crate::drivers::driver_trait::DatabaseDriver;
 use crate::models::ConnectionParams;
 
 /// Result of a pre-flight EXPLAIN attempt.
@@ -21,21 +21,12 @@ pub struct PreflightOutcome {
 
 /// Run EXPLAIN against the given driver and return the plan as JSON.
 pub async fn preflight_explain(
-    driver: &str,
+    driver: &dyn DatabaseDriver,
     params: &ConnectionParams,
     query: &str,
     schema: Option<&str>,
 ) -> PreflightOutcome {
-    let registered = match driver_registry::get_driver(driver).await {
-        Some(d) => d,
-        None => {
-            return PreflightOutcome {
-                plan: None,
-                error: Some(format!("EXPLAIN not supported for driver: {}", driver)),
-            };
-        }
-    };
-    let plan_result = registered.explain_query(params, query, false, schema).await;
+    let plan_result = driver.explain_query(params, query, false, schema).await;
 
     match plan_result {
         Ok(plan) => match serde_json::to_value(&plan) {

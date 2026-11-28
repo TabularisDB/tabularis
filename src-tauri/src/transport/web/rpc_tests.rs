@@ -16,7 +16,12 @@ fn connection_rpc_preserves_missing_null_and_explicit_mcp_approval() {
         "params": {"driver": "sqlite", "database": "scratch.db"}
     });
     let decode = |command, payload: &Value| {
-        decode_connection_command(command, None, &serde_json::to_vec(payload).unwrap())
+        decode_connection_command(
+            command,
+            None,
+            AuthorizationLevel::LocalAdmin,
+            &serde_json::to_vec(payload).unwrap(),
+        )
     };
     assert!(matches!(
         decode(ConnectionRpcCommand::UpdateConnection, &payload).unwrap(),
@@ -3157,6 +3162,103 @@ async fn connection_approval_authorization_on_create_and_update() {
                         );
                     }
                 }
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn connection_approval_copy_is_authorized_against_the_persisted_source() {
+    use crate::application::RuntimeApplicationApi;
+    use crate::runtime::{
+        events::NoopRuntimeEvents, paths::FixedRuntimePaths, secrets::RuntimeSecrets,
+        RuntimeContext,
+    };
+    use serde_json::json;
+
+    struct UnusedSecrets;
+    impl RuntimeSecrets for UnusedSecrets {
+        fn get(&self, _: &str) -> Result<Option<String>, String> {
+            panic!("a connection with no stored credentials must not read secrets")
+        }
+        fn set(&self, _: &str, _: &str) -> Result<(), String> {
+            panic!("a connection with no stored credentials must not write secrets")
+        }
+        fn delete(&self, _: &str) -> Result<(), String> {
+            panic!("the test must not delete secrets")
+        }
+    }
+
+    for mode in [None, Some("all"), Some("writes_only"), Some("off")] {
+        let temp = tempfile::tempdir().unwrap();
+        let runtime = RuntimeContext::new(
+            Arc::new(FixedRuntimePaths::new(
+                temp.path().into(),
+                temp.path().into(),
+            )),
+            Arc::new(NoopRuntimeEvents),
+            Arc::new(UnusedSecrets),
+        );
+        let path = runtime.paths.connections_file();
+        let mut row = json!({"id": "source", "name": "Source", "params": {
+            "driver": "postgres", "host": "db.example", "database": "app"
+        }});
+        if let Some(mode) = mode {
+            row["params"]["mcp_approval_mode"] = json!(mode);
+        }
+        let source = serde_json::from_value(row).unwrap();
+        crate::persistence::save_connections(&path, &[source]).unwrap();
+
+        let application = Arc::new(RuntimeApplicationApi::new(runtime, Arc::default()));
+        for managed in [false, true] {
+            let dispatcher = RpcDispatcher::with_access_policy(
+                application.clone(),
+                RpcAccessPolicy {
+                    connection_policy: if managed {
+                        ManagedConnectionPolicy::managed_only()
+                    } else {
+                        ManagedConnectionPolicy::standalone()
+                    },
+                    ..RpcAccessPolicy::default()
+                },
+            );
+            for role in [AuthorizationLevel::Database, AuthorizationLevel::LocalAdmin] {
+                let before = std::fs::read(&path).unwrap();
+                let response = dispatch_json(
+                    &dispatcher,
+                    "duplicate_connection",
+                    json!({"id": "source"}),
+                    Some(Uuid::new_v4()),
+                    role,
+                )
+                .await;
+
+                if managed || (mode.is_some() && role != AuthorizationLevel::LocalAdmin) {
+                    assert_eq!(
+                        response.status(),
+                        StatusCode::FORBIDDEN,
+                        "{mode:?} {role:?}"
+                    );
+                    assert_eq!(std::fs::read(&path).unwrap(), before);
+                    continue;
+                }
+
+                assert_eq!(response.status(), StatusCode::OK, "{mode:?} {role:?}");
+                let reply = response_json(response).await;
+                let copy_id = reply["data"]["id"].as_str().unwrap();
+                assert_ne!(copy_id, "source");
+                let file: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+                let rows = file["connections"].as_array().unwrap();
+                let copy = rows.iter().find(|r| r["id"] == copy_id).unwrap();
+                assert_eq!(
+                    copy["params"].get("mcp_approval_mode"),
+                    mode.map(|m| json!(m)).as_ref()
+                );
+                let before: Value = serde_json::from_slice(&before).unwrap();
+                assert_eq!(
+                    rows.len(),
+                    before["connections"].as_array().unwrap().len() + 1
+                );
             }
         }
     }
