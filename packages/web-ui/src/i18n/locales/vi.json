@@ -2349,8 +2349,23 @@
       "addCell": "Thêm",
       "resizeResult": "Đổi kích thước kết quả",
       "runAll": "Chạy tất cả",
-      "runAllTooltip": "Chạy lần lượt mọi ô SQL từ trên xuống dưới",
+      "runAllTooltip": "Chạy tất cả ô SQL đang bật theo thứ tự phụ thuộc",
       "runCell": "Chạy ô",
+      "execution": {
+        "runAffected": "Chạy các ô bị ảnh hưởng",
+        "busy": "Notebook đang chạy.",
+        "complete": "Đã chạy xong notebook",
+        "preflightFailed": "Đã dừng chạy notebook trước khi thực thi SQL",
+        "cell": "Ô số {{number}}",
+        "self": "{{cell}} tham chiếu đến chính nó.",
+        "cycle": "Phụ thuộc vòng: {{path}}.",
+        "missing": "{{cell}} tham chiếu đến {{reference}}, nhưng đích phải là một ô SQL không trống.",
+        "disabled": "{{cell}} cần {{reference}}, nhưng ô này đang bị tắt. Hãy bật ô đó rồi thử lại.",
+        "guardDenied": "Truy vấn không được chấp thuận.",
+        "unconfirmedWrite": "Không thể xác nhận kết quả ghi. Hãy kiểm tra cơ sở dữ liệu trước khi chạy lại ô này.",
+        "blockedBy": "bị chặn bởi",
+        "changed": "đã bị bỏ qua vì được sửa, tắt hoặc xóa."
+      },
       "deleteCell": "Xóa ô",
       "copySource": "Sao chép nguồn",
       "copiedSource": "Đã sao chép nguồn vào clipboard",
@@ -2373,7 +2388,7 @@
       "runningAll": "Đang chạy tất cả ô...",
       "cellResult": "{{count}} dòng · {{time}}ms",
       "stopOnError": "Dừng khi gặp lỗi",
-      "stopOnErrorTooltip": "Dừng chạy khi một ô bị lỗi",
+      "stopOnErrorTooltip": "Bỏ qua các ô còn lại trên cơ sở dữ liệu đó khi có ô chạy thất bại",
       "runAllComplete": "Đã chạy xong tất cả",
       "succeeded": "thành công",
       "failed": "thất bại",
@@ -2422,7 +2437,6 @@
           "noOptions": "Thêm ít nhất một tùy chọn",
           "required": "Cần có giá trị",
           "emptyNeedsNull": "Nhập giá trị hoặc chọn NULL",
-          "cellReference": "Giá trị có kiểu không được chứa tham chiếu ô",
           "unknownType": "Phiên bản Tabularis này không nhận biết được kiểu này"
         },
         "errors": {
@@ -2431,7 +2445,7 @@
           "unsupported": "Tham số @{{name}} có kiểu, nhưng tham số có kiểu không khả dụng trên kết nối này. Hãy đặt về Gốc để dùng ở đây."
         }
       },
-      "parallelExecution": "Chạy song song (Chạy tất cả)",
+      "parallelExecution": "Cho phép đọc song song trên các cơ sở dữ liệu khác nhau",
       "disableCell": "Tắt ô",
       "enableCell": "Bật ô",
       "cellDisabled": "Đã tắt",

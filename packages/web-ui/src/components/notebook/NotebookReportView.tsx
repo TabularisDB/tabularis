@@ -139,7 +139,11 @@ export function NotebookReportView({
                 />
 
                 {runAllResult && (
-                    <RunAllSummary result={runAllResult} onDismiss={onDismissRunAllResult} />
+                    <RunAllSummary
+                        result={runAllResult}
+                        cells={cells}
+                        onDismiss={onDismissRunAllResult}
+                    />
                 )}
 
                 {includedCells.length === 0 ? (

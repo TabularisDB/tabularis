@@ -20,6 +20,8 @@ interface NotebookCellWrapperProps {
     onMoveUp: () => void;
     onMoveDown: () => void;
     onRun: () => void;
+    onRunAffected?: () => void;
+    isRunBusy?: boolean;
     onDuplicate?: () => void;
     canDuplicate?: boolean;
     connectionId: string;
@@ -46,6 +48,8 @@ export function NotebookCellWrapper({
     onMoveUp,
     onMoveDown,
     onRun,
+    onRunAffected,
+    isRunBusy,
     onDuplicate,
     canDuplicate,
     connectionId,
@@ -94,6 +98,10 @@ export function NotebookCellWrapper({
                 onDuplicate={onDuplicate}
                 canDuplicate={canDuplicate}
                 onRun={cell.type === 'sql' ? onRun : undefined}
+                onRunAffected={
+                    cell.type === 'sql' && cell.content.trim() ? onRunAffected : undefined
+                }
+                isRunBusy={isRunBusy}
                 onTogglePreview={
                     cell.type === 'markdown'
                         ? () => onUpdate({isPreview: !cell.isPreview})

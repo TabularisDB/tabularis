@@ -4,6 +4,7 @@ import type {NotebookState} from '@/types/notebook';
 import {
     getNotebookState,
     setNotebookState,
+    subscribeNotebookState,
     loadNotebook,
     createNotebook,
     createNotebookFromState,
@@ -149,6 +150,47 @@ describe('notebookStore', () => {
             expect(call).not.toHaveBeenCalledWith('load_notebook', expect.anything());
         });
 
+        it.each(['old file', 'missing file'] as const)(
+            'does not replace a newer load and edit with a late %s response',
+            async (lateResponse) => {
+                const notebookId = 'racing-loads';
+                const file = (title: string, content: string) =>
+                    JSON.stringify({version: 2, title, cells: [{type: 'sql', content}]});
+                const slow = Promise.withResolvers<string | null>();
+                const fast = Promise.withResolvers<string>();
+                call.mockReturnValueOnce(slow.promise).mockReturnValueOnce(fast.promise);
+                const oldLoad = loadNotebook(notebookId, CONN, client);
+                await evictFromCache(notebookId);
+                const reopened = loadNotebook(notebookId, CONN, client);
+                expect(call).toHaveBeenCalledTimes(2);
+                fast.resolve(file('Newer file', 'SELECT 2'));
+                expect((await reopened).cells[0].content).toBe('SELECT 2');
+
+                const edited = makeState('SELECT 3');
+                setNotebookState(notebookId, edited);
+                slow.resolve(lateResponse === 'old file' ? file('Old file', 'SELECT 1') : null);
+                expect(await oldLoad).toBe(edited);
+                expect(getNotebookState(notebookId)).toBe(edited);
+                expect(getNotebookTitle(notebookId)).toBe('Newer file');
+            },
+        );
+
+        it('keeps an older response out of the cache while the newer load is pending', async () => {
+            const notebookId = 'superseded-load';
+            const older = Promise.withResolvers<string | null>();
+            const newer = Promise.withResolvers<string>();
+            call.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise);
+            const oldLoad = loadNotebook(notebookId, CONN, client);
+            const newLoad = loadNotebook(notebookId, CONN, client);
+            older.resolve(null);
+            await Promise.resolve();
+            expect(getNotebookState(notebookId)).toBeUndefined();
+
+            newer.resolve(JSON.stringify({version: 2, title: 'Current', cells: makeState().cells}));
+            expect(await oldLoad).toBe(await newLoad);
+            expect(getNotebookTitle(notebookId)).toBe('Current');
+        });
+
         it('creates default state when file not found', async () => {
             call.mockResolvedValueOnce(null);
 
@@ -192,6 +234,89 @@ describe('notebookStore', () => {
     });
 
     describe('deleteNotebook', () => {
+        it('deletes after queued writes so a late save cannot recreate the file', async () => {
+            const id = 'delete-after-save';
+            await seedConnection(id);
+            const held = Promise.withResolvers<void>();
+            call.mockReturnValueOnce(held.promise);
+            setNotebookState(id, makeState('SELECT 1'));
+            const first = flushAllPendingSaves();
+            setNotebookState(id, makeState('SELECT 2'));
+            const second = flushAllPendingSaves();
+            const deletion = deleteNotebook(id, CONN, client);
+            expect(call).not.toHaveBeenCalledWith('delete_notebook', expect.anything());
+            held.resolve();
+            await Promise.all([first, second, deletion]);
+            expect(call.mock.calls.map(([command]) => command)).toEqual([
+                'load_notebook',
+                'save_notebook',
+                'save_notebook',
+                'delete_notebook',
+            ]);
+        });
+
+        it('prevents reopen and late saves until deletion finishes, only for the deleted notebook', async () => {
+            const id = 'deleting';
+            await seedConnection(id);
+            await seedConnection('other');
+            const saving = Promise.withResolvers<void>();
+            const removing = Promise.withResolvers<void>();
+            const deleteStarted = Promise.withResolvers<void>();
+            call.mockClear().mockImplementation(async (cmd, args) => {
+                if (args.notebookId !== id) return;
+                if (cmd === 'save_notebook') await saving.promise;
+                if (cmd === 'delete_notebook') {
+                    deleteStarted.resolve();
+                    await removing.promise;
+                }
+            });
+            setNotebookState(id, makeState('SELECT 1'));
+            await vi.advanceTimersByTimeAsync(1500);
+            const deleting = deleteNotebook(id, CONN, client);
+            await expect(loadNotebook(id, CONN, client)).rejects.toThrow();
+            setNotebookState(id, makeState('SELECT 2'));
+            setNotebookState('other', makeState('SELECT 3'));
+            await vi.advanceTimersByTimeAsync(1500);
+            expect(call).toHaveBeenCalledWith('save_notebook', {
+                connectionId: CONN,
+                notebookId: 'other',
+                content: expect.stringContaining('SELECT 3'),
+            });
+            saving.resolve();
+            await deleteStarted.promise;
+            await expect(loadNotebook(id, CONN, client)).rejects.toThrow();
+            setNotebookState(id, makeState('SELECT 4'));
+            await evictFromCache(id);
+            removing.resolve();
+            await deleting;
+            await vi.runAllTimersAsync();
+            expect(getNotebookState(id)).toBeUndefined();
+            expect(
+                call.mock.calls.filter(([, args]) => args.notebookId === id).map(([cmd]) => cmd),
+            ).toEqual(['save_notebook', 'delete_notebook']);
+        });
+
+        it('keeps the document editable and persists its latest edit if deletion fails', async () => {
+            const id = 'delete-failed';
+            await seedConnection(id);
+            const removing = Promise.withResolvers<void>();
+            call.mockReturnValueOnce(removing.promise);
+            const deleting = deleteNotebook(id, CONN, client);
+            const edit = makeState('SELECT 42');
+            setNotebookState(id, edit);
+            await vi.advanceTimersByTimeAsync(1500);
+            const failure = expect(deleting).rejects.toThrow('disk busy');
+            removing.reject(new Error('disk busy'));
+            await failure;
+            await vi.advanceTimersByTimeAsync(1500);
+            expect(call).toHaveBeenLastCalledWith('save_notebook', {
+                connectionId: CONN,
+                notebookId: id,
+                content: expect.stringContaining('SELECT 42'),
+            });
+            expect(await loadNotebook(id, CONN, client)).toBe(edit);
+        });
+
         it('evicts from cache and deletes file', async () => {
             setNotebookState('del-1', makeState());
             setNotebookTitle('del-1', 'To Delete');
@@ -236,6 +361,55 @@ describe('notebookStore', () => {
     });
 
     describe('evictFromCache', () => {
+        it('keeps the reopened view and writes its edit after the closing save', async () => {
+            const id = 'reopen';
+            await seedConnection(id);
+            setNotebookState(id, makeState('SELECT 42'));
+            const slow = Promise.withResolvers<void>();
+            const saved: string[] = [];
+            call.mockImplementation(async (_command, args) => {
+                const sql = JSON.parse(args.content).cells[0].content;
+                if (sql === 'SELECT 42') await slow.promise;
+                saved.push(sql);
+            });
+            const closing = evictFromCache(id);
+            const unsubscribe = subscribeNotebookState(id, () => {});
+            setNotebookState(id, makeState('SELECT 99'));
+            await vi.advanceTimersByTimeAsync(1500);
+            slow.resolve();
+            await closing;
+            await flushAllPendingSaves();
+            expect(saved).toEqual(['SELECT 42', 'SELECT 99']);
+            expect(getNotebookState(id)).toEqual(makeState('SELECT 99'));
+            unsubscribe();
+        });
+
+        it('only lets the newest close evict, even when the older save fails', async () => {
+            const id = 'close-reopen-close';
+            await seedConnection(id);
+            const oldSave = Promise.withResolvers<void>();
+            const newSave = Promise.withResolvers<void>();
+            call.mockReturnValueOnce(oldSave.promise).mockReturnValueOnce(newSave.promise);
+            const first = evictFromCache(id);
+            await loadNotebook(id, CONN, client);
+            const edit = makeState('SELECT 99');
+            setNotebookState(id, edit);
+            const last = evictFromCache(id);
+            expect(call.mock.calls.filter(([cmd]) => cmd === 'save_notebook')).toHaveLength(1);
+            const failed = expect(first).rejects.toThrow('save failed');
+            oldSave.reject(new Error('save failed'));
+            await failed;
+            expect(getNotebookState(id)).toBe(edit);
+            newSave.resolve();
+            await last;
+            expect(getNotebookState(id)).toBeUndefined();
+            expect(call).toHaveBeenLastCalledWith('save_notebook', {
+                connectionId: CONN,
+                notebookId: id,
+                content: expect.stringContaining('SELECT 99'),
+            });
+        });
+
         it('flushes pending save before evicting', async () => {
             await seedConnection('evict-1');
             setNotebookTitle('evict-1', 'Test');

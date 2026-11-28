@@ -1,9 +1,10 @@
 import type {NotebookCell} from '@/types/notebook';
 import type {QueryResult} from '@/types/editor';
-import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
+import type {BooleanLiteralStyle, DriverCapabilities, PluginManifest} from '@/types/plugins';
 import {getQuoteChar, quoteIdentifierWith} from './identifiers';
-import {stripLeadingComments} from './sqlSplitter';
-import type {BooleanLiteralStyle} from '@/types/plugins';
+import {optionsFor, type DialectInput} from './sqlSplitter';
+import {collectNonCodeSpans} from './sqlSplitter/nonCodeSpans';
+import {resolveSqlSyntax} from './sqlSyntax';
 import {
     booleanLiteralWithStyle,
     declaredBooleanLiterals,
@@ -18,18 +19,74 @@ export interface CellReference {
     cellIndex: number;
 }
 
-export function extractCellReferences(sql: string): CellReference[] {
-    const refs: CellReference[] = [];
-    let match: RegExpExecArray | null;
-    const regex = new RegExp(CELL_REF_PATTERN.source, 'g');
-    while ((match = regex.exec(sql)) !== null) {
-        refs.push({match: match[0], cellIndex: Number(match[1]) - 1});
+export interface CellReferenceToken extends CellReference {
+    start: number;
+    end: number;
+}
+
+function nonCodeSpans(sql: string, dialect: DialectInput) {
+    const options = optionsFor(dialect);
+    // Notebook placeholders in comments are documentation, even in dialects
+    // with special executable comments. Do not expand them as bindings.
+    return collectNonCodeSpans(sql, {...options, executableComments: false});
+}
+
+/** Use the same legacy MySQL-family fallback as notebook string serialization. */
+export function resolveNotebookSqlSyntax(
+    capabilities: DriverCapabilities | null | undefined,
+    driverId: string | null | undefined,
+) {
+    const syntax = resolveSqlSyntax(capabilities);
+    return !syntax.declared &&
+        (!syntax.dialect || syntax.dialect === 'generic') &&
+        stringEscapeStyle(capabilities, driverId) === 'mysql'
+        ? resolveSqlSyntax({sql_dialect: 'mysql'})
+        : syntax;
+}
+
+export function extractCellReferences(sql: string, dialect?: DialectInput): CellReferenceToken[] {
+    if (!sql.includes('{{cell_')) return [];
+    const spans = nonCodeSpans(sql, dialect);
+    if (
+        typeof dialect === 'object' &&
+        !dialect.declared &&
+        (!dialect.dialect || dialect.dialect === 'generic')
+    ) {
+        // Without a concrete syntax, accept a dependency only where none of
+        // the supported lexers see data. A missed binding fails at execution;
+        // a guessed binding could schedule an unrelated write.
+        for (const preset of ['mysql', 'postgres', 'sqlite', 'mssql', 'oracle'] as const) {
+            for (const span of nonCodeSpans(sql, preset)) spans.push(span);
+        }
+        // No preset enables triple quotes. Also mask that interpretation for
+        // unknown plugins; the MySQL quote rules cover both string delimiters
+        // and backslash escapes. This pass can only veto a candidate binding.
+        if (sql.includes("'''") || sql.includes('"""')) {
+            const tripleQuoted = collectNonCodeSpans(sql, {
+                ...optionsFor('generic'),
+                quotes: optionsFor('mysql').quotes,
+                hashComments: true,
+                tripleQuotedStrings: true,
+            });
+            for (const span of tripleQuoted) spans.push(span);
+        }
+        spans.sort((a, b) => a.start - b.start);
+    }
+    const refs: CellReferenceToken[] = [];
+    let span = 0;
+    for (const token of sql.matchAll(CELL_REF_PATTERN)) {
+        const [match, number] = token;
+        const start = token.index;
+        const end = start + match.length;
+        while (spans[span] && spans[span].end <= start) span++;
+        if (spans[span] && spans[span].start < end) continue;
+        refs.push({match, cellIndex: Number(number) - 1, start, end});
     }
     return refs;
 }
 
 export function hasCellReferences(sql: string): boolean {
-    return new RegExp(CELL_REF_PATTERN.source).test(sql);
+    return extractCellReferences(sql).length > 0;
 }
 
 /**
@@ -138,6 +195,7 @@ export function findUnresolvedDependencies(sql: string, cells: NotebookCell[]): 
 }
 
 export interface ResolveVariablesOptions {
+    dialect?: DialectInput;
     /** Double backslashes in string literals (MySQL/MariaDB dialects). */
     escapeBackslashes?: boolean;
     /**
@@ -189,55 +247,73 @@ export function resolveQueryVariables(
     sql: string,
     cells: NotebookCell[],
     options?: ResolveVariablesOptions,
+    references = extractCellReferences(sql, options?.dialect),
 ): ResolvedQuery {
-    if (!hasCellReferences(sql)) return {sql, unresolvedRefs: []};
+    if (!references.length) return {sql, unresolvedRefs: []};
 
     const unresolvedRefs: CellReference[] = [];
     const ctes: string[] = [];
     const seen = new Set<number>();
-    let resolvedSql = sql.replace(
-        new RegExp(CELL_REF_PATTERN.source, 'g'),
-        (match: string, number: string) => {
-            const cellIndex = Number(number) - 1;
-            const targetCell = cells[cellIndex];
-            // A disabled cell's cached output is not current: never substitute it.
-            if (
-                !targetCell ||
-                targetCell.type !== 'sql' ||
-                targetCell.isDisabled ||
-                !targetCell.result ||
-                targetCell.error
-            ) {
-                unresolvedRefs.push({match, cellIndex});
-                return match;
-            }
+    let resolvedSql = '';
+    let cursor = 0;
+    for (const {match, cellIndex, start, end} of references) {
+        resolvedSql += sql.slice(cursor, start);
+        cursor = end;
+        const targetCell = cells[cellIndex];
+        // A disabled cell's cached output is not current: never substitute it.
+        if (
+            targetCell?.type !== 'sql' ||
+            targetCell.isDisabled ||
+            !targetCell.result ||
+            targetCell.error
+        ) {
+            unresolvedRefs.push({match, cellIndex});
+            resolvedSql += match;
+            continue;
+        }
 
-            const alias = `cell_${cellIndex + 1}`;
-            if (!seen.has(cellIndex)) {
-                seen.add(cellIndex);
-                ctes.push(
-                    resultToCte(
-                        targetCell.result,
-                        alias,
-                        options?.escapeBackslashes ?? false,
-                        options?.backslashLiterals ?? false,
-                        options?.identifierQuote || '"',
-                        options?.booleanLiterals,
-                    ),
-                );
-            }
-            return alias;
-        },
-    );
+        const alias = `cell_${cellIndex + 1}`;
+        if (!seen.has(cellIndex)) {
+            seen.add(cellIndex);
+            ctes.push(
+                resultToCte(
+                    targetCell.result,
+                    alias,
+                    options?.escapeBackslashes ?? false,
+                    options?.backslashLiterals ?? false,
+                    options?.identifierQuote || '"',
+                    options?.booleanLiterals,
+                ),
+            );
+        }
+        resolvedSql += alias;
+    }
+    resolvedSql += sql.slice(cursor);
 
     if (ctes.length > 0) {
-        // A query with its own WITH clause gets the cell CTEs added to the front of
-        // that clause: a second WITH before it would be a syntax error.
-        const body = stripLeadingComments(resolvedSql);
-        const ownWith = /^with(?:\s+recursive)?\s+/i.exec(body);
-        if (ownWith) {
-            const insertAt = resolvedSql.length - body.length + ownWith[0].length;
-            resolvedSql = `${resolvedSql.slice(0, insertAt)}${ctes.join(',\n')},\n${resolvedSql.slice(insertAt)}`;
+        // Locate the original WITH clause even after dialect-specific comments.
+        const spans = nonCodeSpans(resolvedSql, options?.dialect);
+        let span = 0;
+        const skipTrivia = (from: number) => {
+            for (;;) {
+                const start = from + (/^\s*/.exec(resolvedSql.slice(from))?.[0].length ?? 0);
+                while (spans[span] && spans[span].end <= start) span++;
+                if (
+                    spans[span]?.start !== start ||
+                    !/^(?:--|\/\*|#)/.test(resolvedSql.slice(start))
+                )
+                    return start;
+                from = spans[span++].end;
+            }
+        };
+        const body = skipTrivia(0);
+        const withKeyword = /^with\b/i.exec(resolvedSql.slice(body));
+        if (withKeyword) {
+            const afterWith = skipTrivia(body + withKeyword[0].length);
+            const recursive = /^recursive\b/i.exec(resolvedSql.slice(afterWith));
+            const insertAt = recursive ? skipTrivia(afterWith + recursive[0].length) : afterWith;
+            const prefix = resolvedSql.slice(0, insertAt);
+            resolvedSql = `${prefix}${/\s$/.test(prefix) ? '' : ' '}${ctes.join(',\n')},\n${resolvedSql.slice(insertAt)}`;
         } else {
             resolvedSql = `WITH ${ctes.join(',\n')}\n${resolvedSql}`;
         }

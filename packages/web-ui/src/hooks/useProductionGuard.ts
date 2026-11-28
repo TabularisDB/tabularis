@@ -20,6 +20,7 @@ export type GuardRequest = (
     connectionId: string,
     connectionName: string,
     sql?: string,
+    signal?: AbortSignal,
 ) => Promise<boolean>;
 
 export const ProductionGuardContext = createContext<GuardRequest | null>(null);
@@ -34,7 +35,12 @@ export function useProductionGuard() {
     const {showAlert} = useAlert();
 
     return useCallback(
-        async (connectionId: string | null | undefined, sql?: string): Promise<boolean> => {
+        async (
+            connectionId: string | null | undefined,
+            sql?: string,
+            signal?: AbortSignal,
+        ): Promise<boolean> => {
+            if (signal?.aborted) return false;
             if (!connectionId) return true;
             const conn = connections.find((c) => c.id === connectionId);
             if (conn?.params.read_only && (sql === undefined || !isReadOnlyQuery(sql))) {
@@ -46,7 +52,9 @@ export function useProductionGuard() {
             if (snoozedConnectionIds.has(connectionId)) return true;
             // No provider in this window: don't silently block the operation.
             if (!request) return true;
-            return request(connectionId, conn.name, sql);
+            return signal
+                ? request(connectionId, conn.name, sql, signal)
+                : request(connectionId, conn.name, sql);
         },
         [connections, request, showAlert, t],
     );

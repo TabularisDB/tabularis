@@ -2284,8 +2284,23 @@
       "addCell": "Añadir",
       "resizeResult": "Redimensionar resultado",
       "runAll": "Ejecutar Todo",
-      "runAllTooltip": "Ejecutar todas las celdas SQL de arriba a abajo",
+      "runAllTooltip": "Ejecutar todas las celdas SQL activadas en orden de dependencia",
       "runCell": "Ejecutar Celda",
+      "execution": {
+        "runAffected": "Ejecutar celdas afectadas",
+        "busy": "El cuaderno ya se está ejecutando.",
+        "complete": "Ejecución del cuaderno completada",
+        "preflightFailed": "Se detuvo la ejecución del cuaderno antes de ejecutar SQL",
+        "cell": "Celda n.º {{number}}",
+        "self": "{{cell}} se referencia a sí misma.",
+        "cycle": "Dependencia circular: {{path}}.",
+        "missing": "{{cell}} hace referencia a {{reference}}, que debe apuntar a una celda SQL no vacía.",
+        "disabled": "{{cell}} necesita {{reference}}, que está desactivada. Actívala y vuelve a intentarlo.",
+        "guardDenied": "La consulta no se aprobó.",
+        "unconfirmedWrite": "No se pudo confirmar el resultado de la escritura. Revisa la base de datos antes de volver a ejecutar esta celda.",
+        "blockedBy": "se bloqueó por",
+        "changed": "se omitió porque se editó, desactivó o eliminó."
+      },
       "deleteCell": "Eliminar Celda",
       "copySource": "Copiar código fuente",
       "copiedSource": "Código copiado al portapapeles",
@@ -2308,7 +2323,7 @@
       "runningAll": "Ejecutando todas las celdas...",
       "cellResult": "{{count}} filas · {{time}}ms",
       "stopOnError": "Detener en Error",
-      "stopOnErrorTooltip": "Detener la ejecución cuando una celda falla",
+      "stopOnErrorTooltip": "Tras un error, omitir las celdas restantes de esa base de datos",
       "runAllComplete": "Ejecución Completada",
       "succeeded": "exitosas",
       "failed": "fallidas",
@@ -2357,7 +2372,6 @@
           "noOptions": "Añade al menos una opción",
           "required": "Se requiere un valor",
           "emptyNeedsNull": "Introduce un valor o marca NULL",
-          "cellReference": "Un valor con tipo no puede contener una referencia a una celda",
           "unknownType": "Esta versión de Tabularis no conoce este tipo"
         },
         "errors": {
@@ -2366,7 +2380,7 @@
           "unsupported": "El parámetro @{{name}} tiene un tipo y los parámetros con tipo no están disponibles en esta conexión. Vuelve a ponerlo en Sin formato para usarlo aquí."
         }
       },
-      "parallelExecution": "Ejecución Paralela (Ejecutar Todo)",
+      "parallelExecution": "Permitir lecturas en paralelo en distintas bases de datos",
       "disableCell": "Desactivar celda",
       "enableCell": "Activar celda",
       "cellDisabled": "Desactivada",

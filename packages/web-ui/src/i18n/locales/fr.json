@@ -2347,8 +2347,23 @@
       "addCell": "Ajouter",
       "resizeResult": "Redimensionner le résultat",
       "runAll": "Tout exécuter",
-      "runAllTooltip": "Exécuter toutes les cellules SQL de haut en bas",
+      "runAllTooltip": "Exécuter les cellules SQL activées dans l’ordre des dépendances",
       "runCell": "Exécuter la cellule",
+      "execution": {
+        "runAffected": "Exécuter les cellules affectées",
+        "busy": "Une exécution du notebook est déjà en cours.",
+        "complete": "Exécution du notebook terminée",
+        "preflightFailed": "Exécution du notebook arrêtée avant toute requête SQL",
+        "cell": "Cellule n° {{number}}",
+        "self": "{{cell}} se référence elle-même.",
+        "cycle": "Dépendance circulaire : {{path}}.",
+        "missing": "{{cell}} référence {{reference}}, qui doit pointer vers une cellule SQL non vide.",
+        "disabled": "{{cell}} dépend de {{reference}}, qui est désactivée. Activez-la et réessayez.",
+        "guardDenied": "La requête n’a pas été approuvée.",
+        "unconfirmedWrite": "Le résultat de l’écriture n’a pas pu être confirmé. Vérifiez la base de données avant de relancer cette cellule.",
+        "blockedBy": "est bloquée par",
+        "changed": "a été ignorée car elle a été modifiée, désactivée ou supprimée."
+      },
       "deleteCell": "Supprimer la cellule",
       "copySource": "Copier la source",
       "copiedSource": "Source copiée dans le presse-papiers",
@@ -2371,7 +2386,7 @@
       "runningAll": "Exécution de toutes les cellules...",
       "cellResult": "{{count}} lignes · {{time}} ms",
       "stopOnError": "Arrêter en cas d’erreur",
-      "stopOnErrorTooltip": "Arrêter l’exécution lorsqu’une cellule échoue",
+      "stopOnErrorTooltip": "En cas d’échec, ignorer les cellules restantes sur cette base de données",
       "runAllComplete": "Exécution complète",
       "succeeded": "réussies",
       "failed": "échouées",
@@ -2420,7 +2435,6 @@
           "noOptions": "Ajoutez au moins une option",
           "required": "Une valeur est requise",
           "emptyNeedsNull": "Saisissez une valeur ou cochez NULL",
-          "cellReference": "Une valeur typée ne peut pas contenir de référence à une cellule",
           "unknownType": "Cette version de Tabularis ne connaît pas ce type"
         },
         "errors": {
@@ -2429,7 +2443,7 @@
           "unsupported": "Le paramètre @{{name}} a un type et les paramètres typés ne sont pas disponibles sur cette connexion. Remettez-le sur Brut pour l'utiliser ici."
         }
       },
-      "parallelExecution": "Exécution parallèle (Tout exécuter)",
+      "parallelExecution": "Autoriser les lectures parallèles sur des bases de données distinctes",
       "disableCell": "Désactiver la cellule",
       "enableCell": "Activer la cellule",
       "cellDisabled": "Désactivée",

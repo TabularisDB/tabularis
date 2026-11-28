@@ -2271,8 +2271,23 @@
       "addCell": "추가",
       "resizeResult": "결과 크기 조정",
       "runAll": "모두 실행",
-      "runAllTooltip": "모든 SQL 셀을 위에서 아래로 실행",
+      "runAllTooltip": "활성화된 모든 SQL 셀을 의존성 순서대로 실행",
       "runCell": "셀 실행",
+      "execution": {
+        "runAffected": "영향받는 셀 실행",
+        "busy": "노트북이 이미 실행 중입니다.",
+        "complete": "노트북 실행 완료",
+        "preflightFailed": "SQL을 실행하기 전에 노트북 실행이 중단되었습니다",
+        "cell": "셀 #{{number}}",
+        "self": "{{cell}}이(가) 자기 자신을 참조합니다.",
+        "cycle": "순환 의존성: {{path}}.",
+        "missing": "{{cell}}의 참조 {{reference}}은(는) 비어 있지 않은 SQL 셀을 가리켜야 합니다.",
+        "disabled": "{{cell}}에 필요한 {{reference}}이(가) 비활성화되어 있습니다. 활성화한 후 다시 시도하세요.",
+        "guardDenied": "쿼리가 승인되지 않았습니다.",
+        "unconfirmedWrite": "쓰기 결과를 확인할 수 없습니다. 이 셀을 다시 실행하기 전에 데이터베이스를 확인하세요.",
+        "blockedBy": "을(를) 차단한 선행 셀:",
+        "changed": "이(가) 수정되거나 비활성화 또는 삭제되어 건너뛰었습니다."
+      },
       "deleteCell": "셀 삭제",
       "copySource": "소스 복사",
       "copiedSource": "소스를 클립보드에 복사했습니다",
@@ -2295,7 +2310,7 @@
       "runningAll": "모든 셀을 실행하는 중...",
       "cellResult": "{{count}}행 · {{time}}ms",
       "stopOnError": "오류 시 중지",
-      "stopOnErrorTooltip": "셀 실행이 실패하면 중지합니다",
+      "stopOnErrorTooltip": "실패 시 해당 데이터베이스의 나머지 셀 건너뛰기",
       "runAllComplete": "모두 실행 완료",
       "succeeded": "성공",
       "failed": "실패",
@@ -2344,7 +2359,6 @@
           "noOptions": "옵션을 하나 이상 추가하세요",
           "required": "값이 필요합니다",
           "emptyNeedsNull": "값을 입력하거나 NULL을 선택하세요",
-          "cellReference": "타입이 지정된 값에는 셀 참조를 포함할 수 없습니다",
           "unknownType": "이 버전의 Tabularis에서 인식할 수 없는 타입입니다"
         },
         "errors": {
@@ -2353,7 +2367,7 @@
           "unsupported": "매개변수 @{{name}}에는 타입이 있지만 이 연결에서는 타입이 지정된 매개변수를 사용할 수 없습니다. 여기에서 사용하려면 원본으로 되돌리세요."
         }
       },
-      "parallelExecution": "병렬 실행 (모두 실행)",
+      "parallelExecution": "서로 다른 데이터베이스에서 병렬 읽기 허용",
       "disableCell": "셀 비활성화",
       "enableCell": "셀 활성화",
       "cellDisabled": "비활성화됨",

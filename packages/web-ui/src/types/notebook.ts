@@ -21,21 +21,26 @@ export interface CellKpiConfig {
     suffix?: string;
 }
 
+export type NotebookRunMode = 'all' | 'cell' | 'affected';
+
+export interface NotebookCellLocation {
+    cellId: string;
+    cellIndex: number;
+}
+
 export interface RunAllResult {
+    mode: NotebookRunMode;
     total: number;
+    /** Number of queries actually sent, including database errors. */
     executed: number;
     succeeded: number;
     failed: number;
     skipped: number;
-    /** Cells not run because a prerequisite they reference is disabled. */
     blocked: number;
-    errors: Array<{cellId: string; cellIndex: number; error: string}>;
-    /** Each blocked cell with the disabled cells it waits on. */
-    blockedCells: Array<{
-        cellId: string;
-        cellIndex: number;
-        disabledCells: Array<{cellId: string; cellIndex: number}>;
-    }>;
+    preflightErrors: string[];
+    errors: Array<NotebookCellLocation & {error: string}>;
+    blockedCells: Array<NotebookCellLocation & {prerequisite: NotebookCellLocation}>;
+    changedCells: NotebookCellLocation[];
 }
 
 /** How a typed parameter's value is validated and written into SQL. */
@@ -90,7 +95,7 @@ export interface NotebookCell {
     isPreview?: boolean; // Markdown only: true = rendered, false = editing
     chartConfig?: CellChartConfig | null; // SQL only: inline chart configuration
     resultHeight?: number; // SQL only: custom result panel height in pixels
-    isParallel?: boolean; // SQL only: can run in parallel during Run All
+    isParallel?: boolean; // SQL only: permits parallel reads on independent database lanes
     isDisabled?: boolean; // SQL only: excluded from every execution path until re-enabled (absent = enabled)
     isCollapsed?: boolean; // Whole cell body hidden when collapsed
     isQueryCollapsed?: boolean; // SQL only: query editor section hidden when collapsed
@@ -116,6 +121,8 @@ export interface NotebookFile {
     createdAt: string;
     connectionId?: string;
     cells: Array<{
+        /** Stored for saved notebooks; portable exports omit it. */
+        id?: string;
         type: NotebookCellType;
         content: string;
         name?: string;

@@ -2380,8 +2380,23 @@
       "addCell": "Adicionar",
       "resizeResult": "Redimensionar resultado",
       "runAll": "Executar Tudo",
-      "runAllTooltip": "Executar todas as células SQL de cima para baixo",
+      "runAllTooltip": "Executar todas as células SQL ativadas em ordem de dependência",
       "runCell": "Executar Célula",
+      "execution": {
+        "runAffected": "Executar células afetadas",
+        "busy": "Já há uma execução do notebook em andamento.",
+        "complete": "Execução do notebook concluída",
+        "preflightFailed": "A execução do notebook foi interrompida antes de executar SQL",
+        "cell": "Célula nº {{number}}",
+        "self": "{{cell}} faz referência a si mesma.",
+        "cycle": "Dependência circular: {{path}}.",
+        "missing": "{{cell}} referencia {{reference}}, que deve apontar para uma célula SQL não vazia.",
+        "disabled": "{{cell}} depende de {{reference}}, que está desativada. Ative-a e tente novamente.",
+        "guardDenied": "A consulta não foi aprovada.",
+        "unconfirmedWrite": "Não foi possível confirmar o resultado da gravação. Verifique o banco de dados antes de executar esta célula novamente.",
+        "blockedBy": "foi bloqueada por",
+        "changed": "foi ignorada porque foi editada, desativada ou removida."
+      },
       "deleteCell": "Excluir Célula",
       "copySource": "Copiar fonte",
       "copiedSource": "Fonte copiada para a área de transferência",
@@ -2404,7 +2419,7 @@
       "runningAll": "Executando todas as células...",
       "cellResult": "{{count}} linhas · {{time}}ms",
       "stopOnError": "Parar em Caso de Erro",
-      "stopOnErrorTooltip": "Interromper a execução quando uma célula falhar",
+      "stopOnErrorTooltip": "Em caso de falha, ignorar as células restantes desse banco de dados",
       "runAllComplete": "Execução de Todas Concluída",
       "succeeded": "com sucesso",
       "failed": "com falha",
@@ -2453,7 +2468,6 @@
           "noOptions": "Adicione pelo menos uma opção",
           "required": "Um valor é obrigatório",
           "emptyNeedsNull": "Digite um valor ou marque NULL",
-          "cellReference": "Um valor tipado não pode conter uma referência a uma célula",
           "unknownType": "Esta versão do Tabularis não conhece este tipo"
         },
         "errors": {
@@ -2462,7 +2476,7 @@
           "unsupported": "O parâmetro @{{name}} tem um tipo, e parâmetros tipados não estão disponíveis nesta conexão. Volte-o para Bruto para usá-lo aqui."
         }
       },
-      "parallelExecution": "Execução Paralela (Executar Tudo)",
+      "parallelExecution": "Permitir leituras paralelas em bancos de dados diferentes",
       "disableCell": "Desativar célula",
       "enableCell": "Ativar célula",
       "cellDisabled": "Desativada",

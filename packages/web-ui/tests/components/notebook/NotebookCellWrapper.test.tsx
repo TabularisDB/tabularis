@@ -1,12 +1,13 @@
 import type {ComponentProps} from 'react';
 import {act, fireEvent, render, screen} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {invoke} from '@tauri-apps/api/core';
 import {parsePostgresJson} from '@tabularis/explain';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {NotebookCellWrapper} from '../../../src/components/notebook/NotebookCellWrapper';
+import {NotebookCellWrapper} from '@/components/notebook/NotebookCellWrapper';
 import {duplicateCell} from '@/utils/notebook';
-import type {SqlCellEditor} from '../../../src/components/notebook/SqlCellEditor';
-import type {VisualExplainViewProps} from '../../../src/components/explain/VisualExplainView';
+import type {SqlCellEditor} from '@/components/notebook/SqlCellEditor';
+import type {VisualExplainViewProps} from '@/components/explain/VisualExplainView';
 
 vi.mock('@/hooks/useTabularisClient', () => import('../../support/tauriBackedHooks'));
 vi.mock('@/hooks/usePlatformCapabilities', () => import('../../support/tauriBackedHooks'));
@@ -20,26 +21,26 @@ vi.mock('react-i18next', () => {
     return {useTranslation: () => ({t})};
 });
 vi.mock('lucide-react', () => vi.importActual('lucide-react'));
-vi.mock('../../../src/hooks/useDatabase', () => ({
+vi.mock('@/hooks/useDatabase', () => ({
     useDatabase: () => ({...database, connections: []}),
 }));
-vi.mock('../../../src/hooks/useSettings', () => ({
+vi.mock('@/hooks/useSettings', () => ({
     useSettings: () => ({settings: {aiEnabled: false}}),
 }));
-vi.mock('../../../src/hooks/useDrivers', () => ({
+vi.mock('@/hooks/useDrivers', () => ({
     useDrivers: () => ({allDrivers: []}),
 }));
-vi.mock('../../../src/utils/driverUI', () => ({getConnectionIcon: () => null}));
-vi.mock('../../../src/components/notebook/CellNameAiButton', () => ({
+vi.mock('@/utils/driverUI', () => ({getConnectionIcon: () => null}));
+vi.mock('@/components/notebook/CellNameAiButton', () => ({
     CellNameAiButton: () => null,
 }));
-vi.mock('../../../src/components/notebook/CellHistoryPanel', () => ({
+vi.mock('@/components/notebook/CellHistoryPanel', () => ({
     CellHistoryPanel: () => null,
 }));
-vi.mock('../../../src/components/notebook/MarkdownCell', () => ({
+vi.mock('@/components/notebook/MarkdownCell', () => ({
     MarkdownCell: () => <div data-testid="markdown">Markdown content</div>,
 }));
-vi.mock('../../../src/components/notebook/SqlCellEditor', () => ({
+vi.mock('@/components/notebook/SqlCellEditor', () => ({
     SqlCellEditor: (props: ComponentProps<typeof SqlCellEditor>) => (
         <textarea
             aria-label="SQL editor"
@@ -49,8 +50,8 @@ vi.mock('../../../src/components/notebook/SqlCellEditor', () => ({
         />
     ),
 }));
-vi.mock('../../../src/components/notebook/SqlCellResult', () => ({SqlCellResult: () => null}));
-vi.mock('../../../src/components/explain/VisualExplainView', () => ({
+vi.mock('@/components/notebook/SqlCellResult', () => ({SqlCellResult: () => null}));
+vi.mock('@/components/explain/VisualExplainView', () => ({
     VisualExplainView: (props: VisualExplainViewProps) => (
         <section data-testid="explain-view">
             {props.plan && <div data-testid="plan">{props.plan.root.node_type}</div>}
@@ -327,6 +328,59 @@ describe('NotebookCellWrapper query plans', () => {
             database: undefined,
         });
         expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+});
+
+describe('NotebookCellWrapper run affected action', () => {
+    const label = 'editor.notebook.execution.runAffected';
+
+    it('activates through the keyboard and has an accessible name and focus style', async () => {
+        const action = vi.fn();
+        const user = userEvent.setup();
+        render(<NotebookCellWrapper {...makeProps()} onRunAffected={action} />);
+        const button = screen.getByRole('button', {name: label});
+        expect(button).toHaveClass('focus-visible:outline-focus');
+        expect(button).toHaveAttribute('title', label);
+        button.focus();
+        expect(button).toHaveFocus();
+        await user.keyboard('{Enter}');
+        expect(action).toHaveBeenCalledOnce();
+    });
+
+    it.each([
+        {isDisabled: true, isRunBusy: false, reason: 'editor.notebook.runDisabledReason'},
+        {isDisabled: false, isRunBusy: true, reason: 'editor.notebook.execution.busy'},
+    ])('disables the action with $reason', ({isDisabled, isRunBusy, reason}) => {
+        const props = makeProps();
+        const action = vi.fn();
+        render(
+            <NotebookCellWrapper
+                {...props}
+                cell={{...props.cell, isDisabled}}
+                isRunBusy={isRunBusy}
+                onRunAffected={action}
+            />,
+        );
+        const button = screen.getByRole('button', {name: label});
+        expect(button).toBeDisabled();
+        expect(button).toHaveAttribute('title', reason);
+        fireEvent.click(button);
+        expect(action).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        {type: 'markdown', content: '# Notes'},
+        {type: 'sql', content: '   '},
+    ] as const)('does not offer the action for $type content "$content"', ({type, content}) => {
+        const props = makeProps();
+        render(
+            <NotebookCellWrapper
+                {...props}
+                cell={{...props.cell, type, content}}
+                onRunAffected={vi.fn()}
+            />,
+        );
+        expect(screen.queryByRole('button', {name: label})).not.toBeInTheDocument();
     });
 });
 

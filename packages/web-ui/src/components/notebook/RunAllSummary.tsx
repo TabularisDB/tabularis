@@ -1,117 +1,125 @@
 import {useTranslation} from 'react-i18next';
 import {X, AlertTriangle, CheckCircle2} from 'lucide-react';
-import type {RunAllResult} from '@/types/notebook';
+import type {NotebookCellLocation, RunAllResult} from '@/types/notebook';
 
 interface RunAllSummaryProps {
     result: RunAllResult;
+    cells: readonly {id: string}[];
     onDismiss: () => void;
     onScrollToCell?: (cellId: string) => void;
 }
 
-export function RunAllSummary({result, onDismiss, onScrollToCell}: RunAllSummaryProps) {
+export function RunAllSummary({result, cells, onDismiss, onScrollToCell}: RunAllSummaryProps) {
     const {t} = useTranslation();
-    const hasErrors = result.failed > 0;
+    const preflightFailed = result.preflightErrors.length > 0;
+    const hasErrors = preflightFailed || result.failed > 0;
+    const hasWarnings = result.blocked > 0 || result.skipped > 0;
+    const style = hasErrors
+        ? 'border-accent-error/30 bg-accent-error/5 text-accent-error'
+        : hasWarnings
+          ? 'border-accent-warning/30 bg-accent-warning/5 text-accent-warning'
+          : 'border-accent-success/30 bg-accent-success/5 text-accent-success';
+    const Icon = hasErrors || hasWarnings ? AlertTriangle : CheckCircle2;
+    const counts = [
+        [result.succeeded, t('editor.notebook.succeeded')],
+        [result.failed, t('editor.notebook.failed')],
+        [result.skipped, t('editor.notebook.skipped')],
+        [result.blocked, t('editor.notebook.blocked')],
+    ].filter(([count]) => count !== 0);
+
+    const indicesById = new Map(cells.map(({id}, index) => [id, index]));
+    const cellLink = ({cellId, cellIndex}: NotebookCellLocation) => {
+        const currentIndex = indicesById.get(cellId);
+        const label = t('editor.notebook.execution.cell', {
+            number: (currentIndex ?? cellIndex) + 1,
+        });
+        return onScrollToCell && currentIndex !== undefined ? (
+            <button
+                type="button"
+                onClick={() => onScrollToCell(cellId)}
+                className="underline whitespace-nowrap shrink-0 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            >
+                {label}
+            </button>
+        ) : (
+            <span className="whitespace-nowrap shrink-0">{label}</span>
+        );
+    };
 
     return (
-        <div
-            className={`mx-4 mb-3 rounded-lg border ${
-                hasErrors
-                    ? 'border-accent-error/30 bg-accent-error/5'
-                    : 'border-accent-success/30 bg-accent-success/5'
-            }`}
-        >
+        <div className={`mx-4 mb-3 rounded-lg border ${style}`}>
             <div className="flex items-center justify-between px-3 py-2">
-                <div className="flex items-center gap-2 text-xs">
-                    {hasErrors ? (
-                        <AlertTriangle size={14} className="text-accent-error" />
-                    ) : (
-                        <CheckCircle2 size={14} className="text-accent-success" />
-                    )}
-                    <span className={hasErrors ? 'text-accent-error' : 'text-accent-success'}>
-                        {t('editor.notebook.runAllComplete')}
+                <div role="status" className="flex items-center gap-2 text-xs">
+                    <Icon size={14} aria-hidden="true" />
+                    <span>
+                        {t(
+                            preflightFailed
+                                ? 'editor.notebook.execution.preflightFailed'
+                                : result.mode === 'all'
+                                  ? 'editor.notebook.runAllComplete'
+                                  : 'editor.notebook.execution.complete',
+                        )}
                     </span>
                     <span className="text-muted">
-                        {result.succeeded > 0 && (
-                            <span className="text-accent-success">
-                                {result.succeeded} {t('editor.notebook.succeeded')}
-                            </span>
-                        )}
-                        {result.failed > 0 && (
-                            <span className="text-accent-error">
-                                {result.succeeded > 0 && ', '}
-                                {result.failed} {t('editor.notebook.failed')}
-                            </span>
-                        )}
-                        {result.skipped > 0 && (
-                            <span className="text-muted">
-                                {(result.succeeded > 0 || result.failed > 0) && ', '}
-                                {result.skipped} {t('editor.notebook.skipped')}
-                            </span>
-                        )}
-                        {result.blocked > 0 && (
-                            <span className="text-accent-warning">
-                                {(result.succeeded > 0 ||
-                                    result.failed > 0 ||
-                                    result.skipped > 0) &&
-                                    ', '}
-                                {result.blocked} {t('editor.notebook.blocked')}
-                            </span>
-                        )}
+                        {counts.map(([count, label]) => `${count} ${label}`).join(', ')}
                     </span>
                 </div>
                 <button
                     type="button"
                     onClick={onDismiss}
-                    className="p-0.5 text-muted hover:text-secondary rounded transition-colors"
+                    aria-label={t('common.dismiss')}
+                    className="p-0.5 text-muted hover:text-secondary rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                 >
-                    <X size={12} />
+                    <X size={12} aria-hidden="true" />
                 </button>
             </div>
 
-            {result.errors.length > 0 && (
-                <div className="px-3 pb-2 space-y-1">
-                    {result.errors.map((err) => (
-                        <div key={err.cellId} className="flex items-start gap-2 text-[11px]">
-                            <button
-                                type="button"
-                                onClick={() => onScrollToCell?.(err.cellId)}
-                                className="text-accent-error underline whitespace-nowrap shrink-0"
-                            >
-                                Cell #{err.cellIndex + 1}
-                            </button>
-                            <span className="text-muted truncate">{err.error}</span>
-                        </div>
+            {preflightFailed && (
+                <ul role="alert" className="px-3 pb-2 space-y-1 text-xs">
+                    {result.preflightErrors.map((error) => (
+                        <li key={error}>{error}</li>
                     ))}
-                </div>
+                </ul>
+            )}
+
+            {result.errors.length > 0 && (
+                <ul className="px-3 pb-2 space-y-1 text-xs text-accent-error">
+                    {result.errors.map((err) => (
+                        <li key={err.cellId} className="flex items-start gap-2">
+                            {cellLink(err)}
+                            <span className="text-muted whitespace-pre-wrap wrap-anywhere">
+                                {err.error}
+                            </span>
+                        </li>
+                    ))}
+                </ul>
             )}
 
             {result.blockedCells.length > 0 && (
-                <div className="px-3 pb-2 space-y-1">
+                <ul className="px-3 pb-2 space-y-1 text-xs text-accent-warning">
                     {result.blockedCells.map((blocked) => (
-                        <div key={blocked.cellId} className="flex items-start gap-2 text-[11px]">
-                            <button
-                                type="button"
-                                onClick={() => onScrollToCell?.(blocked.cellId)}
-                                className="text-accent-warning underline whitespace-nowrap shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-                            >
-                                Cell #{blocked.cellIndex + 1}
-                            </button>
+                        <li key={blocked.cellId} className="flex flex-wrap items-start gap-x-2">
+                            {cellLink(blocked)}
                             <span className="text-muted">
-                                {t('editor.notebook.blockedWaitsOn')}
+                                {t('editor.notebook.execution.blockedBy')}
                             </span>
-                            {blocked.disabledCells.map((disabled) => (
-                                <button
-                                    key={disabled.cellId}
-                                    type="button"
-                                    onClick={() => onScrollToCell?.(disabled.cellId)}
-                                    className="text-accent underline whitespace-nowrap shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-                                >
-                                    Cell #{disabled.cellIndex + 1}
-                                </button>
-                            ))}
-                        </div>
+                            {cellLink(blocked.prerequisite)}
+                        </li>
                     ))}
-                </div>
+                </ul>
+            )}
+
+            {result.changedCells.length > 0 && (
+                <ul className="px-3 pb-2 space-y-1 text-xs text-accent-warning">
+                    {result.changedCells.map((cell) => (
+                        <li key={cell.cellId} className="flex items-start gap-2">
+                            {cellLink(cell)}
+                            <span className="text-muted">
+                                {t('editor.notebook.execution.changed')}
+                            </span>
+                        </li>
+                    ))}
+                </ul>
             )}
         </div>
     );

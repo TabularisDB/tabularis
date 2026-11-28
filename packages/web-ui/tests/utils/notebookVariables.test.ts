@@ -28,7 +28,26 @@ describe('notebookVariables', () => {
         it('should extract single cell reference', () => {
             const refs = extractCellReferences('SELECT * FROM {{cell_1}}');
             expect(refs).toHaveLength(1);
-            expect(refs[0]).toEqual({match: '{{cell_1}}', cellIndex: 0});
+            expect(refs[0]).toEqual({match: '{{cell_1}}', cellIndex: 0, start: 14, end: 24});
+        });
+
+        it.each([
+            [
+                'postgres',
+                String.raw`SELECT E'a\'{{cell_8}}', '{{cell_7}}''s', "{{cell_6}}", $$ {{cell_5}} $$, $tag$
+{{cell_4}}$tag$ /* outer /* inner */ {{cell_9}} */ FROM {{cell_2}}`,
+            ],
+            ['mysql', "SELECT '\\'{{cell_8}}', `{{cell_9}}` # {{cell_6}}\n FROM {{cell_2}}"],
+            ['sqlite', 'SELECT [{{cell_8}}], `{{cell_9}}`, "{{cell_7}}" FROM {{cell_2}}'],
+        ])('extracts only executable references at exact offsets for %s', (dialect, sql) => {
+            const start = sql.indexOf('{{cell_2}}');
+            expect(extractCellReferences(sql, dialect)).toEqual([
+                {match: '{{cell_2}}', cellIndex: 1, start, end: start + 10},
+            ]);
+            const target = makeCell({result: {columns: ['id'], rows: [[42]], affected_rows: 0}});
+            expect(resolveQueryVariables(sql, [makeCell(), target], {dialect}).sql).toBe(
+                `WITH cell_2 AS (\n  SELECT 42 AS "id"\n)\n${sql.replace('{{cell_2}}', 'cell_2')}`,
+            );
         });
 
         it('should extract multiple cell references', () => {

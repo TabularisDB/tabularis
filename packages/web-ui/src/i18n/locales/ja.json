@@ -2318,8 +2318,23 @@
       "addCell": "追加",
       "resizeResult": "結果のサイズを変更",
       "runAll": "すべて実行",
-      "runAllTooltip": "上から下へすべての SQL セルを実行",
+      "runAllTooltip": "有効な SQL セルを依存関係に従って実行",
       "runCell": "セルを実行",
+      "execution": {
+        "runAffected": "影響を受けるセルを実行",
+        "busy": "ノートブックはすでに実行中です。",
+        "complete": "ノートブックの実行が完了しました",
+        "preflightFailed": "SQL を実行する前にノートブックの実行を中止しました",
+        "cell": "セル #{{number}}",
+        "self": "{{cell}} が自分自身を参照しています。",
+        "cycle": "循環依存: {{path}}。",
+        "missing": "{{cell}} が {{reference}} を参照しています。参照先には空でない SQL セルを指定してください。",
+        "disabled": "{{cell}} の前提セル {{reference}} が無効です。有効にしてから再試行してください。",
+        "guardDenied": "クエリは承認されませんでした。",
+        "unconfirmedWrite": "書き込みの結果を確認できませんでした。このセルを再実行する前にデータベースを確認してください。",
+        "blockedBy": "をブロックした前提セル:",
+        "changed": "は編集、無効化、または削除されたためスキップされました。"
+      },
       "deleteCell": "セルを削除",
       "copySource": "ソースをコピー",
       "copiedSource": "ソースをクリップボードにコピーしました",
@@ -2342,7 +2357,7 @@
       "runningAll": "すべてのセルを実行中...",
       "cellResult": "{{count}} 行 · {{time}}ms",
       "stopOnError": "エラー時に停止",
-      "stopOnErrorTooltip": "セルが失敗したら実行を停止します",
+      "stopOnErrorTooltip": "失敗したセルと同じデータベースに残っているセルをスキップ",
       "runAllComplete": "すべての実行が完了",
       "succeeded": "成功",
       "failed": "失敗",
@@ -2391,7 +2406,6 @@
           "noOptions": "選択肢を1つ以上追加してください",
           "required": "値が必要です",
           "emptyNeedsNull": "値を入力するか、NULL にチェックを入れてください",
-          "cellReference": "タイプ付きの値にセル参照を含めることはできません",
           "unknownType": "このバージョンの Tabularis では認識できないタイプです"
         },
         "errors": {
@@ -2400,7 +2414,7 @@
           "unsupported": "パラメータ @{{name}} にはタイプがありますが、この接続ではタイプ付きパラメータを使用できません。ここで使用するには「そのまま」に戻してください。"
         }
       },
-      "parallelExecution": "並列実行 (すべて実行)",
+      "parallelExecution": "異なるデータベースでの並列読み取りを許可",
       "disableCell": "セルを無効化",
       "enableCell": "セルを有効化",
       "cellDisabled": "無効",

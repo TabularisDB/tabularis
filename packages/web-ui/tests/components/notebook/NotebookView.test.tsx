@@ -1,9 +1,9 @@
-import type {ComponentProps} from 'react';
+import {useContext, type ComponentProps} from 'react';
 import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
-import {save} from '@tauri-apps/plugin-dialog';
-import {writeFile} from '@tauri-apps/plugin-fs';
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {open, save} from '@tauri-apps/plugin-dialog';
+import {readFile, writeFile} from '@tauri-apps/plugin-fs';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {NotebookView} from '@/components/notebook/NotebookView';
 import type {NotebookCellWrapper} from '@/components/notebook/NotebookCellWrapper';
 import type {NotebookToolbar} from '@/components/notebook/NotebookToolbar';
@@ -11,20 +11,32 @@ import type {RunAllSummary} from '@/components/notebook/RunAllSummary';
 import {useDangerousQueryGuard} from '@/hooks/useDangerousQueryGuard';
 import {useQueryGuards} from '@/hooks/useQueryGuards';
 import type {QueryResult, Tab} from '@/types/editor';
-import type {NotebookCell, NotebookState} from '@/types/notebook';
+import type {NotebookCell, NotebookState, RunAllResult} from '@/types/notebook';
+import {registerPendingEditorFlush} from '@/utils/pendingEditorChanges';
 import {resolveParams} from '@/utils/notebookParams';
 import {resolveQueryVariables, type ResolvedQuery} from '@/utils/notebookVariables';
-import {loadNotebook, setNotebookState} from '@/utils/notebookStore';
+import {
+    _resetForTesting,
+    evictFromCache,
+    getNotebookState,
+    loadNotebook,
+    setNotebookState,
+} from '@/utils/notebookStore';
+import type {DriverCapabilities} from '@/types/plugins';
+import type {SavedConnection} from '@/contexts/DatabaseContext';
+import {tauriBackedClient} from '../../support/tauriBackedHooks';
+import {ProductionGuardProvider} from '@/contexts/ProductionGuardContext';
+import {ProductionGuardContext, snoozedConnectionIds} from '@/hooks/useProductionGuard';
 
 vi.mock('@/hooks/useTabularisClient', () => import('../../support/tauriBackedHooks'));
 vi.mock('@/hooks/usePlatformCapabilities', () => import('../../support/tauriBackedHooks'));
 const fixtures = vi.hoisted(() => ({
-    notebooks: new Map<string, NotebookState>(),
     database: {
         activeDriver: 'postgres',
         activeSchema: 'active_schema' as string | null,
-        activeCapabilities: null as {identifier_quote: string; sql_dialect: string} | null,
+        activeCapabilities: null as Partial<DriverCapabilities> | null,
         selectedDatabases: [] as string[],
+        connections: [] as SavedConnection[],
     },
     settings: {resultPageSize: 37, safetyConfirmationDelayEnabled: false},
     guardQuery: vi.fn(),
@@ -36,8 +48,13 @@ const fixtures = vi.hoisted(() => ({
 
 vi.mock('react-i18next', () => {
     // Stable, like the real hook: NotebookView's callbacks depend on it.
-    const t = (key: string, options?: {refs?: string}) =>
-        options?.refs ? `${key}: ${options.refs}` : key;
+    const t = (
+        key: string,
+        options?: {path?: string; cell?: string; reference?: string; number?: number},
+    ) =>
+        [key, options?.number, options?.path, options?.cell, options?.reference]
+            .filter((item) => item !== undefined)
+            .join(' ');
     return {useTranslation: () => ({t})};
 });
 vi.mock('@/hooks/useDatabase', () => ({
@@ -63,15 +80,15 @@ vi.mock('@/hooks/useQueryGuards', () => ({
 vi.mock('@/hooks/useSqlAutocompleteRegistration', () => ({
     useSqlAutocompleteRegistration: vi.fn(),
 }));
-vi.mock('@/utils/notebookStore', () => ({
-    getNotebookState: vi.fn((id: string) => fixtures.notebooks.get(id)),
-    setNotebookState: vi.fn((id: string, state: NotebookState) => {
-        fixtures.notebooks.set(id, state);
-    }),
-    loadNotebook: vi.fn(),
-    setNotebookTitle: vi.fn(),
-    createNotebookFromState: vi.fn(),
-}));
+vi.mock('@/utils/notebookStore', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@/utils/notebookStore')>();
+    return {
+        ...actual,
+        setNotebookState: vi.fn(actual.setNotebookState),
+        loadNotebook: vi.fn(),
+        setNotebookTitle: vi.fn(),
+    };
+});
 // Observe preparation without replacing the real parameter/reference algorithms.
 vi.mock('@/utils/notebookParams', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@/utils/notebookParams')>();
@@ -125,8 +142,12 @@ vi.mock('@/components/notebook/NotebookToolbar', () => ({
         viewMode,
         onViewModeChange,
         onExportMarkdown,
+        onToggleStopOnError,
+        onImport,
     }: ComponentProps<typeof NotebookToolbar>) => (
         <>
+            <button onClick={onImport}>Import</button>
+            <button onClick={onToggleStopOnError}>Stop on error</button>
             <button onClick={onExportMarkdown}>Export Markdown</button>
             <button onClick={onRunAll} disabled={isRunning}>
                 Run All
@@ -170,7 +191,10 @@ vi.mock('@/components/notebook/NotebookCellWrapper', async () => {
             activeSchema,
             connectionId,
             onRun,
+            onRunAffected,
+            isRunBusy,
             onUpdate,
+            onDelete,
             onMoveDown,
             onDuplicate,
             canDuplicate,
@@ -201,6 +225,10 @@ vi.mock('@/components/notebook/NotebookCellWrapper', async () => {
                         Toggle plan {cell.id}
                     </button>
                     <button onClick={onRun}>Run {cell.id}</button>
+                    <button onClick={onRunAffected} disabled={isRunBusy}>
+                        Run affected {cell.id}
+                    </button>
+                    <button onClick={onDelete}>Delete {cell.id}</button>
                     <button onClick={() => onUpdate({isDisabled: !cell.isDisabled})}>
                         Toggle disabled {cell.id}
                     </button>
@@ -245,8 +273,18 @@ function sqlCell(id: string, content: string, partial: Partial<NotebookCell> = {
     return {id, type: 'sql', content, ...partial};
 }
 
-function renderNotebook(state: NotebookState, tabOverrides: Partial<Tab> = {}) {
-    fixtures.notebooks.set(notebookId, state);
+function renderNotebook(state?: NotebookState, tabOverrides: Partial<Tab> = {}) {
+    if (state) {
+        setNotebookState(notebookId, state);
+        vi.mocked(setNotebookState).mockClear();
+    }
+    return render(notebookView(tabOverrides));
+}
+
+function notebookView(
+    tabOverrides: Partial<Tab> = {},
+    updateTab: (id: string, partial: Partial<Tab>) => void = vi.fn(),
+) {
     const tab: Tab = {
         id: 'tab-1',
         title: 'Notebook',
@@ -263,9 +301,25 @@ function renderNotebook(state: NotebookState, tabOverrides: Partial<Tab> = {}) {
         schema: 'tab_schema',
         ...tabOverrides,
     };
-    return render(
-        <NotebookView tab={tab} updateTab={vi.fn()} connectionId={connectionId} isActive />,
+    return (
+        <NotebookView
+            tab={tab}
+            updateTab={updateTab}
+            connectionId={tab.connectionId ?? connectionId}
+            isActive
+        />
     );
+}
+
+const mysqlLayout: Partial<DriverCapabilities> = {
+    sql_dialect: 'mysql',
+    identifier_quote: '`',
+    schemas: false,
+    file_based: false,
+};
+
+function requestSql(query: string, schema = 'tab_schema', limit = 37, connection = connectionId) {
+    return ['execute_query', {connectionId: connection, schema, query, limit, page: 1}];
 }
 
 function explainFor(id: string): ResolvedQuery | null {
@@ -275,7 +329,7 @@ function explainFor(id: string): ResolvedQuery | null {
 }
 
 function savedCell(id: string): NotebookCell {
-    const cell = fixtures.notebooks.get(notebookId)?.cells.find((entry) => entry.id === id);
+    const cell = getNotebookState(notebookId)?.cells.find((entry) => entry.id === id);
     if (!cell) throw new Error(`Missing test cell ${id}`);
     return cell;
 }
@@ -286,18 +340,60 @@ async function settle() {
     });
 }
 
+function summary(): RunAllResult {
+    return JSON.parse(screen.getByTestId('run-all-summary').getAttribute('data-result') ?? 'null');
+}
+
+async function click(name: string) {
+    await act(async () => {
+        fireEvent.click(screen.getByRole('button', {name}));
+    });
+}
+
 describe('NotebookView', () => {
+    afterEach(_resetForTesting);
+
     beforeEach(() => {
         vi.clearAllMocks();
-        fixtures.notebooks.clear();
         fixtures.mounts.clear();
         fixtures.database.activeDriver = 'postgres';
         fixtures.database.activeCapabilities = null;
         fixtures.database.activeSchema = 'active_schema';
+        fixtures.database.selectedDatabases = [];
+        fixtures.database.connections = [];
+        snoozedConnectionIds.clear();
         fixtures.settings.resultPageSize = 37;
         fixtures.guardQuery.mockReset().mockResolvedValue(true);
         fixtures.matchesShortcut.mockReset().mockReturnValue(false);
         mockInvoke.mockReset().mockResolvedValue(queryResult);
+    });
+
+    it('cannot save an empty document from the toolbar while the disk read is pending', async () => {
+        const store =
+            await vi.importActual<typeof import('@/utils/notebookStore')>('@/utils/notebookStore');
+        const disk = Promise.withResolvers<string>();
+        vi.mocked(loadNotebook).mockImplementationOnce(store.loadNotebook);
+        mockInvoke.mockReturnValueOnce(disk.promise);
+        renderNotebook();
+
+        const toggle = screen.queryByRole('button', {name: 'Stop on error'});
+        if (toggle) fireEvent.click(toggle);
+        await act(async () =>
+            disk.resolve(
+                JSON.stringify({
+                    version: 2,
+                    title: 'Saved',
+                    cells: [sqlCell('stored', 'SELECT 42')],
+                }),
+            ),
+        );
+        await click('Stop on error');
+        await store.flushAllPendingSaves();
+        const save = mockInvoke.mock.calls.find(([command]) => command === 'save_notebook');
+        expect(JSON.parse(String(save?.[1]?.content))).toMatchObject({
+            cells: [{id: 'stored', content: 'SELECT 42'}],
+            stopOnError: true,
+        });
     });
 
     describe('explainQuery preparation', () => {
@@ -318,6 +414,7 @@ describe('NotebookView', () => {
                 expect.anything(),
             );
             expect(mockResolveVariables).toHaveBeenCalledWith(parameterSql, state.cells, {
+                dialect: expect.anything(),
                 escapeBackslashes: false,
                 identifierQuote: '"',
             });
@@ -463,7 +560,7 @@ describe('NotebookView', () => {
             await settle();
 
             expect(savedCell('first').content).toBe('SELECT 11');
-            expect(fixtures.notebooks.get(notebookId)?.cells.map((cell) => cell.id)).toEqual([
+            expect(getNotebookState(notebookId)?.cells.map((cell) => cell.id)).toEqual([
                 'second',
                 'first',
             ]);
@@ -472,7 +569,7 @@ describe('NotebookView', () => {
         });
     });
 
-    describe('legacy runCell', () => {
+    describe('Run Cell', () => {
         it.each([
             {
                 driver: 'mysql',
@@ -534,23 +631,24 @@ describe('NotebookView', () => {
                 const prepared = explainFor('target');
                 expect(prepared).toEqual({sql: expectedSql, unresolvedRefs: []});
                 expect(mockResolveVariables).toHaveBeenCalledWith(parameterSql, expect.any(Array), {
+                    dialect: expect.anything(),
                     escapeBackslashes,
                     identifierQuote,
                 });
                 expect(mockInvoke).not.toHaveBeenCalled();
 
-                await act(async () => {
-                    fireEvent.click(screen.getByRole('button', {name: 'Run target'}));
-                });
+                mockInvoke.mockResolvedValueOnce(sourceResult);
+                await click('Run source');
+                await click('Run target');
 
-                expect(mockInvoke).toHaveBeenCalledExactlyOnceWith('execute_query', {
-                    connectionId,
-                    query: prepared?.sql,
-                    schema: 'cell_schema',
-                    limit: 37,
-                    page: 1,
-                });
-                expect(fixtures.guardQuery).toHaveBeenCalledExactlyOnceWith(expectedSql);
+                expect(mockInvoke.mock.calls).toEqual([
+                    requestSql('SELECT id, label FROM people'),
+                    requestSql(expectedSql, 'cell_schema'),
+                ]);
+                expect(fixtures.guardQuery.mock.calls).toEqual([
+                    ['SELECT id, label FROM people', expect.any(AbortSignal)],
+                    [expectedSql, expect.any(AbortSignal)],
+                ]);
                 const target = savedCell('target');
                 expect(target).toMatchObject({
                     result: queryResult,
@@ -569,10 +667,10 @@ describe('NotebookView', () => {
                     },
                     previousEntry,
                 ]);
-                expect(savedCell('source').history).toBeUndefined();
+                expect(savedCell('source').history).toHaveLength(1);
                 expect(screen.getByTestId('cell-target')).toHaveAttribute('data-loading', 'false');
                 expect(explainFor('target')).toEqual(prepared);
-                // The exact single invocation above also excludes EXPLAIN and batch execution.
+                // The exact calls also exclude EXPLAIN and duplicate prerequisite execution.
             },
         );
 
@@ -695,6 +793,1005 @@ describe('NotebookView', () => {
         );
     });
 
+    describe('shared execution plans', () => {
+        it.each(['mariadb', 'unidentified-driver'] as const)(
+            'does not dispatch an unrelated cell marked only by a hash comment on %s',
+            async (driver) => {
+                fixtures.database.activeDriver = driver;
+                fixtures.database.activeCapabilities = {identifier_quote: '`'};
+                const source = 'SELECT 1';
+                renderNotebook({
+                    cells: [
+                        sqlCell('source', source),
+                        sqlCell('unrelated', 'SELECT NEXT VALUE FOR audit_seq AS n # {{cell_1}}'),
+                        sqlCell('consumer', 'SELECT * FROM {{cell_1}}'),
+                    ],
+                });
+                const quote = '`';
+                const consumer = `WITH cell_1 AS (\n  SELECT 7 AS ${quote}id${quote}\n  UNION ALL\n  SELECT 8 AS ${quote}id${quote}\n)\nSELECT * FROM cell_1`;
+                await click('Run affected source');
+                expect(mockInvoke.mock.calls).toEqual([requestSql(source), requestSql(consumer)]);
+                expect(fixtures.guardQuery.mock.calls).toEqual([
+                    [source, expect.any(AbortSignal)],
+                    [consumer, expect.any(AbortSignal)],
+                ]);
+            },
+        );
+
+        it.each(["'''don't bind {{cell_1}}'''", '"""a "quoted {{cell_1}}" value"""'])(
+            'keeps an ambiguous triple-quoted literal out of affected runs without a dialect: %s',
+            async (literal) => {
+                fixtures.database.activeDriver = 'unidentified-driver';
+                fixtures.database.activeCapabilities = {identifier_quote: '`'};
+                const sql = `SELECT ${literal} AS note`;
+                renderNotebook({
+                    cells: [
+                        sqlCell('source', 'SELECT 1'),
+                        sqlCell('literal', sql),
+                        sqlCell('consumer', 'SELECT * FROM {{cell_1}}'),
+                    ],
+                });
+                await click('Run affected source');
+                expect(mockInvoke.mock.calls).toEqual([
+                    requestSql('SELECT 1'),
+                    requestSql(expect.stringMatching(/SELECT \* FROM cell_1$/)),
+                ]);
+                mockInvoke.mockClear();
+                await click('Run literal');
+                expect(mockInvoke.mock.calls).toEqual([requestSql(sql)]);
+            },
+        );
+
+        it('uses a declared dialect instead of the legacy fallback to parse real edges', async () => {
+            fixtures.database.activeDriver = 'mariadb';
+            fixtures.database.activeCapabilities = {sql_dialect: 'postgres', identifier_quote: '"'};
+            renderNotebook({
+                cells: [
+                    sqlCell('source', 'SELECT 1'),
+                    sqlCell('use', 'SELECT 3 # id FROM {{cell_1}}'),
+                ],
+            });
+            await click('Run affected source');
+            expect(mockInvoke.mock.calls).toEqual([
+                requestSql('SELECT 1'),
+                requestSql(
+                    'WITH cell_1 AS (\n  SELECT 7 AS "id"\n  UNION ALL\n  SELECT 8 AS "id"\n)\nSELECT 3 # id FROM cell_1',
+                ),
+            ]);
+        });
+
+        it('ignores comment-only consumers and keeps reference-like literals unchanged on dispatch', async () => {
+            const literal = "SELECT '{{cell_1}}'";
+            const line = 'SELECT 1 -- {{cell_8}}';
+            const block = 'SELECT 2 /* {{cell_1}} */';
+            renderNotebook({
+                cells: [
+                    sqlCell('literal', literal),
+                    sqlCell('line', line),
+                    sqlCell('block', block, {schema: 'other_schema'}),
+                ],
+            });
+            await click('Run affected literal');
+            expect(mockInvoke.mock.calls).toEqual([requestSql(literal)]);
+            await click('Run line');
+            await click('Run block');
+            expect(mockInvoke.mock.calls).toEqual([
+                requestSql(literal),
+                requestSql(line),
+                requestSql(block, 'other_schema'),
+            ]);
+            expect(fixtures.guardQuery.mock.calls).toEqual(
+                [literal, line, block].map((sql) => [sql, expect.any(AbortSignal)]),
+            );
+        });
+
+        it('refreshes a migrated output with no execution provenance before consuming it', async () => {
+            renderNotebook({
+                cells: [
+                    sqlCell('old', 'SELECT 999 AS id', {
+                        result: sourceResult,
+                        schema: 'source_schema',
+                    }),
+                    sqlCell('use', 'SELECT * FROM {{cell_1}}', {schema: 'consumer_schema'}),
+                ],
+            });
+            mockInvoke.mockResolvedValueOnce({columns: ['id'], rows: [[999]], affected_rows: 0});
+            await click('Run use');
+            expect(mockInvoke.mock.calls).toEqual([
+                requestSql('SELECT 999 AS id', 'source_schema'),
+                requestSql(
+                    'WITH cell_1 AS (\n  SELECT 999 AS "id"\n)\nSELECT * FROM cell_1',
+                    'consumer_schema',
+                ),
+            ]);
+        });
+
+        it('refetches the full prerequisite page when the effective row limit changes', async () => {
+            const source = 'SELECT id FROM people';
+            const consume = 'SELECT COUNT(*) AS n FROM {{cell_1}}';
+            const rows = Array.from({length: 412}, (_, index) => [index + 1]);
+            const cte = `WITH cell_1 AS (\n  ${rows.map(([id]) => `SELECT ${id} AS "id"`).join('\n  UNION ALL\n  ')}\n)\nSELECT COUNT(*) AS n FROM cell_1`;
+            mockInvoke.mockImplementation(async (_command, request) => {
+                if (request?.query === source) {
+                    return {
+                        columns: ['id'],
+                        rows: rows.slice(0, Number(request.limit)),
+                        affected_rows: 0,
+                    };
+                }
+                return {
+                    columns: ['n'],
+                    rows: [[String(request?.query).match(/SELECT \d+ AS "id"/g)?.length ?? 0]],
+                    affected_rows: 0,
+                };
+            });
+            const view = renderNotebook({
+                cells: [
+                    sqlCell('source', source, {schema: 'source_schema'}),
+                    sqlCell('use', consume),
+                ],
+            });
+            await click('Run source');
+            expect(savedCell('source').result?.rows).toHaveLength(37);
+            fixtures.settings.resultPageSize = 500;
+            view.rerender(notebookView());
+            await click('Run use');
+            expect(mockInvoke.mock.calls).toEqual([
+                requestSql(source, 'source_schema', 37),
+                requestSql(source, 'source_schema', 500),
+                requestSql(cte, 'tab_schema', 500),
+            ]);
+            expect(savedCell('use').result?.rows).toEqual([[412]]);
+        });
+
+        it('runs the affected branch and a missing input without touching a cached input or unrelated SQL', async () => {
+            renderNotebook({
+                cells: [
+                    sqlCell('source', 'SELECT 101', {result: sourceResult}),
+                    sqlCell('branch', 'SELECT * FROM {{cell_1}} JOIN {{cell_4}} ON 1=1'),
+                    sqlCell('downstream', 'SELECT * FROM {{cell_2}} JOIN {{cell_5}} ON 1=1'),
+                    sqlCell('missing', 'SELECT 404'),
+                    sqlCell('cached', 'SELECT 505'),
+                    sqlCell('unrelated', 'SELECT 606'),
+                ],
+            });
+            await click('Run cached');
+            expect(mockInvoke.mock.calls).toEqual([requestSql('SELECT 505')]);
+            mockInvoke.mockClear();
+            await click('Run affected source');
+            expect(mockInvoke.mock.calls.map(([, args]) => args?.query)).toEqual([
+                'SELECT 101',
+                'SELECT 404',
+                expect.stringContaining('SELECT * FROM cell_1 JOIN cell_4 ON 1=1'),
+                expect.stringContaining('SELECT * FROM cell_2 JOIN cell_5 ON 1=1'),
+            ]);
+            expect(summary()).toMatchObject({
+                mode: 'affected',
+                total: 4,
+                succeeded: 4,
+                executed: 4,
+            });
+            expect(savedCell('cached').history).toHaveLength(1);
+            expect(savedCell('unrelated').result).toBeUndefined();
+        });
+
+        it('refreshes a cached prerequisite for a different connection or fallback schema', async () => {
+            const source = 'SELECT 7 AS id';
+            const consume = 'WITH cell_1 AS (\n  SELECT 7 AS "id"\n)\nSELECT * FROM cell_1';
+            mockInvoke.mockResolvedValue({columns: ['id'], rows: [[7]], affected_rows: 0});
+            const view = renderNotebook({
+                cells: [sqlCell('source', source), sqlCell('use', 'SELECT * FROM {{cell_1}}')],
+            });
+            await click('Run source');
+            view.rerender(notebookView({connectionId: 'new-connection'}));
+            await click('Run use');
+            view.rerender(notebookView({connectionId: 'new-connection', schema: 'new_schema'}));
+            await click('Run use');
+            expect(mockInvoke.mock.calls).toEqual([
+                requestSql(source),
+                requestSql(source, 'tab_schema', 37, 'new-connection'),
+                requestSql(consume, 'tab_schema', 37, 'new-connection'),
+                requestSql(source, 'new_schema', 37, 'new-connection'),
+                requestSql(consume, 'new_schema', 37, 'new-connection'),
+            ]);
+        });
+
+        it('blocks a consumer when a positional reference moves during its guard', async () => {
+            const source = 'SELECT 7 AS id';
+            const consume = 'WITH cell_1 AS (\n  SELECT 7 AS "id"\n)\nSELECT * FROM cell_1';
+            mockInvoke.mockResolvedValueOnce({columns: ['id'], rows: [[7]], affected_rows: 0});
+            renderNotebook({
+                cells: [
+                    sqlCell('source', source),
+                    sqlCell('other', 'SELECT 99 AS id'),
+                    sqlCell('use', 'SELECT * FROM {{cell_1}}'),
+                ],
+            });
+            await click('Run source');
+            const pending = Promise.withResolvers<boolean>();
+            fixtures.guardQuery.mockReturnValueOnce(pending.promise);
+            await click('Run use');
+            expect(fixtures.guardQuery).toHaveBeenLastCalledWith(consume, expect.any(AbortSignal));
+            await click('Move down source');
+            await act(async () => pending.resolve(true));
+            expect(mockInvoke.mock.calls).toEqual([requestSql(source)]);
+            expect(summary()).toMatchObject({
+                executed: 0,
+                blockedCells: [{cellId: 'use', prerequisite: {cellId: 'source'}}],
+            });
+        });
+
+        it('refreshes a previously run prerequisite whose SQL was edited', async () => {
+            renderNotebook({
+                cells: [
+                    sqlCell('source', 'SELECT 101'),
+                    sqlCell('lookup', 'SELECT 202'),
+                    sqlCell('use', 'SELECT * FROM {{cell_1}} JOIN {{cell_2}} ON 1=1'),
+                ],
+            });
+            await click('Run lookup');
+            fireEvent.change(screen.getByRole('textbox', {name: 'SQL lookup'}), {
+                target: {value: 'SELECT 222'},
+            });
+            await click('Run affected source');
+            expect(mockInvoke.mock.calls.map(([, args]) => args?.query)).toEqual([
+                'SELECT 202',
+                'SELECT 101',
+                'SELECT 222',
+                expect.stringContaining('SELECT * FROM cell_1 JOIN cell_2 ON 1=1'),
+            ]);
+        });
+
+        it.each([
+            [
+                'self',
+                ['SELECT * FROM {{cell_2}}'],
+                'editor.notebook.execution.self editor.notebook.execution.cell 2',
+            ],
+            [
+                'cycle',
+                ['SELECT * FROM {{cell_3}}', 'SELECT * FROM {{cell_2}}'],
+                'editor.notebook.execution.cycle editor.notebook.execution.cell 2 → editor.notebook.execution.cell 3 → editor.notebook.execution.cell 2',
+            ],
+            [
+                'missing',
+                ['SELECT * FROM {{cell_9}}'],
+                'editor.notebook.execution.missing editor.notebook.execution.cell 2 {{cell_9}}',
+            ],
+            [
+                'Markdown target',
+                ['SELECT * FROM {{cell_3}}'],
+                'editor.notebook.execution.missing editor.notebook.execution.cell 2 {{cell_3}}',
+            ],
+        ])(
+            'aborts the whole Run All with a %s diagnostic before guarding or sending any SQL',
+            async (_name, sources, diagnostic) => {
+                renderNotebook({
+                    cells: [
+                        sqlCell('independent', 'SELECT 1'),
+                        ...sources.map((content, i) =>
+                            sqlCell(`sql-${i}`, content, {result: sourceResult}),
+                        ),
+                        {id: 'notes', type: 'markdown', content: '# Not a query'},
+                    ],
+                });
+                await click('Run All');
+                expect(mockInvoke).not.toHaveBeenCalled();
+                expect(fixtures.guardQuery).not.toHaveBeenCalled();
+                expect(summary().preflightErrors).toEqual([diagnostic]);
+            },
+        );
+
+        it('reports a downstream cycle on Run affected before attempting the source query', async () => {
+            renderNotebook({
+                cells: [
+                    sqlCell('source', 'SELECT 1'),
+                    sqlCell('first', 'SELECT * FROM {{cell_1}} JOIN {{cell_3}} ON 1=1'),
+                    sqlCell('second', 'SELECT * FROM {{cell_2}}'),
+                ],
+            });
+            await click('Run affected source');
+            expect(fixtures.guardQuery).not.toHaveBeenCalled();
+            expect(mockInvoke).not.toHaveBeenCalled();
+            expect(summary().preflightErrors[0]).toContain('editor.notebook.execution.cycle');
+        });
+
+        it('blocks the entire downstream branch when a prerequisite with cached output is denied', async () => {
+            fixtures.guardQuery.mockResolvedValueOnce(false);
+            renderNotebook({
+                cells: [
+                    sqlCell('source', 'DELETE FROM t', {result: sourceResult}),
+                    sqlCell('first', 'SELECT * FROM {{cell_1}}', {result: sourceResult}),
+                    sqlCell('second', 'SELECT * FROM {{cell_2}}'),
+                ],
+            });
+            await click('Run affected source');
+            expect(fixtures.guardQuery).toHaveBeenCalledExactlyOnceWith(
+                'DELETE FROM t',
+                expect.any(AbortSignal),
+            );
+            expect(mockInvoke).not.toHaveBeenCalled();
+            expect(savedCell('source').result).toEqual(sourceResult);
+            expect(summary()).toMatchObject({
+                total: 3,
+                failed: 1,
+                blocked: 2,
+                executed: 0,
+                errors: [{cellId: 'source', error: 'editor.notebook.execution.guardDenied'}],
+            });
+        });
+
+        it('locks across entry points during confirmation and while a SQL call is in flight', async () => {
+            const guard = Promise.withResolvers<boolean>();
+            const rpc = Promise.withResolvers<QueryResult>();
+            fixtures.guardQuery.mockReturnValueOnce(guard.promise);
+            mockInvoke.mockReturnValueOnce(rpc.promise);
+            renderNotebook({
+                cells: [sqlCell('source', 'SELECT 1'), sqlCell('use', 'SELECT * FROM {{cell_1}}')],
+            });
+
+            await click('Run affected source');
+            expect(screen.getByRole('button', {name: 'Run All'})).toBeDisabled();
+            await click('Run use');
+            fixtures.matchesShortcut.mockReturnValue(true);
+            fireEvent.keyDown(window, {key: 'Enter', ctrlKey: true, shiftKey: true});
+            expect(fixtures.showAlert).toHaveBeenCalledTimes(2);
+            expect(fixtures.showAlert).toHaveBeenLastCalledWith('editor.notebook.execution.busy', {
+                kind: 'info',
+            });
+            await act(async () => guard.resolve(true));
+
+            await click('Run source');
+            expect(fixtures.showAlert).toHaveBeenCalledTimes(3);
+            expect(mockInvoke).toHaveBeenCalledTimes(1);
+            await act(async () => rpc.resolve(queryResult));
+
+            expect(mockInvoke).toHaveBeenCalledTimes(2);
+            expect(summary()).toMatchObject({succeeded: 2});
+            await click('Run All');
+            expect(mockInvoke).toHaveBeenCalledTimes(4);
+        });
+
+        it('settles an in-flight write into the remounted notebook and never repeats it for a consumer', async () => {
+            const rpc = Promise.withResolvers<QueryResult>();
+            const insert = 'INSERT INTO audit(id) VALUES (7) RETURNING id';
+            const consume = 'WITH cell_1 AS (\n  SELECT 7 AS "id"\n)\nSELECT * FROM cell_1';
+            mockInvoke.mockReturnValueOnce(rpc.promise);
+            const initial = renderNotebook({
+                cells: [
+                    sqlCell('source', insert, {schema: 'audit_schema'}),
+                    sqlCell('use', 'SELECT * FROM {{cell_1}}'),
+                ],
+            });
+            await click('Run source');
+            initial.unmount();
+            renderNotebook();
+            await click('Run use');
+            expect(mockInvoke.mock.calls).toEqual([requestSql(insert, 'audit_schema')]);
+            expect(fixtures.showAlert).toHaveBeenCalledWith('editor.notebook.execution.busy', {
+                kind: 'info',
+            });
+
+            await act(async () => rpc.resolve({columns: ['id'], rows: [[7]], affected_rows: 1}));
+            expect(savedCell('source')).toMatchObject({
+                isLoading: false,
+                history: [{query: insert}],
+            });
+            expect(screen.getByTestId('cell-source')).toHaveAttribute('data-loading', 'false');
+            await click('Run use');
+            expect(mockInvoke.mock.calls).toEqual([
+                requestSql(insert, 'audit_schema'),
+                requestSql(consume),
+            ]);
+            expect(summary()).toMatchObject({total: 1, succeeded: 1});
+        });
+
+        it('blocks automatic retry when a sent write result cannot attach to its original input', async () => {
+            const rpc = Promise.withResolvers<QueryResult>();
+            const insert = 'INSERT INTO audit(id) VALUES (7) RETURNING id';
+            mockInvoke.mockReturnValueOnce(rpc.promise);
+            renderNotebook({
+                cells: [sqlCell('write', insert), sqlCell('use', 'SELECT * FROM {{cell_1}}')],
+            });
+            await click('Run affected write');
+            fireEvent.change(screen.getByRole('textbox', {name: 'SQL write'}), {
+                target: {value: 'INSERT INTO audit(id) VALUES (8) RETURNING id'},
+            });
+            await act(async () => rpc.resolve(queryResult));
+            expect(savedCell('write')).toMatchObject({isLoading: false, result: null});
+            expect(summary()).toMatchObject({
+                executed: 1,
+                succeeded: 0,
+                skipped: 1,
+                blocked: 1,
+                changedCells: [{cellId: 'write'}],
+                blockedCells: [{cellId: 'use', prerequisite: {cellId: 'write'}}],
+            });
+            expect(mockInvoke.mock.calls).toEqual([requestSql(insert)]);
+
+            await click('Undo');
+            await click('Run use');
+            expect(mockInvoke.mock.calls).toEqual([requestSql(insert)]);
+            expect(fixtures.guardQuery).toHaveBeenCalledExactlyOnceWith(
+                insert,
+                expect.any(AbortSignal),
+            );
+            expect(summary()).toMatchObject({
+                executed: 0,
+                blocked: 1,
+                errors: [{cellId: 'write', error: 'editor.notebook.execution.unconfirmedWrite'}],
+            });
+
+            await click('Run write');
+            expect(mockInvoke.mock.calls).toEqual([requestSql(insert), requestSql(insert)]);
+        });
+
+        it.each([
+            {suffix: '', loseIds: false},
+            {suffix: ' /* note */', loseIds: false},
+            {suffix: ' /* note */', loseIds: true},
+        ])(
+            'does not replay an in-flight write after eviction and reload (edit: $suffix, lost IDs: $loseIds)',
+            async ({suffix, loseIds}) => {
+                const store =
+                    await vi.importActual<typeof import('@/utils/notebookStore')>(
+                        '@/utils/notebookStore',
+                    );
+                const rpc = Promise.withResolvers<QueryResult>();
+                const insert = 'INSERT INTO audit(id) VALUES (7) RETURNING id';
+                const consume =
+                    'WITH cell_1 AS (\n  SELECT 7 AS "id"\n  UNION ALL\n  SELECT 8 AS "id"\n)\nSELECT * FROM cell_1';
+                let file = JSON.stringify({
+                    version: 2,
+                    title: 'Legacy notebook',
+                    cells: [
+                        {type: 'sql', content: insert},
+                        {type: 'sql', content: 'SELECT * FROM {{cell_1}}'},
+                    ],
+                });
+                let writeCount = 0;
+                mockInvoke.mockImplementation(async (command, args) => {
+                    if (command === 'load_notebook') return file;
+                    if (command === 'save_notebook') {
+                        file = String(args?.content);
+                        return;
+                    }
+                    if (args?.query === insert || (suffix && args?.query === insert + suffix)) {
+                        writeCount++;
+                        if (writeCount === 1) return rpc.promise;
+                    }
+                    return queryResult;
+                });
+                const {cells} = await store.loadNotebook(
+                    notebookId,
+                    connectionId,
+                    tauriBackedClient,
+                );
+                const [write, use] = cells;
+                const view = renderNotebook();
+                await click(`Run ${write.id}`);
+                if (suffix) {
+                    fireEvent.change(screen.getByRole('textbox', {name: `SQL ${write.id}`}), {
+                        target: {value: insert + suffix},
+                    });
+                }
+                view.unmount();
+                await evictFromCache(notebookId);
+                expect(getNotebookState(notebookId)).toBeUndefined();
+                if (loseIds) {
+                    const saved = JSON.parse(file) as {cells: Array<{id?: string}>};
+                    for (const cell of saved.cells) delete cell.id;
+                    file = JSON.stringify(saved);
+                }
+                vi.mocked(loadNotebook).mockImplementationOnce(store.loadNotebook);
+                renderNotebook();
+                await waitFor(() => expect(getNotebookState(notebookId)).toBeDefined());
+                const [reloadedWrite, reloadedUse] = getNotebookState(notebookId)!.cells;
+                if (loseIds) expect(reloadedWrite.id).not.toBe(write.id);
+                else expect([reloadedWrite.id, reloadedUse.id]).toEqual([write.id, use.id]);
+                expect(reloadedWrite).toMatchObject({content: insert + suffix, result: null});
+
+                await act(async () => rpc.resolve(queryResult));
+                await click(`Run ${reloadedUse.id}`);
+                const sqlCalls = () =>
+                    mockInvoke.mock.calls.filter(([command]) => command === 'execute_query');
+                expect(writeCount).toBe(1);
+                if (suffix) {
+                    expect(sqlCalls()).toEqual([requestSql(insert)]);
+                    expect(summary()).toMatchObject({
+                        executed: 0,
+                        blocked: 1,
+                        errors: [
+                            {
+                                cellId: reloadedWrite.id,
+                                error: 'editor.notebook.execution.unconfirmedWrite',
+                            },
+                        ],
+                    });
+                    expect(fixtures.guardQuery).toHaveBeenCalledExactlyOnceWith(
+                        insert,
+                        expect.any(AbortSignal),
+                    );
+
+                    await click(`Run ${reloadedWrite.id}`);
+                    await click(`Run ${reloadedUse.id}`);
+                    expect(sqlCalls()).toEqual([
+                        requestSql(insert),
+                        requestSql(insert + suffix),
+                        requestSql(consume),
+                    ]);
+                    expect(writeCount).toBe(2);
+                } else {
+                    expect(sqlCalls()).toEqual([requestSql(insert), requestSql(consume)]);
+                }
+            },
+        );
+
+        it('requires an explicit retry after losing the reply to an Oracle sequence query', async () => {
+            fixtures.database.activeCapabilities = {sql_dialect: 'oracle'};
+            const sql = 'SELECT audit_seq.NEXTVAL FROM dual';
+            renderNotebook({
+                cells: [sqlCell('source', sql), sqlCell('use', 'SELECT * FROM {{cell_1}}')],
+            });
+            mockInvoke.mockRejectedValueOnce(new Error('reply lost'));
+            await click('Run source');
+            await click('Run use');
+            expect(mockInvoke.mock.calls).toEqual([requestSql(sql)]);
+            expect(summary()).toMatchObject({
+                executed: 0,
+                blocked: 1,
+                errors: [{cellId: 'source', error: 'editor.notebook.execution.unconfirmedWrite'}],
+            });
+
+            await click('Run source');
+            await click('Run use');
+            expect(mockInvoke.mock.calls.map(([, args]) => args?.query)).toEqual([
+                sql,
+                sql,
+                expect.stringContaining('SELECT * FROM cell_1'),
+            ]);
+        });
+
+        it.each(['Run All', 'Run affected source', 'Run use'])(
+            'lets %s proceed after explicitly deleting a cell with a lost write reply',
+            async (action) => {
+                const insert = 'INSERT INTO audit VALUES (7)';
+                const source = 'SELECT id FROM source_table';
+                renderNotebook({
+                    cells: [
+                        sqlCell('source', source),
+                        sqlCell('use', 'SELECT * FROM {{cell_1}}'),
+                        sqlCell('write', insert),
+                    ],
+                });
+                mockInvoke.mockRejectedValueOnce(new Error('reply lost'));
+                await click('Run write');
+                await click('Delete write');
+                await click(action);
+
+                expect(mockInvoke.mock.calls).toEqual([
+                    requestSql(insert),
+                    requestSql(source),
+                    requestSql(
+                        'WITH cell_1 AS (\n  SELECT 7 AS "id"\n  UNION ALL\n  SELECT 8 AS "id"\n)\nSELECT * FROM cell_1',
+                    ),
+                ]);
+                expect(summary()).toMatchObject({executed: 2, succeeded: 2, failed: 0});
+            },
+        );
+
+        it('protects a lost write restored by Undo without blocking other cells while deleted', async () => {
+            const insert = 'INSERT INTO audit VALUES (7) RETURNING id';
+            const other = 'SELECT id FROM source_table';
+            renderNotebook({
+                cells: [
+                    sqlCell('write', insert),
+                    sqlCell('other', other),
+                    sqlCell('use', 'SELECT * FROM {{cell_1}}', {isDisabled: true}),
+                ],
+            });
+            mockInvoke.mockRejectedValueOnce(new Error('reply lost'));
+            await click('Run write');
+            await click('Delete write');
+            await click('Run All');
+            expect(mockInvoke.mock.calls).toEqual([requestSql(insert), requestSql(other)]);
+            expect(summary()).toMatchObject({succeeded: 1, failed: 0});
+
+            await click('Undo');
+            expect(savedCell('write').content).toBe(insert);
+            await click('Toggle disabled use');
+            await click('Run All');
+            expect(mockInvoke.mock.calls).toEqual([
+                requestSql(insert),
+                requestSql(other),
+                requestSql(other),
+            ]);
+            expect(summary()).toMatchObject({
+                executed: 1,
+                blocked: 1,
+                errors: [{cellId: 'write', error: 'editor.notebook.execution.unconfirmedWrite'}],
+            });
+
+            await click('Run use');
+            expect(mockInvoke).toHaveBeenCalledTimes(3);
+            expect(summary()).toMatchObject({executed: 0, blocked: 1});
+        });
+
+        it.each(['connection', 'schema'] as const)(
+            'keeps a lost write protected after the same SQL succeeds on a different %s',
+            async (dimension) => {
+                const sql = 'INSERT INTO audit VALUES (7) RETURNING id';
+                const view = renderNotebook({cells: [sqlCell('write', sql)]});
+                mockInvoke.mockRejectedValueOnce(new Error('reply lost'));
+                await click('Run write');
+
+                const target =
+                    dimension === 'connection'
+                        ? {connectionId: 'other-connection'}
+                        : {schema: 'other_schema'};
+                view.rerender(notebookView(target));
+                await click('Run write');
+
+                view.rerender(notebookView());
+                await click('Run All');
+                expect(summary()).toMatchObject({
+                    executed: 0,
+                    errors: [
+                        {cellId: 'write', error: 'editor.notebook.execution.unconfirmedWrite'},
+                    ],
+                });
+                expect(mockInvoke.mock.calls).toEqual([
+                    requestSql(sql),
+                    requestSql(sql, target.schema, 37, target.connectionId),
+                ]);
+            },
+        );
+
+        it('keeps a lost write protected after a different write succeeds and is undone', async () => {
+            const insert = (id: number) => `INSERT INTO audit VALUES (${id}) RETURNING id`;
+            renderNotebook({
+                cells: [sqlCell('write', insert(7)), sqlCell('use', 'SELECT * FROM {{cell_1}}')],
+            });
+            mockInvoke.mockRejectedValueOnce(new Error('reply lost'));
+            await click('Run write');
+            fireEvent.change(screen.getByRole('textbox', {name: 'SQL write'}), {
+                target: {value: insert(8)},
+            });
+            await click('Run write');
+            expect(savedCell('write').result).toEqual(queryResult);
+
+            await click('Undo');
+            expect(savedCell('write').content).toBe(insert(7));
+            for (const action of ['Run use', 'Run All']) {
+                await click(action);
+                expect(summary()).toMatchObject({
+                    executed: 0,
+                    blocked: 1,
+                    errors: [
+                        {cellId: 'write', error: 'editor.notebook.execution.unconfirmedWrite'},
+                    ],
+                });
+                expect(mockInvoke.mock.calls).toEqual([
+                    requestSql(insert(7)),
+                    requestSql(insert(8)),
+                ]);
+            }
+        });
+
+        it('keeps a verified output reusable after cancelling a rerun and blocks the current consumer', async () => {
+            const source = 'DELETE FROM audit RETURNING id';
+            const mocked = vi.mocked(useQueryGuards);
+            mocked.mockImplementation(useDangerousQueryGuardForTest);
+            try {
+                renderNotebook({
+                    cells: [sqlCell('source', source), sqlCell('use', 'SELECT * FROM {{cell_1}}')],
+                });
+                await click('Run source');
+                await click('editor.dangerousQueryConfirm');
+                const output = savedCell('source').result;
+                expect(output).toEqual(queryResult);
+
+                await click('Run affected source');
+                expect(within(screen.getByRole('dialog')).getByText(source)).toBeInTheDocument();
+                await click('common.cancel');
+                expect(savedCell('source').result).toBe(output);
+                expect(savedCell('source').error).toBeUndefined();
+                expect(mockInvoke.mock.calls).toEqual([requestSql(source)]);
+                expect(summary()).toMatchObject({
+                    executed: 0,
+                    blocked: 1,
+                    errors: [{cellId: 'source', error: 'editor.notebook.execution.guardDenied'}],
+                });
+
+                await click('Run use');
+                expect(mockInvoke.mock.calls).toEqual([
+                    requestSql(source),
+                    requestSql(
+                        'WITH cell_1 AS (\n  SELECT 7 AS "id"\n  UNION ALL\n  SELECT 8 AS "id"\n)\nSELECT * FROM cell_1',
+                    ),
+                ]);
+            } finally {
+                mocked.mockReset();
+            }
+        });
+
+        it('can automatically retry a known constant read after a lost reply', async () => {
+            fixtures.database.activeCapabilities = {sql_dialect: 'sqlite'};
+            renderNotebook({
+                cells: [
+                    sqlCell('source', 'SELECT 7 AS id'),
+                    sqlCell('use', 'SELECT * FROM {{cell_1}}'),
+                ],
+            });
+            mockInvoke.mockRejectedValueOnce(new Error('reply lost'));
+            await click('Run source');
+            await click('Run use');
+            expect(mockInvoke.mock.calls.map(([, args]) => args?.query)).toEqual([
+                'SELECT 7 AS id',
+                'SELECT 7 AS id',
+                expect.stringContaining('SELECT * FROM cell_1'),
+            ]);
+        });
+
+        it.each([true, false])(
+            'drops a closed notebook production prompt (was active: %s) without affecting the surviving owner',
+            async (active) => {
+                const real =
+                    await vi.importActual<typeof import('@/hooks/useQueryGuards')>(
+                        '@/hooks/useQueryGuards',
+                    );
+                const mocked = vi.mocked(useQueryGuards);
+                mocked.mockImplementation(real.useQueryGuards);
+                fixtures.database.connections = [
+                    {
+                        id: connectionId,
+                        name: 'Production',
+                        params: {driver: 'postgres', database: 'prod'},
+                        environment: 'production',
+                    },
+                ];
+                const discarded = 'DELETE FROM abandoned';
+                const surviving = 'DELETE FROM surviving';
+                function Peer() {
+                    const request = useContext(ProductionGuardContext);
+                    return (
+                        <button
+                            onClick={async () => {
+                                if (await request?.(connectionId, 'Production', surviving)) {
+                                    await invoke('execute_query', {
+                                        connectionId,
+                                        query: surviving,
+                                        schema: 'tab_schema',
+                                        limit: 37,
+                                        page: 1,
+                                    });
+                                }
+                            }}
+                        >
+                            Queue peer
+                        </button>
+                    );
+                }
+
+                setNotebookState(notebookId, {cells: [sqlCell('discarded', discarded)]});
+                const tree = (open: boolean) => (
+                    <ProductionGuardProvider>
+                        <Peer />
+                        {open && notebookView()}
+                    </ProductionGuardProvider>
+                );
+                try {
+                    const view = render(tree(true));
+                    if (active) {
+                        await click('Run discarded');
+                        expect(screen.getByText(discarded, {selector: 'pre'})).toBeInTheDocument();
+                        fireEvent.click(
+                            screen.getByRole('checkbox', {name: 'environment.warnSnooze'}),
+                        );
+                        await click('Queue peer');
+                    } else {
+                        await click('Queue peer');
+                        await click('Run discarded');
+                        expect(screen.getByText(surviving)).toBeInTheDocument();
+                    }
+                    expect(mockInvoke).not.toHaveBeenCalled();
+                    view.rerender(tree(false));
+                    await settle();
+                    expect(screen.queryByText(discarded)).not.toBeInTheDocument();
+                    expect(screen.getByText(surviving)).toBeInTheDocument();
+                    expect(
+                        screen.getByRole('checkbox', {name: 'environment.warnSnooze'}),
+                    ).not.toBeChecked();
+                    await click('environment.warnConfirm');
+                    expect(snoozedConnectionIds.has(connectionId)).toBe(false);
+                    expect(
+                        screen.queryByRole('button', {name: 'environment.warnConfirm'}),
+                    ).not.toBeInTheDocument();
+                    expect(mockInvoke.mock.calls).toEqual([requestSql(surviving)]);
+                } finally {
+                    mocked.mockReset();
+                }
+            },
+        );
+
+        it('opens a cached document without reviving its stale spinner', () => {
+            renderNotebook({
+                cells: [sqlCell('idle', 'SELECT 7', {result: queryResult, isLoading: true})],
+            });
+            expect(screen.getByTestId('cell-idle')).toHaveAttribute('data-loading', 'false');
+            expect(savedCell('idle')).toMatchObject({isLoading: false, result: queryResult});
+            expect(screen.getByRole('button', {name: 'Clear outputs'})).toBeEnabled();
+            expect(mockInvoke).not.toHaveBeenCalled();
+        });
+
+        it('restores document edits with the latest runtime output through undo and redo', async () => {
+            const guard = Promise.withResolvers<boolean>();
+            fixtures.guardQuery.mockReturnValueOnce(guard.promise);
+            renderNotebook({
+                cells: [sqlCell('running', 'SELECT 7'), sqlCell('edited', 'SELECT 1')],
+            });
+            await click('Run running');
+            expect(savedCell('running').isLoading).toBe(true);
+            fireEvent.change(screen.getByRole('textbox', {name: 'SQL edited'}), {
+                target: {value: 'SELECT 2'},
+            });
+            await act(async () => guard.resolve(true));
+
+            await click('Undo');
+            expect(savedCell('edited').content).toBe('SELECT 1');
+            expect(savedCell('running')).toMatchObject({
+                isLoading: false,
+                result: queryResult,
+                history: [{query: 'SELECT 7'}],
+            });
+            expect(screen.getByTestId('cell-running')).toHaveAttribute('data-loading', 'false');
+            expect(screen.getByRole('button', {name: 'Clear outputs'})).toBeEnabled();
+            await click('Redo');
+            expect(savedCell('edited').content).toBe('SELECT 2');
+            expect(savedCell('running')).toMatchObject({
+                isLoading: false,
+                result: queryResult,
+                history: [{query: 'SELECT 7'}],
+            });
+            expect(mockInvoke.mock.calls).toEqual([requestSql('SELECT 7')]);
+        });
+
+        it('runs an imported notebook while the old RPC is still in flight', async () => {
+            const oldQuery = 'SELECT id FROM old_table';
+            const newQuery = 'SELECT id FROM new_table';
+            const oldRpc = Promise.withResolvers<QueryResult>();
+            const newRpc = Promise.withResolvers<QueryResult>();
+            mockInvoke.mockImplementation(async (command, args) => {
+                if (command === 'execute_query') {
+                    return args?.query === oldQuery ? oldRpc.promise : newRpc.promise;
+                }
+            });
+            vi.mocked(open).mockResolvedValueOnce('/tmp/imported.tabularis-notebook');
+            vi.mocked(readFile).mockResolvedValueOnce(
+                new TextEncoder().encode(
+                    JSON.stringify({
+                        version: 2,
+                        title: 'Imported',
+                        cells: [sqlCell('new', newQuery)],
+                    }),
+                ),
+            );
+            setNotebookState(notebookId, {cells: [sqlCell('old', oldQuery)]});
+            const updateTab = vi.fn<(id: string, partial: Partial<Tab>) => void>();
+            const view = render(notebookView({}, updateTab));
+
+            try {
+                await click('Run old');
+                await click('Import');
+                const imported = updateTab.mock.calls.find(([, patch]) => patch.notebookId)?.[1];
+                const importedId = imported?.notebookId;
+                expect(importedId).toBeDefined();
+                view.rerender(notebookView(imported, updateTab));
+                const newCell = getNotebookState(importedId!)!.cells[0];
+                const rpcCalls = () =>
+                    mockInvoke.mock.calls.filter(([command]) => command === 'execute_query');
+
+                const runAll = screen.getByRole('button', {name: 'Run All'});
+                expect(runAll).toBeEnabled();
+                await click(`Run ${newCell.id}`);
+                expect(rpcCalls()).toEqual([requestSql(oldQuery), requestSql(newQuery)]);
+                expect(fixtures.showAlert).not.toHaveBeenCalledWith(
+                    'editor.notebook.execution.busy',
+                    {
+                        kind: 'info',
+                    },
+                );
+                expect(runAll).toBeDisabled();
+                expect(updateTab).toHaveBeenLastCalledWith('tab-1', {isLoading: true});
+
+                await act(async () => oldRpc.resolve(queryResult));
+                expect(savedCell('old').result).toEqual(queryResult);
+                expect(runAll).toBeDisabled();
+                expect(updateTab).toHaveBeenLastCalledWith('tab-1', {isLoading: true});
+                expect(screen.queryByTestId('run-all-summary')).not.toBeInTheDocument();
+
+                await act(async () => newRpc.resolve(queryResult));
+                expect(runAll).toBeEnabled();
+                expect(updateTab).toHaveBeenLastCalledWith('tab-1', {isLoading: false});
+                expect(summary()).toMatchObject({executed: 1, succeeded: 1});
+                expect(rpcCalls()).toEqual([requestSql(oldQuery), requestSql(newQuery)]);
+            } finally {
+                await act(async () => {
+                    oldRpc.resolve(queryResult);
+                    newRpc.resolve(queryResult);
+                });
+            }
+        });
+
+        it('releases a closed tab waiting for a confirmation without executing its SQL', async () => {
+            const guard = Promise.withResolvers<boolean>();
+            fixtures.guardQuery.mockReturnValueOnce(guard.promise);
+            const initial = renderNotebook({cells: [sqlCell('write', 'DELETE FROM t')]});
+            await click('Run write');
+            initial.unmount();
+            await settle();
+            renderNotebook();
+            await click('Run write');
+            expect(mockInvoke.mock.calls).toEqual([requestSql('DELETE FROM t')]);
+            await act(async () => guard.resolve(true));
+            expect(mockInvoke.mock.calls).toEqual([requestSql('DELETE FROM t')]);
+        });
+
+        it('flushes queued editor changes before planning and skips edits and removals made during a run', async () => {
+            const rpc = Promise.withResolvers<QueryResult>();
+            mockInvoke.mockReturnValueOnce(rpc.promise);
+            renderNotebook({
+                cells: [
+                    sqlCell('first', 'SELECT 1'),
+                    sqlCell('edited', 'SELECT 2'),
+                    sqlCell('deleted', 'SELECT 3'),
+                    sqlCell('use', 'SELECT * FROM {{cell_3}}'),
+                ],
+            });
+            const unregister = registerPendingEditorFlush(() => {
+                unregister();
+                fireEvent.change(screen.getByRole('textbox', {name: 'SQL first'}), {
+                    target: {value: 'SELECT 11'},
+                });
+            });
+            try {
+                await click('Run All');
+            } finally {
+                unregister();
+            }
+            expect(mockInvoke.mock.calls.map(([, args]) => args?.query)).toEqual(['SELECT 11']);
+            fireEvent.change(screen.getByRole('textbox', {name: 'SQL edited'}), {
+                target: {value: 'SELECT 22'},
+            });
+            await click('Delete deleted');
+            await act(async () => rpc.resolve(queryResult));
+            expect(mockInvoke).toHaveBeenCalledTimes(1);
+            expect(summary()).toMatchObject({
+                total: 4,
+                succeeded: 1,
+                skipped: 2,
+                blocked: 1,
+                changedCells: [{cellId: 'edited'}, {cellId: 'deleted'}],
+                blockedCells: [{cellId: 'use', prerequisite: {cellId: 'deleted'}}],
+            });
+            expect(savedCell('edited').content).toBe('SELECT 22');
+        });
+
+        it('does not dispatch edited SQL after a dangerous query is confirmed', async () => {
+            const guard = Promise.withResolvers<boolean>();
+            fixtures.guardQuery.mockReturnValueOnce(guard.promise);
+            renderNotebook({cells: [sqlCell('write', 'DELETE FROM t')]});
+            await click('Run write');
+            fireEvent.change(screen.getByRole('textbox', {name: 'SQL write'}), {
+                target: {value: 'DROP TABLE t'},
+            });
+            await act(async () => guard.resolve(true));
+            expect(mockInvoke).not.toHaveBeenCalled();
+            expect(savedCell('write')).toMatchObject({content: 'DROP TABLE t', isLoading: false});
+            expect(summary()).toMatchObject({skipped: 1, changedCells: [{cellId: 'write'}]});
+        });
+    });
+
     describe('Clear all outputs', () => {
         const clearLabel = 'editor.notebook.clearOutputs';
         const historyEntry = {
@@ -765,7 +1862,7 @@ describe('NotebookView', () => {
 
             expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
             expect(setNotebookState).toHaveBeenCalledTimes(1);
-            const saved = fixtures.notebooks.get(notebookId);
+            const saved = getNotebookState(notebookId);
             expect(saved?.cells.map((cell) => cell.id)).toEqual(['ok', 'notes', 'failed']);
             expect(savedCell('ok')).toEqual({
                 ...state.cells[0],
@@ -936,9 +2033,9 @@ describe('NotebookView', () => {
             };
         }
 
-        const ids = () => fixtures.notebooks.get(notebookId)?.cells.map((cell) => cell.id) ?? [];
+        const ids = () => getNotebookState(notebookId)?.cells.map((cell) => cell.id) ?? [];
         const lastCell = () => {
-            const cells = fixtures.notebooks.get(notebookId)?.cells ?? [];
+            const cells = getNotebookState(notebookId)?.cells ?? [];
             return cells[cells.length - 1];
         };
         const duplicateButton = (id: string) =>
@@ -953,7 +2050,7 @@ describe('NotebookView', () => {
             await settle();
 
             expect(setNotebookState).toHaveBeenCalledTimes(1);
-            const saved = fixtures.notebooks.get(notebookId);
+            const saved = getNotebookState(notebookId);
             expect(saved?.cells).toHaveLength(4);
             // Existing cells keep their objects and positions.
             expect(saved?.cells.slice(0, 3)).toEqual(state.cells);
@@ -1149,7 +2246,12 @@ describe('NotebookView', () => {
                 fireEvent.click(screen.getByRole('button', {name: 'Run All'}));
             });
 
-            await waitFor(() => expect(fixtures.guardQuery).toHaveBeenCalledWith('SELECT 1'));
+            await waitFor(() =>
+                expect(fixtures.guardQuery).toHaveBeenCalledWith(
+                    'SELECT 1',
+                    expect.any(AbortSignal),
+                ),
+            );
             await waitFor(() =>
                 expect(mockInvoke).toHaveBeenCalledWith(
                     'execute_query',
@@ -1206,7 +2308,7 @@ describe('NotebookView', () => {
                 target: {value: 'SELECT * FROM t WHERE r = @region -- edited'},
             });
             vi.mocked(setNotebookState).mockClear();
-            const before = fixtures.notebooks.get(notebookId);
+            const before = getNotebookState(notebookId);
 
             await clickExport();
 
@@ -1227,7 +2329,7 @@ describe('NotebookView', () => {
             });
             expect(mockInvoke).not.toHaveBeenCalled();
             expect(setNotebookState).not.toHaveBeenCalled();
-            expect(fixtures.notebooks.get(notebookId)).toBe(before);
+            expect(getNotebookState(notebookId)).toBe(before);
         });
 
         it('shows a message and opens no save dialog when there is no source', async () => {
@@ -1281,29 +2383,6 @@ describe('NotebookView', () => {
     describe('Disabled SQL cells', () => {
         const cached: QueryResult = {columns: ['n'], rows: [[1]], affected_rows: 0};
 
-        function summary(): {
-            total: number;
-            succeeded: number;
-            failed: number;
-            skipped: number;
-            blocked: number;
-            blockedCells: Array<{
-                cellId: string;
-                cellIndex: number;
-                disabledCells: Array<{cellId: string; cellIndex: number}>;
-            }>;
-        } {
-            return JSON.parse(
-                screen.getByTestId('run-all-summary').getAttribute('data-result') ?? 'null',
-            );
-        }
-
-        async function click(name: string) {
-            await act(async () => {
-                fireEvent.click(screen.getByRole('button', {name}));
-            });
-        }
-
         it('does not run a disabled cell directly and keeps its existing output', async () => {
             renderNotebook({
                 cells: [sqlCell('off', 'SELECT 1', {isDisabled: true, result: cached})],
@@ -1329,10 +2408,10 @@ describe('NotebookView', () => {
                 await click('Run use');
                 expect(mockInvoke).not.toHaveBeenCalled();
                 expect(fixtures.guardQuery).not.toHaveBeenCalled();
-                expect(savedCell('use').error).toBe(
-                    'editor.notebook.blockedByDisabled: {{cell_1}}',
-                );
-                expect(savedCell('use')).toMatchObject({isLoading: false, result: null});
+                expect(summary().preflightErrors).toEqual([
+                    'editor.notebook.execution.disabled editor.notebook.execution.cell 2 {{cell_1}}',
+                ]);
+                expect(savedCell('use').error).toBeUndefined();
                 expect(savedCell('off')).toMatchObject({isDisabled: true, ...partial});
             },
         );
@@ -1347,8 +2426,10 @@ describe('NotebookView', () => {
             });
             await click('Run end');
             expect(mockInvoke).not.toHaveBeenCalled();
-            expect(savedCell('end').error).toBe('editor.notebook.blockedByDisabled: {{cell_1}}');
-            expect(savedCell('mid').error).toBeUndefined();
+            expect(summary().preflightErrors).toEqual([
+                'editor.notebook.execution.disabled editor.notebook.execution.cell 2 {{cell_1}}',
+            ]);
+            expect(savedCell('end').error).toBeUndefined();
         });
 
         it('blocks a consumer whose reference comes from a notebook parameter', async () => {
@@ -1361,71 +2442,46 @@ describe('NotebookView', () => {
             });
             await click('Run use');
             expect(mockInvoke).not.toHaveBeenCalled();
-            expect(savedCell('use').error).toBe('editor.notebook.blockedByDisabled: {{cell_1}}');
+            expect(summary().preflightErrors).toEqual([
+                'editor.notebook.execution.disabled editor.notebook.execution.cell 2 {{cell_1}}',
+            ]);
         });
 
-        it('Run All skips disabled cells, blocks their consumers and links the disabled prerequisite', async () => {
+        it('Run All aborts before any SQL when a disabled prerequisite blocks the plan', async () => {
             renderNotebook({
+                stopOnError: true,
                 cells: [
                     sqlCell('off', 'SELECT 1', {isDisabled: true, result: cached}),
-                    sqlCell('use', 'SELECT * FROM {{cell_1}}'),
+                    sqlCell('use', 'SELECT * FROM {{cell_1}}', {isParallel: true}),
                     sqlCell('plain', 'SELECT 3'),
                     sqlCell('chain', 'SELECT * FROM {{cell_2}}'),
                 ],
             });
             await click('Run All');
-            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
-            expect(mockInvoke.mock.calls).toEqual([
-                [
-                    'execute_query',
-                    {connectionId, query: 'SELECT 3', schema: 'tab_schema', limit: 37, page: 1},
-                ],
-            ]);
+            expect(mockInvoke).not.toHaveBeenCalled();
+            expect(fixtures.guardQuery).not.toHaveBeenCalled();
             expect(summary()).toMatchObject({
                 total: 4,
-                succeeded: 1,
+                succeeded: 0,
                 failed: 0,
-                skipped: 1,
-                blocked: 2,
-                blockedCells: [
-                    {cellId: 'use', cellIndex: 1, disabledCells: [{cellId: 'off', cellIndex: 0}]},
-                    {
-                        cellId: 'chain',
-                        cellIndex: 3,
-                        disabledCells: [{cellId: 'off', cellIndex: 0}],
-                    },
+                skipped: 4,
+                preflightErrors: [
+                    'editor.notebook.execution.disabled editor.notebook.execution.cell 2 {{cell_1}}',
                 ],
             });
             expect(savedCell('off')).toMatchObject({isDisabled: true, result: cached});
         });
 
-        it('Run All counts a blocked cell without stopping on error', async () => {
-            renderNotebook({
-                stopOnError: true,
-                cells: [
-                    sqlCell('off', 'SELECT 1', {isDisabled: true}),
-                    sqlCell('use', 'SELECT * FROM {{cell_1}}'),
-                    sqlCell('after', 'SELECT 3'),
-                ],
-            });
-            await click('Run All');
-            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
-            expect(mockInvoke).toHaveBeenCalledTimes(1);
-            expect(summary()).toMatchObject({succeeded: 1, failed: 0, skipped: 1, blocked: 1});
-        });
-
-        it('Run All skips parallel disabled cells and blocks parallel consumers', async () => {
+        it('Run All skips disabled cells that no other query depends on', async () => {
             renderNotebook({
                 cells: [
                     sqlCell('off', 'SELECT 1', {isDisabled: true, isParallel: true}),
-                    sqlCell('use', 'SELECT * FROM {{cell_1}}', {isParallel: true}),
                     sqlCell('fast', 'SELECT 2', {isParallel: true}),
                 ],
             });
             await click('Run All');
-            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
-            expect(mockInvoke).toHaveBeenCalledTimes(1);
-            expect(summary()).toMatchObject({succeeded: 1, skipped: 1, blocked: 1});
+            expect(mockInvoke.mock.calls.map((call) => call[1]?.query)).toEqual(['SELECT 2']);
+            expect(summary()).toMatchObject({total: 2, succeeded: 1, skipped: 1});
         });
 
         it('re-enabling does not execute, and the toggle is undoable', async () => {
@@ -1506,17 +2562,20 @@ describe('NotebookView', () => {
             await act(async () => {
                 finish(sourceResult);
             });
-            await waitFor(() => expect(savedCell('use').isLoading).toBe(false));
-            await settle();
+            await waitFor(() => expect(summary().skipped).toBe(1));
             expect(mockInvoke.mock.calls).toEqual([
                 [
                     'execute_query',
                     {connectionId, query: 'SELECT 1', schema: 'tab_schema', limit: 37, page: 1},
                 ],
             ]);
-            expect(fixtures.guardQuery).toHaveBeenCalledExactlyOnceWith('SELECT 1');
+            expect(fixtures.guardQuery).toHaveBeenCalledExactlyOnceWith(
+                'SELECT 1',
+                expect.any(AbortSignal),
+            );
             expect(savedCell('dep').result).toEqual(sourceResult);
-            expect(savedCell('use')).toMatchObject({isDisabled: true, isLoading: false});
+            expect(savedCell('use').isDisabled).toBe(true);
+            expect(savedCell('use').isLoading).not.toBe(true);
             expect(savedCell('use').error).toBeUndefined();
         });
 
@@ -1540,14 +2599,13 @@ describe('NotebookView', () => {
                 });
                 await click('Run use');
                 await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
-                expect(savedCell('use')).toMatchObject({isLoading: true, ...partial});
+                expect(savedCell('use')).toMatchObject(partial);
                 fireEvent.click(screen.getByRole('button', {name: 'Toggle disabled use'}));
 
                 await act(async () => {
                     finish(sourceResult);
                 });
-                await waitFor(() => expect(savedCell('use').isLoading).toBe(false));
-                await settle();
+                await waitFor(() => expect(summary().skipped).toBe(1));
                 expect(mockInvoke).toHaveBeenCalledTimes(1);
                 expect(savedCell('use')).toMatchObject({isDisabled: true, ...partial});
             },
@@ -1602,9 +2660,10 @@ describe('NotebookView', () => {
             });
             await click('Run use');
             expect(mockInvoke).not.toHaveBeenCalled();
-            expect(savedCell('use').error).toBe(
-                'editor.notebook.blockedByDisabled: {{cell_1}}, {{cell_2}}',
-            );
+            expect(summary().preflightErrors).toEqual([
+                'editor.notebook.execution.disabled editor.notebook.execution.cell 3 {{cell_2}}',
+                'editor.notebook.execution.disabled editor.notebook.execution.cell 3 {{cell_1}}',
+            ]);
         });
 
         it('does not send a cell disabled while the query guard waits for confirmation', async () => {
@@ -1653,34 +2712,97 @@ describe('NotebookView', () => {
             expect(summary()).toMatchObject({total: 2, succeeded: 1, failed: 0, skipped: 1});
         });
 
-        it('Run All skips a sequential consumer disabled during its own lazy dependency run', async () => {
-            let finish: (value: QueryResult) => void = () => {};
-            // 'dep' fails first in Run All, so 'use' has to run it again lazily.
-            mockInvoke.mockRejectedValueOnce(new Error('first attempt failed')).mockReturnValueOnce(
-                new Promise<QueryResult>((resolve) => {
-                    finish = resolve;
-                }),
-            );
+        it('never retries a failed dependency even if it previously had output', async () => {
+            mockInvoke.mockRejectedValueOnce(new Error('first attempt failed'));
             renderNotebook({
-                cells: [sqlCell('dep', 'SELECT 1'), sqlCell('use', 'SELECT * FROM {{cell_1}}')],
+                cells: [
+                    sqlCell('dep', 'SELECT 1', {result: cached}),
+                    sqlCell('use', 'SELECT * FROM {{cell_1}}', {result: cached}),
+                    sqlCell('downstream', 'SELECT * FROM {{cell_2}}'),
+                ],
             });
             await click('Run All');
-            // Second call: the consumer's lazy re-run of its dependency.
-            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(2));
-            fireEvent.click(screen.getByRole('button', {name: 'Toggle disabled use'}));
-            await act(async () => {
-                finish(sourceResult);
+            expect(mockInvoke.mock.calls.map((call) => call[1]?.query)).toEqual(['SELECT 1']);
+            expect(summary()).toMatchObject({
+                total: 3,
+                executed: 1,
+                failed: 1,
+                blocked: 2,
+                succeeded: 0,
+                blockedCells: [
+                    {cellId: 'use', prerequisite: {cellId: 'dep'}},
+                    {cellId: 'downstream', prerequisite: {cellId: 'use'}},
+                ],
             });
-            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
-            expect(mockInvoke).toHaveBeenCalledTimes(2);
-            expect(mockInvoke.mock.calls.every(([, args]) => args?.query === 'SELECT 1')).toBe(
-                true,
-            );
-            expect(summary()).toMatchObject({total: 2, failed: 1, skipped: 1, succeeded: 0});
-            expect(savedCell('use')).toMatchObject({isDisabled: true, isLoading: false});
         });
 
-        it('runs different databases together and keeps one database in order', async () => {
+        it.each([true, false])(
+            'uses one PostgreSQL database lane across schemas (stopOnError: %s)',
+            async (stopOnError) => {
+                fixtures.database.activeCapabilities = {
+                    sql_dialect: 'postgres',
+                    schemas: true,
+                    file_based: false,
+                };
+                const held = Promise.withResolvers<QueryResult>();
+                mockInvoke.mockReturnValueOnce(held.promise);
+                renderNotebook({
+                    stopOnError,
+                    cells: [
+                        sqlCell('first', 'SELECT 1', {schema: 'public', isParallel: true}),
+                        sqlCell('second', 'SELECT 2', {schema: 'analysis', isParallel: true}),
+                    ],
+                });
+                await click('Run All');
+                expect(mockInvoke.mock.calls).toEqual([requestSql('SELECT 1', 'public')]);
+                await act(async () => {
+                    if (stopOnError) held.reject(new Error('query failed'));
+                    else held.resolve(queryResult);
+                });
+                expect(mockInvoke.mock.calls).toEqual([
+                    requestSql('SELECT 1', 'public'),
+                    ...(stopOnError ? [] : [requestSql('SELECT 2', 'analysis')]),
+                ]);
+                expect(summary()).toMatchObject({
+                    executed: stopOnError ? 1 : 2,
+                    skipped: stopOnError ? 1 : 0,
+                });
+            },
+        );
+
+        it.each([
+            "SELECT nextval('audit_seq')",
+            'SELECT custom_fn(id) FROM items',
+            'SELECT n FROM audit_view',
+            'SELECT id FROM items FOR UPDATE',
+            'SELECT id FROM items FOR SHARE',
+            'SELECT id FROM items LOCK IN SHARE MODE',
+            "SELECT 1 INTO OUTFILE 'file.csv'",
+            'SELECT 1 /*!50000 INTO @v */',
+        ])('serializes %s even beside an opted-in read on another database lane', async (sql) => {
+            fixtures.database.activeCapabilities = mysqlLayout;
+            fixtures.database.selectedDatabases = ['billing', 'orders'];
+            const held = Promise.withResolvers<QueryResult>();
+            mockInvoke.mockReturnValueOnce(held.promise);
+            renderNotebook({
+                cells: [
+                    sqlCell('potential-write', sql, {schema: 'billing', isParallel: true}),
+                    sqlCell('read', 'SELECT 1', {schema: 'orders', isParallel: true}),
+                ],
+            });
+            await click('Run All');
+            expect(mockInvoke.mock.calls).toEqual([requestSql(sql, 'billing')]);
+            await act(async () => held.resolve(queryResult));
+            expect(mockInvoke.mock.calls).toEqual([
+                requestSql(sql, 'billing'),
+                requestSql('SELECT 1', 'orders'),
+            ]);
+            expect(summary()).toMatchObject({executed: 2, succeeded: 2});
+        });
+
+        it('parallel opt-in runs reads on different databases together but keeps one database in order', async () => {
+            fixtures.database.activeCapabilities = mysqlLayout;
+            fixtures.database.selectedDatabases = ['billing', 'orders'];
             const pending: Array<(value: QueryResult) => void> = [];
             mockInvoke.mockImplementation(
                 () =>
@@ -1690,28 +2812,35 @@ describe('NotebookView', () => {
             );
             renderNotebook({
                 cells: [
-                    sqlCell('a', 'SELECT a', {schema: 'billing'}),
-                    sqlCell('a2', 'SELECT a2', {schema: 'billing'}),
-                    sqlCell('b', 'SELECT b', {schema: 'orders'}),
+                    sqlCell('a', 'SELECT 1 AS a', {schema: 'billing', isParallel: true}),
+                    sqlCell('b', 'SELECT 2 AS b', {schema: 'orders', isParallel: true}),
+                    sqlCell('a2', 'SELECT 3 AS a2', {schema: 'billing', isParallel: true}),
                 ],
             });
             await click('Run All');
             await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(2));
-            expect(mockInvoke.mock.calls.map((call) => call[1])).toEqual([
-                expect.objectContaining({query: 'SELECT a', schema: 'billing'}),
-                expect.objectContaining({query: 'SELECT b', schema: 'orders'}),
+            expect(mockInvoke.mock.calls).toEqual([
+                requestSql('SELECT 1 AS a', 'billing'),
+                requestSql('SELECT 2 AS b', 'orders'),
             ]);
 
             await act(async () => {
                 pending[0](queryResult);
+                pending[1](queryResult);
             });
             await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(3));
-            expect(mockInvoke.mock.calls[2][1]).toEqual(
-                expect.objectContaining({query: 'SELECT a2', schema: 'billing'}),
-            );
+            expect(mockInvoke.mock.calls).toEqual([
+                requestSql('SELECT 1 AS a', 'billing'),
+                requestSql('SELECT 2 AS b', 'orders'),
+                requestSql('SELECT 3 AS a2', 'billing'),
+            ]);
+            await act(async () => {
+                pending[2](queryResult);
+            });
+            expect(summary()).toMatchObject({succeeded: 3});
         });
 
-        it('confirms each write when two databases are scheduled together', async () => {
+        it('serializes guard and execution for writes even on different databases with parallel opt-in', async () => {
             const confirmations = new Map<string, (allowed: boolean) => void>();
             fixtures.guardQuery.mockImplementation(
                 (sql: string) =>
@@ -1721,12 +2850,16 @@ describe('NotebookView', () => {
             );
             renderNotebook({
                 cells: [
-                    sqlCell('a', 'DELETE FROM a', {schema: 'billing'}),
-                    sqlCell('b', 'DELETE FROM b', {schema: 'orders'}),
+                    sqlCell('a', 'DELETE FROM a', {schema: 'billing', isParallel: true}),
+                    sqlCell('b', 'DELETE FROM b', {schema: 'orders', isParallel: true}),
                 ],
             });
             await click('Run All');
-            await waitFor(() => expect(fixtures.guardQuery).toHaveBeenCalledTimes(2));
+            expect(fixtures.guardQuery).toHaveBeenCalledExactlyOnceWith(
+                'DELETE FROM a',
+                expect.any(AbortSignal),
+            );
+            expect(confirmations.has('DELETE FROM b')).toBe(false);
             expect(mockInvoke).not.toHaveBeenCalled();
 
             await act(async () => {
@@ -1737,6 +2870,10 @@ describe('NotebookView', () => {
                 expect.objectContaining({query: 'DELETE FROM a', schema: 'billing'}),
             );
 
+            expect(fixtures.guardQuery).toHaveBeenLastCalledWith(
+                'DELETE FROM b',
+                expect.any(AbortSignal),
+            );
             await act(async () => {
                 confirmations.get('DELETE FROM b')?.(true);
             });
@@ -1746,6 +2883,38 @@ describe('NotebookView', () => {
                 'DELETE FROM b',
             ]);
             expect(summary()).toMatchObject({total: 2, succeeded: 2, failed: 0, skipped: 0});
+        });
+
+        it('closes the old dangerous confirmation when the same tab switches notebook IDs', async () => {
+            const real =
+                await vi.importActual<typeof import('@/hooks/useQueryGuards')>(
+                    '@/hooks/useQueryGuards',
+                );
+            const mocked = vi.mocked(useQueryGuards);
+            mocked.mockImplementation(real.useQueryGuards);
+            const replacementId = 'imported-notebook';
+            setNotebookState(replacementId, {cells: [sqlCell('new', 'DROP TABLE replacement')]});
+
+            try {
+                const view = renderNotebook({cells: [sqlCell('old', 'DELETE FROM abandoned')]});
+                await click('Run old');
+                expect(
+                    within(screen.getByRole('dialog')).getByText('DELETE FROM abandoned'),
+                ).toBeInTheDocument();
+                view.rerender(notebookView({notebookId: replacementId}));
+
+                await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+                expect(mockInvoke).not.toHaveBeenCalled();
+                expect(savedCell('old').isLoading).toBe(false);
+                await click('Run new');
+                expect(
+                    within(screen.getByRole('dialog')).getByText('DROP TABLE replacement'),
+                ).toBeInTheDocument();
+                await click('editor.dangerousQueryConfirm');
+                expect(mockInvoke.mock.calls).toEqual([requestSql('DROP TABLE replacement')]);
+            } finally {
+                mocked.mockReset();
+            }
         });
 
         it('starts a fresh safety countdown for each queued dangerous query', async () => {
@@ -1804,7 +2973,9 @@ describe('NotebookView', () => {
             }
         });
 
-        it('stop on error skips the rest of the failed database and still runs the others', async () => {
+        it('stop on error skips the rest of a failed flat database and still runs the others', async () => {
+            fixtures.database.activeCapabilities = mysqlLayout;
+            fixtures.database.selectedDatabases = ['billing', 'orders'];
             mockInvoke.mockImplementation((_command, args: {query?: string}) => {
                 if (args?.query === 'SELECT a') return Promise.reject(new Error('boom'));
                 return Promise.resolve(queryResult);
@@ -1819,9 +2990,9 @@ describe('NotebookView', () => {
             });
             await click('Run All');
             await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
-            expect(mockInvoke.mock.calls.map((call) => call[1]?.query)).toEqual([
-                'SELECT a',
-                'SELECT b',
+            expect(mockInvoke.mock.calls).toEqual([
+                requestSql('SELECT a', 'billing'),
+                requestSql('SELECT b', 'orders'),
             ]);
             expect(summary()).toMatchObject({
                 total: 3,
@@ -1851,7 +3022,8 @@ describe('NotebookView', () => {
                 total: 3,
                 succeeded: 0,
                 failed: 1,
-                skipped: 2,
+                skipped: 1,
+                blocked: 1,
             });
             expect(savedCell('b').result).toBeUndefined();
         });

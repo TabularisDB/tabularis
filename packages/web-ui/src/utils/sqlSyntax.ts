@@ -143,7 +143,8 @@ const DECLARED = new WeakMap<SqlSyntaxDescriptor, Map<string | undefined, SqlSyn
  * so the same capabilities always yield the same object.
  */
 export function resolveSqlSyntax(
-    driver: PluginManifest | DriverCapabilities | null | undefined,
+    driver:
+        PluginManifest | Pick<DriverCapabilities, 'sql_dialect' | 'sql_syntax'> | null | undefined,
 ): SqlSyntax {
     const caps = driver && 'capabilities' in driver ? driver.capabilities : driver;
     const dialect = caps?.sql_dialect;

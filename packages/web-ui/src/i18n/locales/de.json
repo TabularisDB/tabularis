@@ -2310,8 +2310,23 @@
       "addCell": "Hinzufügen",
       "resizeResult": "Größe des Ergebnisses ändern",
       "runAll": "Alle ausführen",
-      "runAllTooltip": "Alle SQL-Zellen von oben nach unten ausführen",
+      "runAllTooltip": "Alle aktiven SQL-Zellen in Abhängigkeitsreihenfolge ausführen",
       "runCell": "Zelle ausführen",
+      "execution": {
+        "runAffected": "Betroffene Zellen ausführen",
+        "busy": "Das Notebook wird bereits ausgeführt.",
+        "complete": "Notebook-Ausführung abgeschlossen",
+        "preflightFailed": "Notebook-Ausführung vor dem Start von SQL abgebrochen",
+        "cell": "Zelle Nr. {{number}}",
+        "self": "{{cell}} verweist auf sich selbst.",
+        "cycle": "Zyklische Abhängigkeit: {{path}}.",
+        "missing": "{{cell}} verweist auf {{reference}}. Der Verweis muss auf eine nicht leere SQL-Zelle zeigen.",
+        "disabled": "{{cell}} benötigt {{reference}}, aber diese Zelle ist deaktiviert. Aktiviere sie und versuche es erneut.",
+        "guardDenied": "Die Abfrage wurde nicht freigegeben.",
+        "unconfirmedWrite": "Das Ergebnis des Schreibvorgangs ist unklar. Prüfe die Datenbank, bevor du diese Zelle erneut ausführst.",
+        "blockedBy": "wurde blockiert durch",
+        "changed": "wurde übersprungen, weil sie bearbeitet, deaktiviert oder entfernt wurde."
+      },
       "deleteCell": "Zelle löschen",
       "copySource": "Quelle kopieren",
       "copiedSource": "Quelle in die Zwischenablage kopiert",
@@ -2334,7 +2349,7 @@
       "runningAll": "Alle Zellen werden ausgeführt...",
       "cellResult": "{{count}} Zeilen · {{time}} ms",
       "stopOnError": "Bei Fehler stoppen",
-      "stopOnErrorTooltip": "Ausführung stoppen, wenn eine Zelle fehlschlägt",
+      "stopOnErrorTooltip": "Nach einem Fehler die übrigen Zellen dieser Datenbank überspringen",
       "runAllComplete": "Alle Ausführungen abgeschlossen",
       "succeeded": "erfolgreich",
       "failed": "fehlgeschlagen",
@@ -2383,7 +2398,6 @@
           "noOptions": "Füge mindestens eine Option hinzu",
           "required": "Ein Wert ist erforderlich",
           "emptyNeedsNull": "Gib einen Wert ein oder aktiviere NULL",
-          "cellReference": "Ein typisierter Wert darf keinen Zellverweis enthalten",
           "unknownType": "Diese Version von Tabularis kennt diesen Typ nicht"
         },
         "errors": {
@@ -2392,7 +2406,7 @@
           "unsupported": "Parameter @{{name}} hat einen Typ, und typisierte Parameter sind für diese Verbindung nicht verfügbar. Stelle ihn wieder auf „Rohtext“, um ihn hier zu verwenden."
         }
       },
-      "parallelExecution": "Parallele Ausführung (Alle ausführen)",
+      "parallelExecution": "Parallele Leseabfragen auf verschiedenen Datenbanken zulassen",
       "disableCell": "Zelle deaktivieren",
       "enableCell": "Zelle aktivieren",
       "cellDisabled": "Deaktiviert",

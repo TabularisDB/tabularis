@@ -388,12 +388,13 @@ describe('notebookParams', () => {
                 expect(validateParam(list('Brazil'))).toBe('noOptions');
             });
 
-            it('should reject a cell reference inside a text value or a list option', () => {
-                expect(validateParam(typed('t', 'see {{cell_1}}', 'text'))).toBe('cellReference');
+            it('accepts reference-like text as typed data', () => {
+                expect(validateParam(typed('t', 'see {{cell_1}}', 'text'))).toBeNull();
                 expect(
-                    validateParam(typed('c', 'a', 'select', {options: ['a', '{{cell_2}}']})),
-                ).toBe('cellReference');
-                expect(validateParam(typed('t', '{{cell}} {cell_1}', 'text'))).toBeNull();
+                    validateParam(
+                        typed('c', '{{cell_2}}', 'select', {options: ['a', '{{cell_2}}']}),
+                    ),
+                ).toBeNull();
             });
         });
 

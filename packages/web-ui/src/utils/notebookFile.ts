@@ -51,12 +51,18 @@ function sanitizeParams(raw: unknown): NotebookParam[] | undefined {
     return params.length > 0 ? params : undefined;
 }
 
+interface NotebookFileOptions {
+    /** Carry local identity across save/eviction, never across import/export. */
+    preserveCellIds?: boolean;
+}
+
 export function serializeNotebook(
     title: string,
     cells: NotebookCell[],
     params?: NotebookParam[],
     stopOnError?: boolean,
     connectionId?: string,
+    {preserveCellIds = false}: NotebookFileOptions = {},
 ): NotebookFile {
     return {
         version: 2,
@@ -64,6 +70,7 @@ export function serializeNotebook(
         createdAt: new Date().toISOString(),
         ...(connectionId ? {connectionId} : {}),
         cells: cells.map((c) => ({
+            ...(preserveCellIds ? {id: c.id} : {}),
             type: c.type,
             content: c.content,
             ...(c.name ? {name: c.name} : {}),
@@ -102,7 +109,10 @@ export function validateNotebookFile(data: unknown): data is NotebookFile {
     );
 }
 
-export function deserializeNotebook(json: string): {
+export function deserializeNotebook(
+    json: string,
+    {preserveCellIds = false}: NotebookFileOptions = {},
+): {
     title: string;
     cells: NotebookCell[];
     params?: NotebookParam[];
@@ -120,12 +130,26 @@ export function deserializeNotebook(json: string): {
     }
 
     const raw = data as unknown as Record<string, unknown>;
+    const storedIds = new Set<string>();
+    const assignedIds = new Set<string>();
+    if (preserveCellIds) {
+        for (const {id} of data.cells) {
+            if (typeof id === 'string' && id.trim()) storedIds.add(id);
+        }
+    }
     return {
         title: data.title,
         cells: data.cells.map((c) => {
             const cellRaw = c as Record<string, unknown>;
+            let id = c.id;
+            if (typeof id !== 'string' || !storedIds.has(id) || assignedIds.has(id)) {
+                do {
+                    id = generateCellId();
+                } while (storedIds.has(id) || assignedIds.has(id));
+            }
+            assignedIds.add(id);
             return {
-                id: generateCellId(),
+                id,
                 type: c.type,
                 content: c.content,
                 name: cellRaw.name as string | undefined,
