@@ -1,186 +1,243 @@
-import {describe, it, expect} from 'vitest';
-import {
-    getExecutableCells,
-    partitionRunAllCells,
-    earlierReferencedCellIds,
-    createRunAllResult,
-    addSuccess,
-    addFailure,
-    addSkipped,
-    addBlocked,
-    getDisabledCells,
-    findDisabledPrerequisites,
-    formatRunAllSummary,
-} from '@/utils/notebookRunAll';
+import {describe, expect, it, vi} from 'vitest';
 import type {NotebookCell} from '@/types/notebook';
+import {buildNotebookExecutionPlan, type NotebookRunRequest} from '@/utils/notebookExecutionPlan';
+import {
+    acquireNotebookRun,
+    executeNotebookPlan,
+    findDisabledPrerequisites,
+    type CellRunOutcome,
+} from '@/utils/notebookRunAll';
 
-function makeCell(overrides: Partial<NotebookCell> = {}): NotebookCell {
-    return {
-        id: overrides.id ?? 'cell-1',
-        type: overrides.type ?? 'sql',
-        content: overrides.content ?? '',
-        result: null,
-        error: undefined,
-        executionTime: null,
-        isLoading: false,
-        ...overrides,
-    };
+const cachedResult = {columns: ['n'], rows: [[1]], affected_rows: 0};
+const success = {kind: 'success', result: cachedResult} as const;
+
+function makeCell(input: Partial<NotebookCell> & {id: string}): NotebookCell {
+    return {type: 'sql', content: 'SELECT 1', ...input};
+}
+
+function plan(cells: NotebookCell[], request: NotebookRunRequest = {mode: 'all'}) {
+    const outcome = buildNotebookExecutionPlan({
+        cells,
+        request,
+        prepare: (sql) => ({sql, errors: []}),
+        fallbackSchema: 'main',
+    });
+    if (outcome.kind !== 'ready') throw new Error(JSON.stringify(outcome.issues));
+    return outcome.plan;
+}
+
+function deferred() {
+    let resolve: (value: CellRunOutcome) => void = () => {};
+    const promise = new Promise<CellRunOutcome>((done) => {
+        resolve = done;
+    });
+    return {promise, resolve};
 }
 
 describe('notebookRunAll', () => {
-    describe('getExecutableCells', () => {
-        it('should return only SQL cells with content', () => {
-            const cells = [
-                makeCell({id: 'a', type: 'sql', content: 'SELECT 1'}),
-                makeCell({id: 'b', type: 'markdown', content: '# Title'}),
-                makeCell({id: 'c', type: 'sql', content: ''}),
-                makeCell({id: 'd', type: 'sql', content: 'SELECT 2'}),
-            ];
-            const result = getExecutableCells(cells);
-            expect(result).toHaveLength(2);
-            expect(result[0]).toEqual({cell: cells[0], index: 0});
-            expect(result[1]).toEqual({cell: cells[3], index: 3});
-        });
-
-        it('should skip whitespace-only SQL cells', () => {
-            const cells = [makeCell({content: '   \n  '})];
-            expect(getExecutableCells(cells)).toHaveLength(0);
-        });
-
-        it('should return empty for empty cells array', () => {
-            expect(getExecutableCells([])).toHaveLength(0);
-        });
+    it('locks one notebook until its active run settles', () => {
+        const release = acquireNotebookRun('first');
+        expect(release).toBeTypeOf('function');
+        expect(acquireNotebookRun('first')).toBeUndefined();
+        const releaseOther = acquireNotebookRun('other');
+        expect(releaseOther).toBeTypeOf('function');
+        releaseOther?.();
+        release?.();
+        const reacquired = acquireNotebookRun('first');
+        expect(reacquired).toBeTypeOf('function');
+        reacquired?.();
     });
 
-    describe('partitionRunAllCells', () => {
-        it('keeps one database in order and gives each database its own lane', () => {
+    describe('executeNotebookPlan', () => {
+        it('executes and counts a diamond prerequisite once, passing the fresh result to both consumers', async () => {
             const cells = [
-                makeCell({id: 'a1', content: 'SELECT 1', schema: 'billing'}),
-                makeCell({id: 'shared', content: 'SELECT 2'}),
-                makeCell({id: 'b1', content: 'SELECT 3', schema: 'orders'}),
-                makeCell({id: 'a2', content: 'SELECT 4', schema: 'billing'}),
-                makeCell({id: 'blank', content: 'SELECT 5', schema: '   '}),
+                makeCell({id: 'a', result: cachedResult}),
+                makeCell({id: 'b', content: 'SELECT * FROM {{cell_1}}'}),
+                makeCell({id: 'c', content: 'SELECT * FROM {{cell_1}}'}),
+                makeCell({id: 'd', content: 'SELECT * FROM {{cell_2}} JOIN {{cell_3}} ON 1=1'}),
+                makeCell({id: 'off', isDisabled: true}),
             ];
-            const {parallel, lanes} = partitionRunAllCells(
-                cells.map((cell, index) => ({cell, index})),
-                'analytics',
-            );
-            expect(parallel).toEqual([]);
-            expect(lanes.map((lane) => lane.map(({cell}) => cell.id))).toEqual([
-                ['a1', 'a2'],
-                ['shared', 'blank'],
-                ['b1'],
+            const fresh = {columns: ['n'], rows: [[42]], affected_rows: 0};
+            const executed: string[] = [];
+            const result = await executeNotebookPlan(plan(cells), {
+                stopOnError: false,
+                readCells: () => cells,
+                execute: async ({cell}, inputs) => {
+                    executed.push(cell.id);
+                    if (cell.id === 'a') return {kind: 'success', result: fresh};
+                    expect(inputs[0].result).toBe(fresh);
+                    return success;
+                },
+            });
+            expect(executed).toEqual(['a', 'b', 'c', 'd']);
+            expect(result).toMatchObject({
+                total: 5,
+                executed: 4,
+                succeeded: 4,
+                failed: 0,
+                blocked: 0,
+                skipped: 1,
+            });
+        });
+
+        it.each([true, false])(
+            'blocks all consumers of an unavailable prerequisite (SQL was sent: %s)',
+            async (sent) => {
+                const cells = [
+                    makeCell({id: 'a', result: cachedResult}),
+                    makeCell({id: 'b', content: 'SELECT * FROM {{cell_1}}', result: cachedResult}),
+                    makeCell({id: 'c', content: 'SELECT * FROM {{cell_2}}'}),
+                    makeCell({id: 'd'}),
+                ];
+                const execute = vi.fn(
+                    async ({cell}: {cell: NotebookCell}): Promise<CellRunOutcome> =>
+                        cell.id === 'a' ? {kind: 'failed', error: 'unavailable', sent} : success,
+                );
+                const result = await executeNotebookPlan(plan(cells), {
+                    stopOnError: false,
+                    readCells: () => cells,
+                    execute,
+                });
+                expect(execute.mock.calls.map(([node]) => node.cell.id)).toEqual(['a', 'd']);
+                expect(result).toMatchObject({
+                    total: 4,
+                    executed: sent ? 2 : 1,
+                    succeeded: 1,
+                    failed: 1,
+                    blocked: 2,
+                });
+                expect(result.blockedCells).toEqual([
+                    {cellId: 'b', cellIndex: 1, prerequisite: {cellId: 'a', cellIndex: 0}},
+                    {cellId: 'c', cellIndex: 2, prerequisite: {cellId: 'b', cellIndex: 1}},
+                ]);
+            },
+        );
+
+        it('keeps dependent, unmarked, same-lane and write queries out of a parallel batch', async () => {
+            const held = deferred();
+            const cells = [
+                makeCell({id: 'a', isParallel: true}),
+                makeCell({id: 'b', isParallel: true, schema: 'orders'}),
+                makeCell({
+                    id: 'dependent',
+                    isParallel: true,
+                    schema: 'shipments',
+                    content: 'SELECT * FROM {{cell_1}}',
+                }),
+                makeCell({id: 'same-lane', isParallel: true, schema: 'shipments'}),
+                makeCell({
+                    id: 'write',
+                    isParallel: true,
+                    schema: 'billing',
+                    content: 'WITH foo AS (SELECT 1) DELETE FROM t',
+                }),
+                makeCell({
+                    id: 'other-write',
+                    isParallel: true,
+                    schema: 'sales',
+                    content: 'INSERT INTO t VALUES (1)',
+                }),
+                makeCell({id: 'unmarked', schema: 'billing'}),
+            ];
+            const active = new Set<string>();
+            const started: string[] = [];
+            const run = executeNotebookPlan(plan(cells), {
+                stopOnError: false,
+                readCells: () => cells,
+                execute: async ({cell}) => {
+                    if (cell.id === 'a') expect(active.size).toBe(0);
+                    else if (cell.id === 'b') expect([...active]).toEqual(['a']);
+                    else expect(active.size).toBe(0);
+                    active.add(cell.id);
+                    started.push(cell.id);
+                    if (cell.id === 'a') await held.promise;
+                    await Promise.resolve();
+                    active.delete(cell.id);
+                    return success;
+                },
+            });
+            expect(started).toEqual(['a', 'b']);
+            held.resolve(success);
+            expect(await run).toMatchObject({total: 7, executed: 7, succeeded: 7});
+            expect(started).toEqual(cells.map((cell) => cell.id));
+        });
+
+        it('does not overlap opt-in cells sharing the notebook fallback database', async () => {
+            const held = deferred();
+            const cells = [
+                makeCell({id: 'first', isParallel: true}),
+                makeCell({id: 'second', isParallel: true, schema: 'main'}),
+            ];
+            const execute = vi.fn().mockReturnValueOnce(held.promise).mockResolvedValue(success);
+            const run = executeNotebookPlan(plan(cells), {
+                stopOnError: false,
+                readCells: () => cells,
+                execute,
+            });
+            expect(execute).toHaveBeenCalledTimes(1);
+            held.resolve(success);
+            expect(await run).toMatchObject({succeeded: 2});
+            expect(execute).toHaveBeenCalledTimes(2);
+        });
+
+        it('skips edited and deleted pending cells and blocks their consumer instead of rebinding the reference', async () => {
+            const cells = [
+                makeCell({id: 'first'}),
+                makeCell({id: 'edited'}),
+                makeCell({id: 'deleted', result: cachedResult}),
+                makeCell({id: 'consumer', content: 'SELECT * FROM {{cell_3}}'}),
+                makeCell({id: 'independent'}),
+            ];
+            let live = cells;
+            const execute = vi.fn(async ({cell}: {cell: NotebookCell}) => {
+                if (cell.id === 'first')
+                    live = [cells[0], {...cells[1], content: 'SELECT 2'}, ...cells.slice(3)];
+                return success;
+            });
+            const result = await executeNotebookPlan(plan(cells), {
+                stopOnError: false,
+                readCells: () => live,
+                execute,
+            });
+            expect(execute.mock.calls.map(([node]) => node.cell.id)).toEqual([
+                'first',
+                'independent',
             ]);
+            expect(result).toMatchObject({
+                total: 5,
+                succeeded: 2,
+                skipped: 2,
+                blocked: 1,
+                changedCells: [
+                    {cellId: 'edited', cellIndex: 1},
+                    {cellId: 'deleted', cellIndex: 2},
+                ],
+                blockedCells: [
+                    {
+                        cellId: 'consumer',
+                        cellIndex: 3,
+                        prerequisite: {cellId: 'deleted', cellIndex: 2},
+                    },
+                ],
+            });
         });
 
-        it('puts explicitly parallel cells in one group, ahead of the database lanes', () => {
+        it('blocks use of a cached prerequisite that was removed before dispatch', async () => {
             const cells = [
-                makeCell({id: 'seq', content: 'SELECT 1', schema: 'billing'}),
-                makeCell({id: 'fast', content: 'SELECT 2', schema: 'billing', isParallel: true}),
+                makeCell({id: 'cached', result: cachedResult}),
+                makeCell({id: 'use', content: 'SELECT * FROM {{cell_1}}'}),
             ];
-            const {parallel, lanes} = partitionRunAllCells(
-                cells.map((cell, index) => ({cell, index})),
-                null,
-            );
-            expect(parallel.map(({cell}) => cell.id)).toEqual(['fast']);
-            expect(lanes.map((lane) => lane.map(({cell}) => cell.id))).toEqual([['seq']]);
-        });
-    });
-
-    describe('earlierReferencedCellIds', () => {
-        it('returns only cells that appear earlier than the one about to run', () => {
-            const cells = [
-                makeCell({id: 'source', content: 'SELECT 1'}),
-                makeCell({id: 'later', content: 'SELECT 2'}),
-                makeCell({id: 'reader', content: 'SELECT * FROM {{cell_1}} JOIN {{cell_2}}'}),
-            ];
-            expect(earlierReferencedCellIds(2, cells[2].content, cells)).toEqual([
-                'source',
-                'later',
-            ]);
-            expect(earlierReferencedCellIds(0, 'SELECT * FROM {{cell_2}}', cells)).toEqual([]);
-        });
-    });
-
-    describe('createRunAllResult', () => {
-        it('should initialize with zeros', () => {
-            const result = createRunAllResult();
-            expect(result.total).toBe(0);
-            expect(result.executed).toBe(0);
-            expect(result.succeeded).toBe(0);
-            expect(result.failed).toBe(0);
-            expect(result.skipped).toBe(0);
-            expect(result.errors).toEqual([]);
-        });
-    });
-
-    describe('addSuccess', () => {
-        it('should increment executed and succeeded', () => {
-            const result = addSuccess(createRunAllResult());
-            expect(result.executed).toBe(1);
-            expect(result.succeeded).toBe(1);
-            expect(result.failed).toBe(0);
-        });
-    });
-
-    describe('addFailure', () => {
-        it('should increment executed and failed and add error', () => {
-            const result = addFailure(createRunAllResult(), 'c1', 0, 'error msg');
-            expect(result.executed).toBe(1);
-            expect(result.failed).toBe(1);
-            expect(result.errors).toEqual([{cellId: 'c1', cellIndex: 0, error: 'error msg'}]);
-        });
-    });
-
-    describe('addSkipped', () => {
-        it('should increment skipped count', () => {
-            const result = addSkipped(createRunAllResult(), 3);
-            expect(result.skipped).toBe(3);
-        });
-    });
-
-    describe('formatRunAllSummary', () => {
-        it('should format mixed result', () => {
-            let result = createRunAllResult();
-            result = addSuccess(result);
-            result = addSuccess(result);
-            result = addFailure(result, 'c1', 0, 'err');
-            result = addSkipped(result, 1);
-            expect(formatRunAllSummary(result)).toBe('2 succeeded, 1 failed, 1 skipped');
-        });
-
-        it('should format success-only result', () => {
-            let result = createRunAllResult();
-            result = addSuccess(result);
-            expect(formatRunAllSummary(result)).toBe('1 succeeded');
-        });
-
-        it('should return empty for zero result', () => {
-            expect(formatRunAllSummary(createRunAllResult())).toBe('');
-        });
-    });
-});
-
-describe('notebookRunAll disabled cells', () => {
-    const cachedResult = {columns: ['id'], rows: [[1]], affected_rows: 0};
-
-    describe('getExecutableCells / getDisabledCells', () => {
-        it('leaves disabled SQL cells out of Run All and lists them as disabled', () => {
-            const cells = [
-                makeCell({id: 'a', content: 'SELECT 1'}),
-                makeCell({id: 'b', content: 'SELECT 2', isDisabled: true}),
-                makeCell({id: 'c', content: '   ', isDisabled: true}),
-                makeCell({id: 'd', type: 'markdown', content: '# x', isDisabled: true}),
-                makeCell({id: 'e', content: 'SELECT 3', isDisabled: false}),
-            ];
-            expect(getExecutableCells(cells).map(({cell}) => cell.id)).toEqual(['a', 'e']);
-            expect(getDisabledCells(cells)).toEqual([{cell: cells[1], index: 1}]);
-        });
-
-        it('treats legacy cells without the flag as enabled', () => {
-            const cells = [makeCell({id: 'a', content: 'SELECT 1'})];
-            expect(getExecutableCells(cells)).toHaveLength(1);
-            expect(getDisabledCells(cells)).toEqual([]);
+            let live = cells;
+            const execute = vi.fn(async (_node, _inputs, checkBeforeSend) => {
+                live = cells.slice(1);
+                return checkBeforeSend() ?? success;
+            });
+            const result = await executeNotebookPlan(plan(cells, {mode: 'cell', cellId: 'use'}), {
+                stopOnError: false,
+                readCells: () => live,
+                execute,
+            });
+            expect(result).toMatchObject({total: 1, executed: 0, succeeded: 0, blocked: 1});
         });
     });
 
@@ -246,27 +303,6 @@ describe('notebookRunAll disabled cells', () => {
             expect(findDisabledPrerequisites('SELECT * FROM {{cell_2}}', cells, prepare)).toEqual([
                 0,
             ]);
-        });
-    });
-
-    describe('addBlocked / summary', () => {
-        it('counts blocked cells apart from executed, failed and skipped ones', () => {
-            let result = createRunAllResult();
-            expect(result).toMatchObject({blocked: 0, blockedCells: []});
-            result = addSkipped(result, 1);
-            result = addBlocked(result, 'b', 1, [{cellId: 'a', cellIndex: 0}]);
-            expect(result).toMatchObject({
-                executed: 0,
-                failed: 0,
-                skipped: 1,
-                blocked: 1,
-                blockedCells: [
-                    {cellId: 'b', cellIndex: 1, disabledCells: [{cellId: 'a', cellIndex: 0}]},
-                ],
-            });
-            expect(formatRunAllSummary(addSuccess(result))).toBe(
-                '1 succeeded, 1 skipped, 1 blocked',
-            );
         });
     });
 });

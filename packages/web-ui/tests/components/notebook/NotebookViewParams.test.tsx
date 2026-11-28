@@ -309,6 +309,30 @@ describe('NotebookView typed parameters', () => {
         expect(screen.queryByText(`${K}.unapplied`)).not.toBeInTheDocument();
     });
 
+    it('freezes parameters for the plan and refreshes outdated input on the next run', async () => {
+        const pending = Promise.withResolvers<typeof queryResult>();
+        mockInvoke.mockReturnValueOnce(pending.promise);
+        renderNotebook({
+            params: [{name: 'limit', value: '10', type: 'number'}],
+            cells: [
+                sqlCell('source', 'SELECT @limit AS n'),
+                sqlCell('use', 'SELECT * FROM {{cell_1}} LIMIT @limit'),
+            ],
+        });
+
+        await click('Run All');
+        expect(executedQueries()).toEqual(['SELECT 10 AS n']);
+        fireEvent.change(valueOf('limit'), {target: {value: '50'}});
+        await click(`${K}.apply`);
+        await act(async () => pending.resolve(queryResult));
+        expect(executedQueries()[1]).toContain('SELECT * FROM cell_1 LIMIT 10');
+        expect(saved().params?.[0]?.value).toBe('50');
+
+        await click('Run use');
+        expect(executedQueries()[2]).toBe('SELECT 50 AS n');
+        expect(executedQueries()[3]).toContain('SELECT * FROM cell_1 LIMIT 50');
+    });
+
     it('runs with applied values until Apply, which executes nothing and marks the output outdated', async () => {
         renderNotebook({
             params: [{name: 'limit', value: '10', type: 'number'}],

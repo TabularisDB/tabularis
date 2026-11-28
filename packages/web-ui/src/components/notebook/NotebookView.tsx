@@ -2,7 +2,7 @@ import {useState, useCallback, useRef, useEffect, useMemo} from 'react';
 import {flushSync} from 'react-dom';
 import {useTranslation} from 'react-i18next';
 import {BookOpen, Loader2} from 'lucide-react';
-import type {Tab} from '@/types/editor';
+import type {QueryResult, Tab} from '@/types/editor';
 import type {
     NotebookCell,
     NotebookCellType,
@@ -35,22 +35,17 @@ import {
 import {isTypingTarget} from '@/utils/keyboardEvents';
 import {flushPendingEditorChanges} from '@/utils/pendingEditorChanges';
 import {
-    getExecutableCells,
-    partitionRunAllCells,
-    earlierReferencedCellIds,
-    getDisabledCells,
-    findDisabledPrerequisites,
+    acquireNotebookRun,
     createRunAllResult,
-    addSuccess,
-    addFailure,
-    addSkipped,
-    addBlocked,
+    executeNotebookPlan,
+    type CellRunOutcome,
 } from '@/utils/notebookRunAll';
 import {
-    resolveQueryVariables,
-    findUnresolvedDependencies,
-    variableOptionsForDriver,
-} from '@/utils/notebookVariables';
+    buildNotebookExecutionPlan,
+    sameNotebookCellInput,
+    type NotebookRunRequest,
+} from '@/utils/notebookExecutionPlan';
+import {resolveQueryVariables, variableOptionsForDriver} from '@/utils/notebookVariables';
 import {
     resolveParams,
     supportsTypedParams,
@@ -95,8 +90,17 @@ import {NotebookReportView} from './NotebookReportView';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 
-/** 'skipped': the cell was disabled before its query was sent, so nothing ran. */
-type CellRunOutcome = 'skipped' | undefined;
+interface CachedRunInputs {
+    cell: NotebookCell;
+    connectionId: string;
+    sql: string;
+    schema: string | null | undefined;
+    params: string;
+    prerequisites: Array<{id: string; result: NotebookCell['result']}>;
+}
+
+// The notebook store keeps results in memory across tab remounts.
+const cachedRunInputs = new WeakMap<QueryResult, CachedRunInputs>();
 
 interface NotebookViewProps {
     tab: Tab;
@@ -135,12 +139,17 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     } = useQueryGuards(connectionId);
 
     // Local notebook state — loaded from store/disk, NOT from tab
-    const [notebook, setNotebook] = useState<NotebookState | null>(() =>
-        tab.notebookId ? (getNotebookState(tab.notebookId) ?? null) : null,
-    );
+    const [notebook, setNotebook] = useState<NotebookState | null>(() => {
+        const cached = tab.notebookId ? getNotebookState(tab.notebookId) : undefined;
+        if (!cached) return null;
+        // A previous view may have closed with an RPC still in flight. It
+        // retains the run lock until the RPC settles, not this view's spinners.
+        if (!cached.cells.some((cell) => cell.isLoading)) return cached;
+        return {...cached, cells: cached.cells.map((cell) => ({...cell, isLoading: false}))};
+    });
     const [isLoadingNotebook, setIsLoadingNotebook] = useState(!notebook);
 
-    const [isRunningAll, setIsRunningAll] = useState(false);
+    const [isRunning, setIsRunning] = useState(false);
     const [runAllResult, setRunAllResult] = useState<RunAllResult | null>(null);
     const [isClearOutputsConfirmOpen, setIsClearOutputsConfirmOpen] = useState(false);
     const [viewMode, setViewMode] = useState<NotebookViewMode>('edit');
@@ -157,7 +166,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const autoScrollSpeedRef = useRef(0);
     const autoScrollRafRef = useRef<number | null>(null);
     const notebookIdRef = useRef(tab.notebookId);
-    const runCellRef = useRef<(cellId: string) => Promise<CellRunOutcome>>(async () => undefined);
+    const activeRunRef = useRef<AbortController | null>(null);
+    useEffect(() => () => activeRunRef.current?.abort(), []);
 
     // Undo/redo history (autosave means edits are otherwise irreversible).
     const notebookRef = useRef<NotebookState | null>(notebook);
@@ -245,11 +255,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             cellsRef.current = newCells;
             const newState: NotebookState = {
                 cells: newCells,
-                stopOnError:
-                    extraState?.stopOnError !== undefined
-                        ? extraState.stopOnError
-                        : notebook?.stopOnError,
-                params: extraState?.params !== undefined ? extraState.params : notebook?.params,
+                stopOnError: extraState?.stopOnError ?? prevState?.stopOnError,
+                params: extraState?.params ?? prevState?.params,
             };
             notebookRef.current = newState;
             setNotebook(newState);
@@ -261,7 +268,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 storeSetState(notebookIdRef.current, newState);
             }
         },
-        [notebook?.stopOnError, notebook?.params, commitHistory],
+        [commitHistory],
     );
 
     /** Apply a state from the history without recording a new entry. */
@@ -390,404 +397,253 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         [t],
     );
 
-    const runCellInner = useCallback(
-        async (cellId: string): Promise<CellRunOutcome> => {
-            const cell = cellsRef.current.find((c) => c.id === cellId);
-            // A disabled cell never runs, whichever way it is asked to.
-            if (cell?.isDisabled) return 'skipped';
-            if (!cell || cell.type !== 'sql' || !cell.content.trim()) return;
+    const runPlan = useCallback(
+        async (request: NotebookRunRequest) => {
+            const notebookId = notebookIdRef.current;
+            const release = activeRunRef.current
+                ? undefined
+                : acquireNotebookRun(notebookId ?? tab.id);
+            if (!release) {
+                showAlert(t('editor.notebook.execution.busy'), {kind: 'info'});
+                return;
+            }
 
-            // The cell can be disabled while it waits (dependencies, the query
-            // guard's confirmation): look again before every step that can send SQL.
-            const disabledMeanwhile = () => {
-                if (!cellsRef.current.find((c) => c.id === cellId)?.isDisabled) return false;
-                updateCell(cellId, {isLoading: false});
-                return true;
-            };
+            const controller = new AbortController();
+            activeRunRef.current = controller;
+            const {signal} = controller;
+            try {
+                // Editors debounce document writes. Capture what the user sees,
+                // including references just entered in another cell.
+                flushPendingEditorChanges();
+                const state = notebookRef.current;
+                const runParams = state?.params ?? [];
+                const paramSignature = JSON.stringify(runParams);
+                const planned = buildNotebookExecutionPlan({
+                    cells: cellsRef.current,
+                    request,
+                    fallbackSchema: effectiveSchema,
+                    prepare: (sql) =>
+                        runParams.length
+                            ? resolveParams(sql, runParams, sqlDialect)
+                            : {sql, errors: []},
+                    canReuse: (node, snapshot) => {
+                        const prior = node.cell.result && cachedRunInputs.get(node.cell.result);
+                        if (!prior) return true;
+                        return (
+                            sameNotebookCellInput(node.cell, prior.cell) &&
+                            connectionId === prior.connectionId &&
+                            node.schema === prior.schema &&
+                            node.sql === prior.sql &&
+                            paramSignature === prior.params &&
+                            node.prerequisites.length === prior.prerequisites.length &&
+                            node.prerequisites.every(
+                                (index, i) =>
+                                    prior.prerequisites[i].id === snapshot[index].id &&
+                                    prior.prerequisites[i].result === snapshot[index].result,
+                            )
+                        );
+                    },
+                });
 
-            // Earlier output stays until the query is really sent, so a cell that is
-            // disabled while it waits keeps what it showed before.
-            updateCell(cellId, {isLoading: true});
-
-            const pageSize =
-                settings.resultPageSize && settings.resultPageSize > 0
-                    ? settings.resultPageSize
-                    : 100;
-
-            const cellSchema = cell.schema || effectiveSchema;
-
-            // Resolve notebook parameters first
-            let sql = cell.content.trim();
-            if (params.length > 0) {
-                const paramResult = resolveParams(sql, params, sqlDialect);
-                if (paramResult.unresolvedParams.length > 0) {
-                    // Only warn, don't block — unresolved @params might be SQL variables
-                }
-                // A typed parameter that cannot be written as a value stops the cell:
-                // its reference is still in the SQL and must not reach the database.
-                if (paramResult.errors.length > 0) {
-                    updateCell(cellId, {
-                        error: describeParamErrors(paramResult.errors),
-                        isLoading: false,
-                        result: null,
+                const cellLabel = (index: number) =>
+                    t('editor.notebook.execution.cell', {number: index + 1});
+                if (planned.kind === 'invalid') {
+                    const summary = createRunAllResult(
+                        request.mode,
+                        planned.targetCount,
+                        planned.targetCount,
+                    );
+                    summary.preflightErrors = planned.issues.map((issue) => {
+                        if (issue.kind === 'cycle') {
+                            return t('editor.notebook.execution.cycle', {
+                                path: issue.path.map(cellLabel).join(' → '),
+                            });
+                        }
+                        if (issue.kind === 'self') {
+                            return t('editor.notebook.execution.self', {
+                                cell: cellLabel(issue.index),
+                            });
+                        }
+                        return t(`editor.notebook.execution.${issue.kind}`, {
+                            cell: cellLabel(issue.index),
+                            reference: issue.reference,
+                            interpolation: {escapeValue: false},
+                        });
                     });
+                    setRunAllResult(summary);
                     return;
                 }
-                sql = paramResult.sql;
-            }
+                const {plan} = planned;
+                if (!plan.steps.length && !plan.skipped) return;
 
-            // Block before anything runs when a prerequisite, direct or through cells
-            // that would have to run first, is disabled.
-            const disabledDeps = findDisabledPrerequisites(sql, cellsRef.current, (source) =>
-                params.length > 0 ? resolveParams(source, params).sql : source,
-            );
-            if (disabledDeps.length > 0) {
-                updateCell(cellId, {
-                    error: t('editor.notebook.blockedByDisabled', {
-                        count: disabledDeps.length,
-                        refs: disabledDeps.map((i) => `{{cell_${i + 1}}}`).join(', '),
-                    }),
-                    isLoading: false,
-                    result: null,
-                });
-                return;
-            }
+                setIsRunning(true);
+                setRunAllResult(null);
+                updateTab(tab.id, {isLoading: true});
+                const readCells = () => {
+                    if (signal.aborted || notebookIdRef.current !== notebookId) return [];
+                    flushPendingEditorChanges();
+                    return cellsRef.current;
+                };
+                const unmounted = new Promise<false>((resolve) =>
+                    signal.addEventListener('abort', () => resolve(false), {once: true}),
+                );
+                const result = await executeNotebookPlan(plan, {
+                    stopOnError: state?.stopOnError ?? false,
+                    readCells,
+                    execute: async (node, inputs, checkBeforeSend): Promise<CellRunOutcome> => {
+                        const {cell, sql, schema} = node;
+                        const {id} = cell;
+                        const failBeforeSend = (
+                            error: string,
+                            keepOutput = false,
+                        ): CellRunOutcome => {
+                            updateCell(id, {error, ...(keepOutput ? {} : {result: null})});
+                            return {kind: 'failed', error, sent: false};
+                        };
+                        updateCell(id, {isLoading: true});
+                        try {
+                            if (node.paramErrors.length)
+                                return failBeforeSend(describeParamErrors(node.paramErrors));
+                            const resolved = resolveQueryVariables(sql, inputs, variableOptions);
+                            if (resolved.unresolvedRefs.length) {
+                                return failBeforeSend(
+                                    t('editor.notebook.execution.missing', {
+                                        cell: cellLabel(node.index),
+                                        reference: resolved.unresolvedRefs
+                                            .map((ref) => ref.match)
+                                            .join(', '),
+                                        interpolation: {escapeValue: false},
+                                    }),
+                                );
+                            }
 
-            // Lazy-execute unresolved cell dependencies
-            const unresolvedDeps = findUnresolvedDependencies(sql, cellsRef.current);
-            if (unresolvedDeps.length > 0) {
-                for (const depIndex of unresolvedDeps) {
-                    const depCell = cellsRef.current[depIndex];
-                    if (
-                        depCell &&
-                        depCell.type === 'sql' &&
-                        depCell.content.trim() &&
-                        !depCell.isDisabled
-                    ) {
-                        await runCellRef.current(depCell.id);
-                        if (disabledMeanwhile()) return 'skipped';
-                        // Check if dependency failed
-                        const updated = cellsRef.current[depIndex];
-                        if (updated?.error) {
-                            updateCell(cellId, {
-                                error: `Dependency {{cell_${depIndex + 1}}} failed: ${updated.error}`,
-                                isLoading: false,
-                                result: null,
-                            });
-                            return;
+                            const allowed = await Promise.race([
+                                guardQueryExecution(resolved.sql),
+                                unmounted,
+                            ]);
+                            const changed = checkBeforeSend();
+                            if (changed) return changed;
+                            if (!allowed)
+                                return failBeforeSend(
+                                    t('editor.notebook.execution.guardDenied'),
+                                    true,
+                                );
+
+                            updateCell(id, {error: undefined, result: null});
+                            const start = performance.now();
+                            let outcome: Extract<CellRunOutcome, {kind: 'success' | 'failed'}>;
+                            try {
+                                const response = await client.call('execute_query', {
+                                    connectionId,
+                                    query: resolved.sql,
+                                    limit:
+                                        settings.resultPageSize > 0 ? settings.resultPageSize : 100,
+                                    page: 1,
+                                    ...(schema ? {schema} : {}),
+                                });
+                                outcome = {kind: 'success', result: {...response}};
+                            } catch (error) {
+                                outcome = {
+                                    kind: 'failed',
+                                    error: error instanceof Error ? error.message : String(error),
+                                    sent: true,
+                                };
+                            }
+
+                            const live = readCells();
+                            const current = live.find((item) => item.id === id);
+                            if (
+                                current &&
+                                sameNotebookCellInput(cell, current) &&
+                                node.prerequisites.every(
+                                    (index) => live[index]?.id === inputs[index].id,
+                                )
+                            ) {
+                                const executionTime = performance.now() - start;
+                                const response = outcome.kind === 'success' ? outcome.result : null;
+                                const error = outcome.kind === 'failed' ? outcome.error : undefined;
+                                const entry = createHistoryEntry(
+                                    cell.content.trim(),
+                                    response,
+                                    error,
+                                    executionTime,
+                                );
+                                updateCell(id, {
+                                    result: response,
+                                    error,
+                                    executionTime,
+                                    history: addHistoryEntry(current.history ?? [], entry),
+                                });
+                                setExecutedParamsByCell((prev) => ({
+                                    ...prev,
+                                    [id]: paramSignature,
+                                }));
+                                if (response) {
+                                    cachedRunInputs.set(response, {
+                                        cell: {
+                                            id,
+                                            type: cell.type,
+                                            content: cell.content,
+                                            schema: cell.schema,
+                                        },
+                                        connectionId,
+                                        schema,
+                                        sql,
+                                        params: paramSignature,
+                                        prerequisites: node.prerequisites.map((index) => ({
+                                            id: inputs[index].id,
+                                            result: inputs[index].result,
+                                        })),
+                                    });
+                                }
+                            }
+                            return outcome;
+                        } catch (error) {
+                            const changed = checkBeforeSend();
+                            return (
+                                changed ??
+                                failBeforeSend(
+                                    error instanceof Error ? error.message : String(error),
+                                )
+                            );
+                        } finally {
+                            if (
+                                !signal.aborted &&
+                                notebookIdRef.current === notebookId &&
+                                cellsRef.current.some((item) => item.id === id)
+                            ) {
+                                updateCell(id, {isLoading: false});
+                            }
                         }
-                    }
-                }
-            }
-
-            // Resolve cell variable references (dependencies should now have results)
-            const {sql: resolvedSql, unresolvedRefs} = resolveQueryVariables(
-                sql,
-                cellsRef.current,
-                variableOptions,
-            );
-
-            if (unresolvedRefs.length > 0) {
-                const refLabels = unresolvedRefs
-                    .map((r) => `{{cell_${r.cellIndex + 1}}}`)
-                    .join(', ');
-                updateCell(cellId, {
-                    error: `Unresolved cell references: ${refLabels}. Referenced cells must be SQL cells with content.`,
-                    isLoading: false,
-                    result: null,
+                    },
                 });
-                return;
-            }
-
-            if (disabledMeanwhile()) return 'skipped';
-            const mayRun = await guardQueryExecution(resolvedSql);
-            if (disabledMeanwhile()) return 'skipped';
-            if (!mayRun) {
-                updateCell(cellId, {isLoading: false});
-                return;
-            }
-
-            updateCell(cellId, {error: undefined, result: null});
-            const start = performance.now();
-            try {
-                const res = await client.call('execute_query', {
-                    connectionId,
-                    query: resolvedSql,
-                    limit: pageSize,
-                    page: 1,
-                    ...(cellSchema ? {schema: cellSchema} : {}),
-                });
-                const elapsed = performance.now() - start;
-
-                const historyEntry = createHistoryEntry(
-                    cell.content.trim(),
-                    res,
-                    undefined,
-                    elapsed,
-                );
-                const newHistory = addHistoryEntry(cell.history ?? [], historyEntry);
-
-                updateCell(cellId, {
-                    result: res,
-                    executionTime: elapsed,
-                    isLoading: false,
-                    error: undefined,
-                    history: newHistory,
-                });
-                setExecutedParamsByCell((prev) => ({...prev, [cellId]: currentParamsSignature}));
-            } catch (e: unknown) {
-                const elapsed = performance.now() - start;
-                const errorMsg = e instanceof Error ? e.message : String(e);
-
-                const historyEntry = createHistoryEntry(
-                    cell.content.trim(),
-                    null,
-                    errorMsg,
-                    elapsed,
-                );
-                const newHistory = addHistoryEntry(cell.history ?? [], historyEntry);
-
-                updateCell(cellId, {
-                    error: errorMsg,
-                    executionTime: elapsed,
-                    isLoading: false,
-                    result: null,
-                    history: newHistory,
-                });
-                setExecutedParamsByCell((prev) => ({...prev, [cellId]: currentParamsSignature}));
+                if (!signal.aborted && notebookIdRef.current === notebookId)
+                    setRunAllResult(result);
+            } finally {
+                release();
+                activeRunRef.current = null;
+                if (!signal.aborted) setIsRunning(false);
+                updateTab(tab.id, {isLoading: false});
             }
         },
         [
             client,
             connectionId,
-            effectiveSchema,
-            settings.resultPageSize,
-            updateCell,
-            params,
-            currentParamsSignature,
-            sqlDialect,
             describeParamErrors,
-            variableOptions,
+            effectiveSchema,
             guardQueryExecution,
+            settings.resultPageSize,
+            showAlert,
+            sqlDialect,
             t,
+            tab.id,
+            updateCell,
+            updateTab,
+            variableOptions,
         ],
     );
 
-    // Number of cells currently executing. The tab's `isLoading` flag drives the
-    // running indicator on the editor tab strip, so it must stay on while any
-    // cell is still running and go off only when the last one finishes.
-    const runningCellsRef = useRef(0);
-
-    const runCell = useCallback(
-        async (cellId: string): Promise<CellRunOutcome> => {
-            runningCellsRef.current += 1;
-            if (runningCellsRef.current === 1) {
-                updateTab(tab.id, {isLoading: true});
-            }
-            try {
-                return await runCellInner(cellId);
-            } finally {
-                runningCellsRef.current -= 1;
-                if (runningCellsRef.current === 0) {
-                    updateTab(tab.id, {isLoading: false});
-                }
-            }
-        },
-        [runCellInner, tab.id, updateTab],
-    );
-
-    useEffect(() => {
-        runCellRef.current = runCell;
-    }, [runCell]);
-
-    const runAll = useCallback(async () => {
-        setIsRunningAll(true);
-        setRunAllResult(null);
-
-        const prepare = (source: string) =>
-            params.length > 0 ? resolveParams(source, params).sql : source;
-        const executable = getExecutableCells(cellsRef.current);
-        const disabledCount = getDisabledCells(cellsRef.current).length;
-        let result = createRunAllResult();
-        result = {...result, total: executable.length + disabledCount};
-        // Disabled cells are not run: they are counted as skipped.
-        if (disabledCount > 0) result = addSkipped(result, disabledCount);
-
-        type Outcome =
-            | {kind: 'skipped'}
-            | {kind: 'blocked'; disabledCells: Array<{cellId: string; cellIndex: number}>}
-            | {kind: 'ran'};
-
-        // Re-read the cell right before it starts: it may have been disabled
-        // while earlier cells ran, or its prerequisites may have been.
-        const startCell = (cellId: string): {outcome: Outcome; run: Promise<CellRunOutcome>} => {
-            const current = cellsRef.current.find((c) => c.id === cellId);
-            if (!current || current.isDisabled) {
-                return {outcome: {kind: 'skipped'}, run: Promise.resolve('skipped')};
-            }
-            const disabledDeps = findDisabledPrerequisites(
-                prepare(current.content.trim()),
-                cellsRef.current,
-                prepare,
-            );
-            // runCell marks a blocked cell with the reason without executing it.
-            const run = runCell(cellId);
-            if (disabledDeps.length > 0) {
-                return {
-                    outcome: {
-                        kind: 'blocked',
-                        disabledCells: disabledDeps.map((i) => ({
-                            cellId: cellsRef.current[i]?.id ?? '',
-                            cellIndex: i,
-                        })),
-                    },
-                    run,
-                };
-            }
-            return {outcome: {kind: 'ran'}, run};
-        };
-
-        const record = (
-            current: RunAllResult,
-            outcome: Outcome,
-            cellId: string,
-            index: number,
-            ran: PromiseSettledResult<CellRunOutcome>,
-        ): {result: RunAllResult; failed: boolean} => {
-            // Also skipped: disabled after it started but before its query was sent.
-            if (
-                outcome.kind === 'skipped' ||
-                (ran.status === 'fulfilled' && ran.value === 'skipped')
-            ) {
-                return {result: addSkipped(current, 1), failed: false};
-            }
-            if (outcome.kind === 'blocked') {
-                return {
-                    result: addBlocked(current, cellId, index, outcome.disabledCells),
-                    failed: false,
-                };
-            }
-            const updatedCell = cellsRef.current.find((c) => c.id === cellId);
-            if (updatedCell?.error || ran.status === 'rejected') {
-                return {
-                    result: addFailure(
-                        current,
-                        cellId,
-                        index,
-                        updatedCell?.error ?? 'Execution failed',
-                    ),
-                    failed: true,
-                };
-            }
-            return {result: addSuccess(current), failed: false};
-        };
-
-        // Parallel cells start together. Everything else is grouped by database:
-        // one database stays in order, and different databases run at once.
-        const {parallel: parallelCells, lanes} = partitionRunAllCells(executable, effectiveSchema);
-        // Settles when that cell's own run has finished, so a cell on another
-        // database can wait for an earlier cell it reads. "skipped" means this
-        // run never started it (stop-on-error); waiters must not treat an old
-        // result as the output of this run.
-        const finished = new Map<string, Promise<'done' | 'skipped'>>();
-        const markFinished = new Map<string, (status: 'done' | 'skipped') => void>();
-        for (const {cell} of executable) {
-            let resolve: (status: 'done' | 'skipped') => void = () => {};
-            finished.set(
-                cell.id,
-                new Promise<'done' | 'skipped'>((done) => {
-                    resolve = done;
-                }),
-            );
-            markFinished.set(cell.id, resolve);
-        }
-        const finishCell = (cellId: string, status: 'done' | 'skipped') => {
-            markFinished.get(cellId)?.(status);
-        };
-
-        // Run parallel cells concurrently
-        if (parallelCells.length > 0) {
-            const started = parallelCells.map(({cell}) => startCell(cell.id));
-            const parallelResults = await Promise.allSettled(started.map(({run}) => run));
-            for (let i = 0; i < parallelCells.length; i++) {
-                const {cell, index} = parallelCells[i];
-                result = record(
-                    result,
-                    started[i].outcome,
-                    cell.id,
-                    index,
-                    parallelResults[i],
-                ).result;
-                finishCell(cell.id, 'done');
-            }
-        }
-
-        // Each database is its own queue. Queues start together; a failure with
-        // stop-on-error only skips the rest of that database.
-        const laneSteps = await Promise.all(
-            lanes.map(async (lane) => {
-                const steps: Array<
-                    | {kind: 'stopped'; index: number}
-                    | {kind: 'ran'; index: number; settled: RunAllResult}
-                > = [];
-                let stopLane = false;
-                for (const {cell, index} of lane) {
-                    if (stopLane) {
-                        steps.push({kind: 'stopped', index});
-                        finishCell(cell.id, 'skipped');
-                        continue;
-                    }
-                    const dependencies = await Promise.all(
-                        earlierReferencedCellIds(
-                            index,
-                            prepare(cell.content.trim()),
-                            cellsRef.current,
-                        ).map((id) => finished.get(id) ?? Promise.resolve('done' as const)),
-                    );
-                    if (dependencies.includes('skipped')) {
-                        steps.push({kind: 'stopped', index});
-                        finishCell(cell.id, 'skipped');
-                        continue;
-                    }
-                    const started = startCell(cell.id);
-                    const [ran] = await Promise.allSettled([started.run]);
-                    // Captured now: a later cell may re-run this one and replace
-                    // the error with a success before the summary is built.
-                    const settled = record(
-                        createRunAllResult(),
-                        started.outcome,
-                        cell.id,
-                        index,
-                        ran,
-                    );
-                    steps.push({kind: 'ran', index, settled: settled.result});
-                    finishCell(cell.id, 'done');
-                    if (stopOnError && settled.failed) stopLane = true;
-                }
-                return steps;
-            }),
-        );
-
-        for (const step of laneSteps.flat().sort((a, b) => a.index - b.index)) {
-            if (step.kind === 'stopped') {
-                result = addSkipped(result, 1);
-                continue;
-            }
-            result = {
-                ...result,
-                executed: result.executed + step.settled.executed,
-                succeeded: result.succeeded + step.settled.succeeded,
-                failed: result.failed + step.settled.failed,
-                skipped: result.skipped + step.settled.skipped,
-                blocked: result.blocked + step.settled.blocked,
-                errors: [...result.errors, ...step.settled.errors],
-                blockedCells: [...result.blockedCells, ...step.settled.blockedCells],
-            };
-        }
-
-        setRunAllResult(result);
-        setIsRunningAll(false);
-    }, [effectiveSchema, params, runCell, stopOnError]);
+    const runAll = useCallback(() => runPlan({mode: 'all'}), [runPlan]);
 
     const handleExport = useCallback(async () => {
         // Export what the editors show, including a keystroke still held back.
@@ -1065,7 +921,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
 
     // Clearing outputs only touches live runtime state: nothing is executed or
     // deleted from the saved notebook, and it is not an undo step.
-    const isExecuting = isRunningAll || cells.some((c) => c.isLoading);
+    const isExecuting = isRunning || cells.some((c) => c.isLoading);
     const canClearOutputs = !isExecuting && hasCellOutputs(cells);
 
     // Append a document-only copy of a cell; never while anything is executing.
@@ -1115,7 +971,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         onExportSql: handleExportSql,
         onExportMarkdown: handleExportMarkdown,
         onImport: handleImport,
-        isRunning: isRunningAll,
+        isRunning,
         stopOnError,
         onToggleStopOnError: toggleStopOnError,
         onCollapseAll: collapseAll,
@@ -1288,7 +1144,11 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                                                 reorderCells(cellsRef.current, index, index + 1),
                                             );
                                     }}
-                                    onRun={() => runCell(cell.id)}
+                                    onRun={() => runPlan({mode: 'cell', cellId: cell.id})}
+                                    onRunAffected={() =>
+                                        runPlan({mode: 'affected', cellId: cell.id})
+                                    }
+                                    isRunBusy={isRunning}
                                     onDuplicate={() => duplicateCell(cell.id)}
                                     canDuplicate={!isExecuting}
                                     connectionId={connectionId}

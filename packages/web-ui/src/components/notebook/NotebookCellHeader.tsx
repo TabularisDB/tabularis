@@ -7,6 +7,7 @@ import {
     ChevronRight,
     Trash2,
     Play,
+    ListStart,
     Eye,
     Pencil,
     Loader2,
@@ -38,6 +39,8 @@ interface NotebookCellHeaderProps {
     onDuplicate?: () => void;
     canDuplicate?: boolean;
     onRun?: () => void;
+    onRunAffected?: () => void;
+    isRunBusy?: boolean;
     onTogglePreview?: () => void;
     isLoading?: boolean;
     activeSchema?: string;
@@ -121,6 +124,8 @@ export function NotebookCellHeader({
     onDuplicate,
     canDuplicate = true,
     onRun,
+    onRunAffected,
+    isRunBusy,
     onTogglePreview,
     isLoading,
     activeSchema,
@@ -163,6 +168,12 @@ export function NotebookCellHeader({
     const runLabel = t(
         isDisabled ? 'editor.notebook.runDisabledReason' : 'editor.notebook.runCell',
     );
+    const runDisabledReason = isDisabled
+        ? t('editor.notebook.runDisabledReason')
+        : isRunBusy
+          ? t('editor.notebook.execution.busy')
+          : undefined;
+    const affectedLabel = t('editor.notebook.execution.runAffected');
     const queryPlanToggleLabel = t(
         isQueryPlanVisible ? 'editor.notebook.hideQueryPlan' : 'editor.notebook.toggleQueryPlan',
     );
@@ -340,9 +351,9 @@ export function NotebookCellHeader({
                 {cellType === 'sql' && onRun && (
                     <ActionButton
                         onClick={onRun}
-                        title={runLabel}
+                        title={runDisabledReason ?? runLabel}
                         ariaLabel={runLabel}
-                        disabled={isLoading || isDisabled}
+                        disabled={isLoading || isDisabled || isRunBusy}
                     >
                         {isLoading ? (
                             <Loader2 size={14} className="animate-spin" />
@@ -352,11 +363,24 @@ export function NotebookCellHeader({
                     </ActionButton>
                 )}
 
+                {cellType === 'sql' && onRunAffected && (
+                    <ActionButton
+                        onClick={onRunAffected}
+                        title={runDisabledReason ?? affectedLabel}
+                        ariaLabel={affectedLabel}
+                        disabled={isLoading || isDisabled || isRunBusy}
+                    >
+                        <ListStart size={14} aria-hidden="true" />
+                    </ActionButton>
+                )}
+
                 {cellType === 'sql' && onToggleParallel && (
                     <button
                         type="button"
                         onClick={onToggleParallel}
                         title={t('editor.notebook.parallelExecution')}
+                        aria-label={t('editor.notebook.parallelExecution')}
+                        aria-pressed={!!isParallel}
                         className={`p-1 rounded transition-colors ${
                             isParallel
                                 ? 'text-accent-warning bg-accent-warning/15'

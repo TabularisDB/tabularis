@@ -1,78 +1,22 @@
-import type {NotebookCell, RunAllResult} from '@/types/notebook';
+import type {QueryResult} from '@/types/editor';
+import type {NotebookCell, NotebookRunMode, RunAllResult} from '@/types/notebook';
+import {
+    sameNotebookCellInput,
+    type NotebookExecutionPlan,
+    type PlannedCell,
+} from './notebookExecutionPlan';
 import {extractCellReferences} from './notebookVariables';
+import {isReadOnlyQuery} from './sqlAnalysis';
 
-function isNonEmptySql(cell: NotebookCell): boolean {
-    return cell.type === 'sql' && cell.content.trim() !== '';
-}
+const activeNotebooks = new Set<string>();
 
-export interface ScheduledCell {
-    cell: NotebookCell;
-    index: number;
-}
-
-/** Non-empty SQL cells that Run All executes: disabled cells are left out. */
-export function getExecutableCells(cells: NotebookCell[]): ScheduledCell[] {
-    return cells
-        .map((cell, index) => ({cell, index}))
-        .filter(({cell}) => isNonEmptySql(cell) && !cell.isDisabled);
-}
-
-/**
- * How Run All orders work. Cells marked parallel still start together.
- * Every other cell stays in document order inside its database, and those
- * databases run at the same time. A cell with no database of its own uses
- * `fallbackDatabase` (the notebook tab's database), so cells that share a
- * database cannot pass each other.
- */
-export function partitionRunAllCells(
-    executable: ScheduledCell[],
-    fallbackDatabase: string | null | undefined,
-): {parallel: ScheduledCell[]; lanes: ScheduledCell[][]} {
-    const parallel = executable.filter(({cell}) => cell.isParallel);
-    const fallback = fallbackDatabase?.trim() ?? '';
-    const lanes: ScheduledCell[][] = [];
-    const laneIndex = new Map<string, number>();
-    for (const item of executable) {
-        if (item.cell.isParallel) continue;
-        const key = item.cell.schema?.trim() || fallback;
-        const existing = laneIndex.get(key);
-        if (existing === undefined) {
-            laneIndex.set(key, lanes.length);
-            lanes.push([item]);
-        } else {
-            lanes[existing].push(item);
-        }
-    }
-    return {parallel, lanes};
-}
-
-/**
- * Cells this SQL names that appear earlier in the notebook. A later cell on
- * another database waits for these before it starts, so it reads the result
- * this run just produced. Later references are left to the cell itself: waiting
- * for them would deadlock with the per-database order.
- */
-export function earlierReferencedCellIds(
-    cellIndex: number,
-    sql: string,
-    cells: NotebookCell[],
-): string[] {
-    const ids: string[] = [];
-    for (const {cellIndex: referenced} of extractCellReferences(sql)) {
-        if (referenced >= cellIndex) continue;
-        const target = cells[referenced];
-        if (target) ids.push(target.id);
-    }
-    return ids;
-}
-
-/** Non-empty SQL cells that are disabled: Run All counts them as skipped. */
-export function getDisabledCells(
-    cells: NotebookCell[],
-): Array<{cell: NotebookCell; index: number}> {
-    return cells
-        .map((cell, index) => ({cell, index}))
-        .filter(({cell}) => isNonEmptySql(cell) && !!cell.isDisabled);
+/** A confirmation dialog or in-flight query owns the notebook until it settles. */
+export function acquireNotebookRun(notebookId: string): (() => void) | undefined {
+    if (activeNotebooks.has(notebookId)) return;
+    activeNotebooks.add(notebookId);
+    return () => {
+        activeNotebooks.delete(notebookId);
+    };
 }
 
 /**
@@ -105,67 +49,160 @@ export function findDisabledPrerequisites(
     return Array.from(disabled).sort((a, b) => a - b);
 }
 
-export function createRunAllResult(): RunAllResult {
+export function createRunAllResult(
+    mode: NotebookRunMode,
+    total: number,
+    skipped = 0,
+): RunAllResult {
     return {
-        total: 0,
+        mode,
+        total,
         executed: 0,
         succeeded: 0,
         failed: 0,
-        skipped: 0,
+        skipped,
         blocked: 0,
+        preflightErrors: [],
         errors: [],
         blockedCells: [],
+        changedCells: [],
     };
 }
 
-export function addSuccess(result: RunAllResult): RunAllResult {
-    return {
-        ...result,
-        executed: result.executed + 1,
-        succeeded: result.succeeded + 1,
-    };
+export type CellRunOutcome =
+    | {kind: 'success'; result: QueryResult}
+    | {kind: 'failed'; error: string; sent: boolean}
+    | {kind: 'changed'}
+    | {kind: 'blocked'; prerequisite: number};
+
+const laneKey = ({schema}: PlannedCell) => schema?.trim() ?? '';
+
+function permitsParallelRead(node: PlannedCell): boolean {
+    return !!node.cell.isParallel && isReadOnlyQuery(node.sql);
 }
 
-export function addFailure(
-    result: RunAllResult,
-    cellId: string,
-    cellIndex: number,
-    error: string,
-): RunAllResult {
-    return {
-        ...result,
-        executed: result.executed + 1,
-        failed: result.failed + 1,
-        errors: [...result.errors, {cellId, cellIndex, error}],
-    };
-}
+/**
+ * A batch may only contain independent, opted-in reads in different lanes.
+ * Batches are consumed in plan order; a write always runs alone within the plan.
+ */
+export async function executeNotebookPlan(
+    plan: NotebookExecutionPlan,
+    {
+        stopOnError,
+        readCells,
+        execute,
+    }: {
+        stopOnError: boolean;
+        readCells: () => NotebookCell[];
+        execute: (
+            node: PlannedCell,
+            inputs: NotebookCell[],
+            checkBeforeSend: () =>
+                Extract<CellRunOutcome, {kind: 'changed' | 'blocked'}> | undefined,
+        ) => Promise<CellRunOutcome>;
+    },
+): Promise<RunAllResult> {
+    const {cells, nodes, steps} = plan;
+    const summary = createRunAllResult(plan.mode, steps.length + plan.skipped, plan.skipped);
+    const inputs = [...cells];
+    const unavailable = new Set<number>();
+    const stopped = new Set<string>();
+    const location = (index: number) => ({cellId: cells[index].id, cellIndex: index});
 
-export function addSkipped(result: RunAllResult, count: number): RunAllResult {
-    return {
-        ...result,
-        skipped: result.skipped + count,
-    };
-}
+    function checkInput(node: PlannedCell) {
+        const live = readCells();
+        const byId = new Map(live.map((cell) => [cell.id, cell]));
+        const unchanged = (original: NotebookCell) => {
+            const current = byId.get(original.id);
+            return current && !current.isDisabled && sameNotebookCellInput(original, current);
+        };
+        if (!unchanged(node.cell)) return {kind: 'changed'} as const;
 
-/** Record a cell that was not run because `disabledCells` are disabled. */
-export function addBlocked(
-    result: RunAllResult,
-    cellId: string,
-    cellIndex: number,
-    disabledCells: Array<{cellId: string; cellIndex: number}>,
-): RunAllResult {
-    return {
-        ...result,
-        blocked: result.blocked + 1,
-        blockedCells: [...result.blockedCells, {cellId, cellIndex, disabledCells}],
-    };
-}
+        // Check bindings as well as input fields. A deletion or move must not
+        // let the same positional reference silently point at another cell.
+        const checked = new Set<number>();
+        function validPrerequisite(index: number): boolean {
+            if (checked.has(index)) return true;
+            checked.add(index);
+            return (
+                !unavailable.has(index) &&
+                live[index]?.id === cells[index].id &&
+                !!unchanged(cells[index]) &&
+                (nodes.get(index)?.prerequisites.every(validPrerequisite) ?? true)
+            );
+        }
+        const prerequisite = node.prerequisites.find((index) => !validPrerequisite(index));
+        if (prerequisite !== undefined) return {kind: 'blocked', prerequisite} as const;
+    }
 
-export function formatRunAllSummary(result: RunAllResult): string {
-    const parts: string[] = [];
-    if (result.succeeded > 0) parts.push(`${result.succeeded} succeeded`);
-    if (result.failed > 0) parts.push(`${result.failed} failed`);
-    if (result.skipped > 0) parts.push(`${result.skipped} skipped`);
-    if (result.blocked > 0) parts.push(`${result.blocked} blocked`);
-    return parts.join(', ');
+    for (let cursor = 0; cursor < steps.length;) {
+        const first = steps[cursor++];
+        const batch = [first];
+        if (permitsParallelRead(first)) {
+            const lanes = new Set([laneKey(first)]);
+            const indices = new Set([first.index]);
+            for (; cursor < steps.length; cursor++) {
+                const next = steps[cursor];
+                const lane = laneKey(next);
+                if (
+                    !permitsParallelRead(next) ||
+                    lanes.has(lane) ||
+                    next.prerequisites.some((index) => indices.has(index))
+                )
+                    break;
+                lanes.add(lane);
+                indices.add(next.index);
+                batch.push(next);
+            }
+        }
+
+        const outcomes = await Promise.all(
+            batch.map(async (node) => {
+                const check = () => checkInput(node);
+                const issue = check();
+                if (issue) return issue;
+                if (stopped.has(laneKey(node))) return {kind: 'stopped'} as const;
+                return execute(node, inputs, check);
+            }),
+        );
+
+        for (const [i, outcome] of outcomes.entries()) {
+            const node = batch[i];
+            if (outcome.kind === 'success') {
+                summary.executed++;
+                summary.succeeded++;
+                inputs[node.index] = {...node.cell, result: outcome.result, error: undefined};
+                continue;
+            }
+
+            unavailable.add(node.index);
+            switch (outcome.kind) {
+                case 'failed':
+                    if (outcome.sent) summary.executed++;
+                    summary.failed++;
+                    summary.errors.push({...location(node.index), error: outcome.error});
+                    if (stopOnError) stopped.add(laneKey(node));
+                    break;
+                case 'blocked':
+                    summary.blocked++;
+                    summary.blockedCells.push({
+                        ...location(node.index),
+                        prerequisite: location(outcome.prerequisite),
+                    });
+                    break;
+                case 'changed':
+                    summary.changedCells.push(location(node.index));
+                    summary.skipped++;
+                    break;
+                case 'stopped':
+                    summary.skipped++;
+                    break;
+            }
+        }
+    }
+
+    for (const list of [summary.errors, summary.blockedCells, summary.changedCells]) {
+        list.sort((a, b) => a.cellIndex - b.cellIndex);
+    }
+    return summary;
 }
