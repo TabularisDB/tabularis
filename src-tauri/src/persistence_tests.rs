@@ -60,6 +60,25 @@ mod tests {
     }
 
     #[test]
+    fn rewriting_an_old_snapshot_drops_explicit_null_approval() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("connections.json");
+        let old = serde_json::json!({"connections":[{
+            "id":"saved", "name":"DB", "params":{
+                "driver":"sqlite", "database":"scratch.db", "mcp_approval_mode":null
+            }
+        }]});
+        std::fs::write(&path, old.to_string()).unwrap();
+        let file = load_connections_file(&path).unwrap();
+        save_connections_file(&path, &file).unwrap();
+
+        let raw: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        let params = raw["connections"][0]["params"].as_object().unwrap();
+        assert!(!params.contains_key("mcp_approval_mode"));
+    }
+
+    #[test]
     fn save_connections_file_with_keychain_default_writes_no_password() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("connections.json");

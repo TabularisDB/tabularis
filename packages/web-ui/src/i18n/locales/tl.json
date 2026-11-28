@@ -1485,6 +1485,9 @@
     "configError": "Pakiconfigure ang AI provider sa Settings at maglagay ng prompt."
   },
   "newConnection": {
+    "mcpApprovalMode": "Pag-apruba sa mga query ng MCP",
+    "mcpApprovalInherit": "Gamitin ang pandaigdigang setting ({{mode}})",
+    "mcpApprovalReadOnly": "Hinaharang ng read-only na koneksyong ito ang pagsusulat sa anumang mode ng pag-apruba.",
     "ssmForwardHint": "Nire-resolve sa {{document}} - ipinapasa sa {{host}}:{{port}} sa pamamagitan ng managed node. Baguhin ang target na address sa tab na General; ang loopback host ay ang node mismo.",
     "ssmIamHint": "Kailangan ng ssm:StartSession sa target at sa na-resolve na dokumento.",
     "ssmNotAvailable": "Hindi available ang AWS SSM para sa driver na ito.",

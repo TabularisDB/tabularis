@@ -684,6 +684,8 @@ impl RpcDriver {
     /// `Multiple`), fall back to [`Self::fallback_database`].
     fn with_primary_database(&self, params: &ConnectionParams) -> ConnectionParams {
         let mut params = params.clone();
+        // Approval is a host policy, not a driver connection setting.
+        params.strip_host_policy_for_plugin();
 
         // Schema-less plugins (route_selected_database = true) select the
         // actual connection from `params.database` based on the sidebar's
@@ -2840,6 +2842,7 @@ mod tests {
         ConnectionParams {
             driver: "test-plugin".to_string(),
             read_only: false,
+            mcp_approval_mode: None,
             host: Some("localhost".to_string()),
             port: Some(1234),
             username: Some("user".to_string()),

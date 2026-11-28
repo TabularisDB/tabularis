@@ -7,6 +7,44 @@ use axum::http::HeaderValue;
 use uuid::Uuid;
 
 #[test]
+fn connection_rpc_preserves_missing_null_and_explicit_mcp_approval() {
+    use crate::models::McpApprovalMode::WritesOnly;
+
+    let mut payload = serde_json::json!({
+        "id": "saved-db",
+        "name": "Database",
+        "params": {"driver": "sqlite", "database": "scratch.db"}
+    });
+    let decode = |command, payload: &Value| {
+        decode_connection_command(
+            command,
+            None,
+            AuthorizationLevel::LocalAdmin,
+            &serde_json::to_vec(payload).unwrap(),
+        )
+    };
+    assert!(matches!(
+        decode(ConnectionRpcCommand::UpdateConnection, &payload).unwrap(),
+        ConnectionCommand::UpdateConnection { params, .. } if params.mcp_approval_mode.is_none()
+    ));
+    payload["params"]["mcp_approval_mode"] = Value::Null;
+    assert!(matches!(
+        decode(ConnectionRpcCommand::UpdateConnection, &payload).unwrap(),
+        ConnectionCommand::UpdateConnection { params, .. } if params.mcp_approval_mode == Some(None)
+    ));
+
+    payload.as_object_mut().unwrap().remove("id");
+    payload["params"]["mcp_approval_mode"] = serde_json::json!("writes_only");
+    assert!(matches!(
+        decode(ConnectionRpcCommand::SaveConnection, &payload).unwrap(),
+        ConnectionCommand::SaveConnection { params, .. }
+            if params.mcp_approval_mode == Some(Some(WritesOnly))
+    ));
+    payload["params"]["mcp_approval_mode"] = serde_json::json!("invalid");
+    assert!(decode(ConnectionRpcCommand::SaveConnection, &payload).is_err());
+}
+
+#[test]
 fn database_sql_import_preserves_creation_and_rejects_browser_server_paths() {
     let command=decode_database_transfer_command(DatabaseTransferRpcCommand::Import,br#"{"connectionId":"source","uploadToken":"upload","database":"/server/new.fdb","createDatabase":true}"#).unwrap();
     assert!(
@@ -3056,6 +3094,269 @@ async fn connection_policy_blocks_file_drivers_in_inline_and_saved_requests() {
         }
     }
     crate::drivers::registry::set_local_path_driver(plugin, false);
+}
+
+#[tokio::test]
+async fn connection_approval_authorization_on_create_and_update() {
+    use serde_json::json;
+
+    for saved in [None, Some("all")] {
+        let base = json!({"driver":"postgres","host":"trusted","database":"db"});
+        let mut stored = base.clone();
+        if let Some(mode) = saved {
+            stored["mcp_approval_mode"] = json!(mode);
+        }
+        for managed in [false, true] {
+            let mut app = FixtureApplication::new(Duration::ZERO);
+            app.saved_params.insert(
+                "saved-db".into(),
+                serde_json::from_value(stored.clone()).unwrap(),
+            );
+            let dispatcher = RpcDispatcher::with_access_policy(
+                Arc::new(app),
+                RpcAccessPolicy {
+                    connection_policy: if managed {
+                        ManagedConnectionPolicy::managed_only()
+                    } else {
+                        ManagedConnectionPolicy::standalone()
+                    },
+                    ..RpcAccessPolicy::default()
+                },
+            );
+            for role in [AuthorizationLevel::Database, AuthorizationLevel::LocalAdmin] {
+                for command in ["save_connection", "update_connection"] {
+                    for field in [
+                        None,
+                        Some(Value::Null),
+                        Some(json!("all")),
+                        Some(json!("off")),
+                        Some(json!("writes_only")),
+                    ] {
+                        let mut params = base.clone();
+                        if let Some(value) = &field {
+                            params["mcp_approval_mode"] = value.clone();
+                        }
+                        let unchanged = match (&field, command) {
+                            (None, _) => true,
+                            (Some(value), "save_connection") => value.is_null(),
+                            (Some(value), _) => value.as_str() == saved,
+                        };
+                        let allowed =
+                            !managed && (role == AuthorizationLevel::LocalAdmin || unchanged);
+                        let response = dispatch_json(
+                            &dispatcher,
+                            command,
+                            connection_policy_payload(command, params),
+                            Some(Uuid::new_v4()),
+                            role,
+                        )
+                        .await;
+                        assert_eq!(
+                            response.status(),
+                            if allowed {
+                                StatusCode::OK
+                            } else {
+                                StatusCode::FORBIDDEN
+                            },
+                            "{role:?} {managed} {command} {saved:?} {field:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn connection_approval_copy_is_authorized_against_the_persisted_source() {
+    use crate::application::RuntimeApplicationApi;
+    use crate::runtime::{
+        events::NoopRuntimeEvents, paths::FixedRuntimePaths, secrets::RuntimeSecrets,
+        RuntimeContext,
+    };
+    use serde_json::json;
+
+    struct UnusedSecrets;
+    impl RuntimeSecrets for UnusedSecrets {
+        fn get(&self, _: &str) -> Result<Option<String>, String> {
+            panic!("a connection with no stored credentials must not read secrets")
+        }
+        fn set(&self, _: &str, _: &str) -> Result<(), String> {
+            panic!("a connection with no stored credentials must not write secrets")
+        }
+        fn delete(&self, _: &str) -> Result<(), String> {
+            panic!("the test must not delete secrets")
+        }
+    }
+
+    for mode in [None, Some("all"), Some("writes_only"), Some("off")] {
+        let temp = tempfile::tempdir().unwrap();
+        let runtime = RuntimeContext::new(
+            Arc::new(FixedRuntimePaths::new(
+                temp.path().into(),
+                temp.path().into(),
+            )),
+            Arc::new(NoopRuntimeEvents),
+            Arc::new(UnusedSecrets),
+        );
+        let path = runtime.paths.connections_file();
+        let mut row = json!({"id": "source", "name": "Source", "params": {
+            "driver": "postgres", "host": "db.example", "database": "app"
+        }});
+        if let Some(mode) = mode {
+            row["params"]["mcp_approval_mode"] = json!(mode);
+        }
+        let source = serde_json::from_value(row).unwrap();
+        crate::persistence::save_connections(&path, &[source]).unwrap();
+
+        let application = Arc::new(RuntimeApplicationApi::new(runtime, Arc::default()));
+        for managed in [false, true] {
+            let dispatcher = RpcDispatcher::with_access_policy(
+                application.clone(),
+                RpcAccessPolicy {
+                    connection_policy: if managed {
+                        ManagedConnectionPolicy::managed_only()
+                    } else {
+                        ManagedConnectionPolicy::standalone()
+                    },
+                    ..RpcAccessPolicy::default()
+                },
+            );
+            for role in [AuthorizationLevel::Database, AuthorizationLevel::LocalAdmin] {
+                let before = std::fs::read(&path).unwrap();
+                let response = dispatch_json(
+                    &dispatcher,
+                    "duplicate_connection",
+                    json!({"id": "source"}),
+                    Some(Uuid::new_v4()),
+                    role,
+                )
+                .await;
+
+                if managed || (mode.is_some() && role != AuthorizationLevel::LocalAdmin) {
+                    assert_eq!(
+                        response.status(),
+                        StatusCode::FORBIDDEN,
+                        "{mode:?} {role:?}"
+                    );
+                    assert_eq!(std::fs::read(&path).unwrap(), before);
+                    continue;
+                }
+
+                assert_eq!(response.status(), StatusCode::OK, "{mode:?} {role:?}");
+                let reply = response_json(response).await;
+                let copy_id = reply["data"]["id"].as_str().unwrap();
+                assert_ne!(copy_id, "source");
+                let file: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+                let rows = file["connections"].as_array().unwrap();
+                let copy = rows.iter().find(|r| r["id"] == copy_id).unwrap();
+                assert_eq!(
+                    copy["params"].get("mcp_approval_mode"),
+                    mode.map(|m| json!(m)).as_ref()
+                );
+                let before: Value = serde_json::from_slice(&before).unwrap();
+                assert_eq!(
+                    rows.len(),
+                    before["connections"].as_array().unwrap().len() + 1
+                );
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn native_import_applies_approval_overrides_only_for_local_admin() {
+    use crate::application::connection_files::CONNECTION_IMPORT_PURPOSE;
+    use crate::application::file_transfers::FileTransferStore;
+    use serde_json::json;
+
+    for role in [
+        AuthorizationLevel::Sensitive,
+        AuthorizationLevel::LocalAdmin,
+    ] {
+        for incoming in [Some("off"), None] {
+            let temp = tempfile::tempdir().unwrap();
+            let path = crate::paths::resolve_connections_path(temp.path());
+            let dispatcher = RpcDispatcher::new(super::super::tests::test_application(temp.path()));
+            let session = Uuid::new_v4();
+            let mut row = json!({"id": "local", "name": "Original", "params": {
+                "driver": "postgres", "host": "db.example", "database": "app", "mcp_approval_mode": "all"
+            }});
+            crate::persistence::save_connections(
+                &path,
+                &[serde_json::from_value(row.clone()).unwrap()],
+            )
+            .unwrap();
+            row["id"] = json!("backup");
+            row["name"] = json!("Imported");
+            if let Some(mode) = incoming {
+                row["params"]["mcp_approval_mode"] = json!(mode);
+            } else {
+                row["params"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("mcp_approval_mode");
+            }
+            let mut new_row = row.clone();
+            new_row["id"] = json!("second");
+            new_row["params"]["host"] = json!("new.example");
+            let backup = json!({"version": 1, "groups": [], "ssh_connections": [], "connections": [row, new_row]});
+            let upload = FileTransferStore::new(temp.path())
+                .store_upload(
+                    session,
+                    CONNECTION_IMPORT_PURPOSE,
+                    "backup.json",
+                    Some("application/json"),
+                    futures::stream::iter([Ok::<_, std::io::Error>(Bytes::from(
+                        backup.to_string(),
+                    ))]),
+                )
+                .await
+                .unwrap();
+            for (command, body) in [
+                (
+                    "preview_tabularis_import_file",
+                    json!({"file": {"kind": "upload", "token": upload.token}}),
+                ),
+                (
+                    "apply_prepared_tabularis_import",
+                    json!({"resolutions": [
+                        {"index": 1, "action": "import"},
+                        {"index": 0, "action": "replace", "replaceExistingId": "local"}
+                    ]}),
+                ),
+            ] {
+                let response = dispatch_json(&dispatcher, command, body, Some(session), role).await;
+                let status = response.status();
+                assert_eq!(
+                    status,
+                    StatusCode::OK,
+                    "{command}: {}",
+                    response_json(response).await
+                );
+            }
+            let file: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+            let rows = file["connections"].as_array().unwrap();
+            assert_eq!(rows.len(), 2);
+            assert!(rows.iter().any(|row| row["id"] == "local"));
+            for row in rows {
+                assert_eq!(row["name"], "Imported");
+                let expected = if role == AuthorizationLevel::LocalAdmin {
+                    incoming
+                } else if row["id"] == "local" {
+                    Some("all")
+                } else {
+                    None
+                };
+                assert_eq!(
+                    row["params"].get("mcp_approval_mode"),
+                    expected.map(|m| json!(m)).as_ref(),
+                    "{role:?} / {incoming:?} / {}",
+                    row["id"]
+                );
+            }
+        }
+    }
 }
 
 #[tokio::test]

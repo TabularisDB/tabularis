@@ -1508,6 +1508,9 @@
     "configError": "Hãy cấu hình nhà cung cấp AI trong Cài đặt và nhập prompt."
   },
   "newConnection": {
+    "mcpApprovalMode": "Phê duyệt truy vấn MCP",
+    "mcpApprovalInherit": "Kế thừa thiết lập chung ({{mode}})",
+    "mcpApprovalReadOnly": "Kết nối chỉ đọc này chặn thao tác ghi ở mọi chế độ phê duyệt.",
     "socketPath": "Đường dẫn socket (tùy chọn)",
     "socketPathHint": "Kết nối qua Unix socket trên máy này thay cho máy chủ và cổng.",
     "socketPathActive": "Kết nối dùng socket này thay cho máy chủ và cổng. TLS cơ sở dữ liệu bị tắt vì lưu lượng socket cục bộ không rời khỏi máy.",

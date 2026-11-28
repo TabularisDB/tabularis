@@ -69,6 +69,138 @@ fn fixture() -> (tempfile::TempDir, RuntimeContext, Arc<ApplicationState>) {
     (temp, runtime, Arc::new(ApplicationState::default()))
 }
 
+#[test]
+fn mcp_approval_overrides_survive_reload_and_can_be_cleared_independently() {
+    use crate::models::McpApprovalMode::{All, Off, WritesOnly};
+
+    let (dir, runtime, state) = fixture();
+    let legacy_params = serde_json::json!({"driver": "sqlite", "database": "scratch.db"});
+    let create = |name: &str, params: Value| {
+        save_connection(
+            &runtime,
+            &state,
+            name.into(),
+            serde_json::from_value(params).unwrap(),
+            Default::default(),
+            None,
+            None,
+        )
+        .unwrap()
+    };
+    let inherited = create("Inherited", legacy_params.clone());
+    let overridden: Vec<_> = [("all", All), ("writes_only", WritesOnly), ("off", Off)]
+        .into_iter()
+        .map(|(value, mode)| {
+            let mut params = legacy_params.clone();
+            params["mcp_approval_mode"] = serde_json::json!(value);
+            (create(value, params), mode)
+        })
+        .collect();
+
+    let restarted = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(dir.path().into(), dir.path().into())),
+        Arc::new(NoopRuntimeEvents),
+        Arc::new(MemorySecrets::default()),
+    );
+    let file = load_file(&restarted).unwrap();
+    assert!(find_connection(&file, &inherited.id)
+        .unwrap()
+        .params
+        .mcp_approval_mode
+        .is_none());
+    for (connection, mode) in &overridden {
+        let saved = find_connection(&file, &connection.id).unwrap();
+        assert_eq!(saved.params.mcp_approval_mode, Some(Some(*mode)));
+    }
+
+    let (selected, _) = &overridden[2];
+    let restarted_state = Arc::new(ApplicationState::default());
+    let update = |params: Value| {
+        update_connection(
+            &restarted,
+            &restarted_state,
+            selected.id.clone(),
+            "Renamed".into(),
+            serde_json::from_value(params).unwrap(),
+            Default::default(),
+            None,
+            None,
+        )
+        .unwrap()
+    };
+    assert_eq!(
+        update(legacy_params.clone()).params.mcp_approval_mode,
+        Some(Some(Off))
+    );
+    let mut clear = legacy_params;
+    clear["mcp_approval_mode"] = Value::Null;
+    assert!(update(clear).params.mcp_approval_mode.is_none());
+
+    let file = load_file(&restarted).unwrap();
+    let saved = &find_connection(&file, &selected.id).unwrap().params;
+    assert!(serde_json::to_value(saved)
+        .unwrap()
+        .get("mcp_approval_mode")
+        .is_none());
+    assert_eq!(
+        find_connection(&file, &overridden[0].0.id)
+            .unwrap()
+            .params
+            .mcp_approval_mode,
+        Some(Some(All))
+    );
+}
+
+#[tokio::test]
+async fn backup_approval_round_trip_canonicalizes_inheritance_and_keeps_overrides() {
+    use crate::application::connection_files::{apply_export_payload, export_payload};
+    use serde_json::json;
+
+    for mode in [
+        Value::Null,
+        json!("all"),
+        json!("writes_only"),
+        json!("off"),
+    ] {
+        let (_temp, runtime, state) = fixture();
+        let payload = serde_json::from_value(json!({
+            "version": 1, "groups": [], "ssh_connections": [],
+            "connections": [{"id":"original", "name":"DB", "params":{
+                "driver":"sqlite", "database":"scratch.db", "mcp_approval_mode":mode
+            }}]
+        }))
+        .unwrap();
+        apply_export_payload(
+            &runtime,
+            &state.connection_cache,
+            &state.credential_cache,
+            payload,
+            true,
+        )
+        .await
+        .unwrap();
+        let assert_modes = |file: Value, count: usize| {
+            let rows = file["connections"].as_array().unwrap();
+            assert_eq!(rows.len(), count);
+            for row in rows {
+                assert_eq!(
+                    row["params"].get("mcp_approval_mode"),
+                    (!mode.is_null()).then_some(&mode)
+                );
+            }
+        };
+        let disk = || {
+            serde_json::from_slice(&std::fs::read(runtime.paths.connections_file()).unwrap())
+                .unwrap()
+        };
+        assert_modes(disk(), 1);
+        duplicate_connection(&runtime, &state, "original", true).unwrap();
+        assert_modes(disk(), 2);
+        let exported = export_payload(&runtime, false, None).await.unwrap();
+        assert_modes(serde_json::to_value(exported).unwrap(), 2);
+    }
+}
+
 fn connection_params(password: &str) -> ConnectionParams {
     ConnectionParams {
         driver: "postgres".to_string(),
@@ -239,6 +371,7 @@ async fn connection_groups_tags_ordering_and_duplication_share_one_service() {
         &state,
         ConnectionCommand::DuplicateConnection {
             id: connection_id.clone(),
+            allow_approval_override: true,
         },
     )
     .await
@@ -583,7 +716,7 @@ fn duplicate_clears_a_missing_uri_marker() {
         .secrets
         .delete(&secret_account(&original.id, CONNECTION_URI_SUFFIX))
         .unwrap();
-    let duplicate = duplicate_connection(&runtime, &state, &original.id).unwrap();
+    let duplicate = duplicate_connection(&runtime, &state, &original.id, true).unwrap();
     assert_eq!(duplicate.params.connection_uri_in_keychain, None);
 }
 
@@ -805,7 +938,7 @@ fn plugin_secrets_live_in_the_keychain_for_the_whole_connection_lifecycle() {
         Some("stored-token")
     );
 
-    let duplicate = duplicate_connection(&runtime, &state, &saved.id).unwrap();
+    let duplicate = duplicate_connection(&runtime, &state, &saved.id, true).unwrap();
     assert_eq!(duplicate.plugin_secret_keys, vec!["token"]);
     assert_eq!(
         runtime
@@ -1109,7 +1242,7 @@ fn duplicating_an_iam_connection_does_not_copy_the_token() {
         None,
     )
     .unwrap();
-    let copy = duplicate_connection(&runtime, &state, &saved.id).unwrap();
+    let copy = duplicate_connection(&runtime, &state, &saved.id, true).unwrap();
     assert!(!stored_accounts(&secrets, &copy.id).contains(&format!("{}:db", copy.id)));
 }
 
@@ -2539,6 +2672,7 @@ fn credential_profile_create_interleaved_with_import_keeps_both_profiles() {
                         &state.connection_cache,
                         &state.credential_cache,
                         imported_profile_payload(),
+                        true,
                     ))
             });
         })
@@ -2724,6 +2858,7 @@ fn spawn_import(
                 &state.connection_cache,
                 &state.credential_cache,
                 payload,
+                true,
             ));
         done_tx.send(result).unwrap();
     });
@@ -2912,6 +3047,7 @@ fn update_file_write_failure_rolls_back_under_lock_and_import_keeps_password() {
                             &state.connection_cache,
                             &state.credential_cache,
                             profile_reimport_payload(&profile_id, "imported-secret"),
+                            true,
                         ))?)
                 })();
                 let _ = finished_tx.send(());
@@ -3333,7 +3469,7 @@ fn updating_and_duplicating_never_clear_or_copy_the_managed_marker() {
     .unwrap();
     assert!(updated.managed);
 
-    let duplicate = duplicate_connection(&runtime, &state, &saved.id).unwrap();
+    let duplicate = duplicate_connection(&runtime, &state, &saved.id, true).unwrap();
     assert!(!duplicate.managed);
 }
 

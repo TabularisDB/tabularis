@@ -24,6 +24,8 @@ const DB_SECRET_SUFFIX: &str = "db";
 const SSH_SECRET_SUFFIX: &str = "ssh";
 const SSH_PASSPHRASE_SUFFIX: &str = "ssh_passphrase";
 const CONNECTION_URI_SUFFIX: &str = "connection_uri";
+pub(crate) const DUPLICATE_APPROVAL_REQUIRES_ADMIN: &str =
+    "Copying a connection with an MCP query approval override requires local administrator authorization";
 
 #[derive(Debug)]
 pub enum ConnectionCommand {
@@ -56,6 +58,7 @@ pub enum ConnectionCommand {
     },
     DuplicateConnection {
         id: String,
+        allow_approval_override: bool,
     },
     SetConnectionAppearance {
         id: String,
@@ -246,9 +249,15 @@ pub async fn execute_for_session(
             delete_connection(runtime, state, &id)?;
             Ok(Value::Null)
         }
-        ConnectionCommand::DuplicateConnection { id } => {
-            json(duplicate_connection(runtime, state, &id)?)
-        }
+        ConnectionCommand::DuplicateConnection {
+            id,
+            allow_approval_override,
+        } => json(duplicate_connection(
+            runtime,
+            state,
+            &id,
+            allow_approval_override,
+        )?),
         ConnectionCommand::SetConnectionAppearance { id, appearance } => {
             set_connection_appearance(runtime, state, &id, appearance)?;
             Ok(Value::Null)
@@ -1273,6 +1282,7 @@ fn save_connection(
     environment: Option<String>,
 ) -> Result<SavedConnection, String> {
     let id = Uuid::new_v4().to_string();
+    params.normalize_saved_approval();
     let environment = validate_environment(environment)?;
     let connection = modify_connections_file(runtime, state, |file, writes| {
         params.connection_id = None;
@@ -1439,6 +1449,11 @@ fn update_connection(
                 .position(|connection| connection.id == id)
                 .ok_or_else(|| "Connection not found".to_string())?;
             let existing = file.connections[index].clone();
+            params.mcp_approval_mode = params
+                .mcp_approval_mode
+                .or(existing.params.mcp_approval_mode)
+                .flatten()
+                .map(Some);
             let environment = validate_environment(environment)?;
             params.connection_id = None;
             validate_credential_profile_reference(file, &id, &params)?;
@@ -1578,10 +1593,14 @@ fn duplicate_connection(
     runtime: &RuntimeContext,
     state: &Arc<ApplicationState>,
     id: &str,
+    allow_approval_override: bool,
 ) -> Result<SavedConnection, String> {
     let new_id = Uuid::new_v4().to_string();
     modify_connections_file(runtime, state, |file, writes| {
         let mut original = find_connection(file, id)?;
+        if !allow_approval_override && original.params.mcp_approval_mode.flatten().is_some() {
+            return Err(DUPLICATE_APPROVAL_REQUIRES_ADMIN.into());
+        }
         for suffix in [
             DB_SECRET_SUFFIX,
             SSH_SECRET_SUFFIX,

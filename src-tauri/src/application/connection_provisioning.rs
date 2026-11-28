@@ -106,6 +106,7 @@ pub async fn execute(
                         writes,
                     )?;
                     persist_secrets_for_create(runtime, &id, &mut input.params, writes)?;
+                    input.params.normalize_saved_approval();
                     let connection = SavedConnection {
                         id: id.clone(),
                         name: input.name,

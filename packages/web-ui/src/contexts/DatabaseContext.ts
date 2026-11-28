@@ -1,5 +1,6 @@
 import {createContext} from 'react';
 import type {ProxyOverride} from '@/types/proxy';
+import type {McpApprovalMode} from '@/types/ai';
 import type {ConnectionMetadata, DriverCapabilities} from '@/types/plugins';
 
 export interface TableInfo {
@@ -55,6 +56,7 @@ export interface SavedConnection {
     params: {
         driver: string;
         read_only?: boolean;
+        mcp_approval_mode?: McpApprovalMode | null;
         host?: string;
         database: string | string[];
         default_database?: string;

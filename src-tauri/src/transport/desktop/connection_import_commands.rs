@@ -110,6 +110,7 @@ pub async fn apply_prepared_tabularis_import<R: Runtime>(
         cache.inner(),
         None,
         resolutions,
+        true,
     )
     .await
 }

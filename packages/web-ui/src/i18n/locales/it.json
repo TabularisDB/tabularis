@@ -1521,6 +1521,9 @@
     "configError": "Configura il provider AI nelle Impostazioni e inserisci un prompt."
   },
   "newConnection": {
+    "mcpApprovalMode": "Approvazione delle query MCP",
+    "mcpApprovalInherit": "Eredita l’impostazione globale ({{mode}})",
+    "mcpApprovalReadOnly": "Questa connessione di sola lettura blocca le scritture in ogni modalità di approvazione.",
     "ssmForwardHint": "Si risolve in {{document}}: inoltra a {{host}}:{{port}} attraverso il nodo gestito. Modifica l'indirizzo di destinazione nella scheda Generale; un host di loopback indica il nodo stesso.",
     "ssmIamHint": "Richiede ssm:StartSession sul target e sul documento risolto.",
     "ssmNotAvailable": "AWS SSM non è disponibile per questo driver.",

@@ -85,6 +85,7 @@ import type {
     TabularisChildProcess,
 } from '@/types/operations';
 import type {McpClientStatus} from '@/types/mcp';
+import type {McpApprovalMode} from '@/types/ai';
 import type {
     LocalThemePreview,
     NativeThemeCatalog,
@@ -171,6 +172,8 @@ export type UiStateEntries = Readonly<Record<string, unknown>>;
 
 export interface ConnectionParameters {
     read_only?: boolean;
+    /** Omit to preserve the current override on edit; send null to inherit. */
+    mcp_approval_mode?: McpApprovalMode | null;
     driver: string;
     database: string | string[];
     default_database?: string;

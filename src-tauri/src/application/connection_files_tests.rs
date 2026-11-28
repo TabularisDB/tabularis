@@ -462,6 +462,7 @@ async fn shared_profile_secrets_survive_export_import_as_new_with_one_keychain_e
         &crate::connection_cache::ConnectionCache::default(),
         &crate::credential_cache::CredentialCache::default(),
         remapped,
+        true,
     )
     .await
     .unwrap();
@@ -618,6 +619,7 @@ async fn failed_metadata_save_preserves_existing_profile_password() {
         &crate::connection_cache::ConnectionCache::default(),
         &crate::credential_cache::CredentialCache::default(),
         payload,
+        true,
     )
     .await
     .unwrap_err();
@@ -654,6 +656,7 @@ async fn failed_metadata_save_does_not_delete_stale_connection_db_secret() {
         &crate::connection_cache::ConnectionCache::default(),
         &crate::credential_cache::CredentialCache::default(),
         payload,
+        true,
     )
     .await;
 
@@ -697,6 +700,7 @@ async fn failed_profile_keychain_write_preserves_previous_password() {
         &crate::connection_cache::ConnectionCache::default(),
         &crate::credential_cache::CredentialCache::default(),
         payload,
+        true,
     )
     .await
     .unwrap_err();
@@ -761,6 +765,7 @@ async fn failed_profile_keychain_write_keeps_resolved_username_and_password_alig
         &crate::connection_cache::ConnectionCache::default(),
         &crate::credential_cache::CredentialCache::default(),
         payload,
+        true,
     )
     .await
     .unwrap_err();
@@ -858,6 +863,7 @@ async fn partial_multi_profile_import_rolls_back_prior_profile_secrets_and_metad
         &crate::connection_cache::ConnectionCache::default(),
         &crate::credential_cache::CredentialCache::default(),
         payload,
+        true,
     )
     .await
     .unwrap_err();
@@ -945,6 +951,7 @@ async fn concurrent_connection_edit_survives_failed_profile_import_recovery() {
         &crate::connection_cache::ConnectionCache::default(),
         &crate::credential_cache::CredentialCache::default(),
         payload,
+        true,
     )
     .await
     .unwrap_err();
@@ -1046,6 +1053,7 @@ async fn failed_profile_import_restores_metadata_when_keychain_rollback_set_fail
         &crate::connection_cache::ConnectionCache::default(),
         &crate::credential_cache::CredentialCache::default(),
         payload,
+        true,
     )
     .await
     .unwrap_err();
@@ -1142,6 +1150,7 @@ async fn apply_export_payload_persists_credential_profiles_and_merges_by_id() {
         &crate::connection_cache::ConnectionCache::default(),
         &crate::credential_cache::CredentialCache::default(),
         payload,
+        true,
     )
     .await
     .unwrap();
@@ -1195,6 +1204,7 @@ async fn apply_export_payload_renames_imported_profile_name_collisions() {
         &crate::connection_cache::ConnectionCache::default(),
         &crate::credential_cache::CredentialCache::default(),
         payload,
+        true,
     )
     .await
     .unwrap();
@@ -1239,6 +1249,7 @@ async fn imported_secrets_replace_stale_runtime_cache_entries() {
         &crate::connection_cache::ConnectionCache::default(),
         &credential_cache,
         payload,
+        true,
     )
     .await
     .unwrap();
@@ -1269,6 +1280,7 @@ async fn import_with_marker(runtime: &RuntimeContext, id: &str, marker: bool) {
         &crate::connection_cache::ConnectionCache::default(),
         &crate::credential_cache::CredentialCache::default(),
         payload,
+        true,
     )
     .await
     .unwrap();
@@ -1365,6 +1377,7 @@ async fn import_rejects_connection_profile_link_with_colliding_imported_ids() {
         &crate::connection_cache::ConnectionCache::default(),
         &crate::credential_cache::CredentialCache::default(),
         payload,
+        true,
     )
     .await
     .unwrap_err();
@@ -1407,6 +1420,7 @@ async fn import_rejects_credential_profile_missing_from_payload_and_local_store(
         &crate::connection_cache::ConnectionCache::default(),
         &crate::credential_cache::CredentialCache::default(),
         payload,
+        true,
     )
     .await
     .unwrap_err();
@@ -1440,6 +1454,7 @@ async fn imported_ssh_secrets_create_and_repair_private_file_permissions() {
             &crate::connection_cache::ConnectionCache::default(),
             &crate::credential_cache::CredentialCache::default(),
             payload.clone(),
+            true,
         )
         .await
         .unwrap();

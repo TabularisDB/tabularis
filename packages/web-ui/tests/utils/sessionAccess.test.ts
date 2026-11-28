@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {SessionNegotiation} from '@/api/session';
-import {canManageCredentialProfiles} from '@/utils/sessionAccess';
+import {hasLocalAdminAccess} from '@/utils/sessionAccess';
 
 const WEB_SESSION_BASE: SessionNegotiation = {
     apiVersion: 'v1',
@@ -30,14 +30,14 @@ const WEB_SESSION_BASE: SessionNegotiation = {
     },
 };
 
-describe('canManageCredentialProfiles', () => {
+describe('hasLocalAdminAccess', () => {
     it('allows management on the trusted desktop shell', () => {
-        expect(canManageCredentialProfiles('tauri', null)).toBe(true);
+        expect(hasLocalAdminAccess('tauri', null)).toBe(true);
     });
 
     it('allows management for local-admin browser sessions', () => {
         expect(
-            canManageCredentialProfiles('browser', {
+            hasLocalAdminAccess('browser', {
                 ...WEB_SESSION_BASE,
                 access: {
                     remote: false,
@@ -49,11 +49,11 @@ describe('canManageCredentialProfiles', () => {
     });
 
     it('denies management for database-only remote browser sessions', () => {
-        expect(canManageCredentialProfiles('browser', WEB_SESSION_BASE)).toBe(false);
+        expect(hasLocalAdminAccess('browser', WEB_SESSION_BASE)).toBe(false);
     });
 
     it('denies management when the browser session is not negotiated yet', () => {
-        expect(canManageCredentialProfiles('browser', null)).toBe(false);
+        expect(hasLocalAdminAccess('browser', null)).toBe(false);
     });
 
     it('denies management when a remote session is downgraded to database authorization', () => {
@@ -65,7 +65,7 @@ describe('canManageCredentialProfiles', () => {
                 highRiskCapabilities: false,
             },
         };
-        expect(canManageCredentialProfiles('browser', downgraded)).toBe(false);
+        expect(hasLocalAdminAccess('browser', downgraded)).toBe(false);
     });
 
     it('allows management after bootstrap negotiates local-admin access', () => {
@@ -77,6 +77,6 @@ describe('canManageCredentialProfiles', () => {
                 highRiskCapabilities: true,
             },
         };
-        expect(canManageCredentialProfiles('browser', elevated)).toBe(true);
+        expect(hasLocalAdminAccess('browser', elevated)).toBe(true);
     });
 });

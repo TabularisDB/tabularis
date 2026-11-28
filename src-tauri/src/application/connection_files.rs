@@ -41,6 +41,8 @@ pub enum ConnectionFilesCommand {
     },
     ApplyPreparedTabularisImport {
         resolutions: Vec<convert::ImportResolution>,
+        #[serde(skip)]
+        allow_approval_overrides: bool,
     },
     GetBackupStatus,
     GetDatabaseBackupStatus,
@@ -187,7 +189,10 @@ pub async fn execute(
             )
             .await?,
         ),
-        ConnectionFilesCommand::ApplyPreparedTabularisImport { resolutions } => {
+        ConnectionFilesCommand::ApplyPreparedTabularisImport {
+            resolutions,
+            allow_approval_overrides,
+        } => {
             apply_prepared_tabularis_import(
                 runtime,
                 &state.connection_cache,
@@ -195,6 +200,7 @@ pub async fn execute(
                 &state.import_envelope_cache,
                 session_id,
                 resolutions,
+                allow_approval_overrides,
             )
             .await?;
             Ok(Value::Null)
@@ -320,6 +326,7 @@ pub async fn export_payload(
     let mut plugin_secrets = HashMap::new();
     let mut credential_profile_secrets = HashMap::new();
     for connection in &mut file.connections {
+        connection.params.normalize_saved_approval();
         if include_secrets {
             // A missing keychain entry must not abort the whole export (or a
             // scheduled backup): the connection is exported without that value.
@@ -434,7 +441,8 @@ pub async fn apply_foreign_import(
     let existing_groups = load_file(runtime)?.groups;
     let payload =
         convert::build_payload(&envelope, &resolutions, &registered_ids, &existing_groups);
-    apply_export_payload(runtime, connection_cache, credential_cache, payload).await
+    // Foreign formats carry no local approval policy to restore.
+    apply_export_payload(runtime, connection_cache, credential_cache, payload, false).await
 }
 
 pub async fn preview_tabularis_import_file(
@@ -483,6 +491,7 @@ pub async fn apply_prepared_tabularis_import(
     cache: &ImportEnvelopeCache,
     session_id: Option<Uuid>,
     resolutions: Vec<convert::ImportResolution>,
+    allow_approval_overrides: bool,
 ) -> Result<(), String> {
     let payload = cache
         .tabularis
@@ -492,7 +501,14 @@ pub async fn apply_prepared_tabularis_import(
         .ok_or_else(|| "No Tabularis import preview found; run preview first".to_string())?;
     let existing_groups = load_file(runtime)?.groups;
     let payload = tabularis::apply(&payload, &resolutions, &existing_groups);
-    apply_export_payload(runtime, connection_cache, credential_cache, payload).await
+    apply_export_payload(
+        runtime,
+        connection_cache,
+        credential_cache,
+        payload,
+        allow_approval_overrides,
+    )
+    .await
 }
 
 pub async fn preview_tabularis_payload(
@@ -509,9 +525,16 @@ pub async fn apply_export_payload(
     connection_cache: &crate::connection_cache::ConnectionCache,
     credential_cache: &crate::credential_cache::CredentialCache,
     payload: ExportPayload,
+    allow_approval_overrides: bool,
 ) -> Result<(), String> {
     crate::persistence::with_connections_file_exclusive(|| {
-        apply_export_payload_locked(runtime, connection_cache, credential_cache, payload)
+        apply_export_payload_locked(
+            runtime,
+            connection_cache,
+            credential_cache,
+            payload,
+            allow_approval_overrides,
+        )
     })
 }
 
@@ -520,6 +543,7 @@ fn apply_export_payload_locked(
     connection_cache: &crate::connection_cache::ConnectionCache,
     credential_cache: &crate::credential_cache::CredentialCache,
     mut payload: ExportPayload,
+    allow_approval_overrides: bool,
 ) -> Result<(), String> {
     let connections_path = runtime.paths.connections_file();
     let mut current =
@@ -578,6 +602,7 @@ fn apply_export_payload_locked(
     }
 
     for mut connection in incoming {
+        connection.params.normalize_saved_approval();
         if let Some(profile_id) = connection.params.credential_profile_id.as_deref() {
             crate::credential_profiles::validate_connection_profile_link(
                 &connection.id,
@@ -623,9 +648,15 @@ fn apply_export_payload_locked(
         {
             // An import never confers or removes the managed marker.
             connection.managed = existing.managed;
+            if !allow_approval_overrides {
+                connection.params.mcp_approval_mode = existing.params.mcp_approval_mode;
+            }
             *existing = connection;
         } else {
             connection.managed = false;
+            if !allow_approval_overrides {
+                connection.params.mcp_approval_mode = None;
+            }
             current.connections.push(connection);
         }
     }

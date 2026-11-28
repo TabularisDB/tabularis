@@ -1485,6 +1485,9 @@
     "configError": "Configura el proveedor de IA en Configuración e ingresa un prompt."
   },
   "newConnection": {
+    "mcpApprovalMode": "Aprobación de consultas MCP",
+    "mcpApprovalInherit": "Heredar la configuración global ({{mode}})",
+    "mcpApprovalReadOnly": "Esta conexión de solo lectura bloquea las escrituras en todos los modos de aprobación.",
     "ssmForwardHint": "Se resuelve a {{document}}: reenvía a {{host}}:{{port}} a través del nodo administrado. Cambia la dirección de destino en la pestaña General; un host de bucle invertido significa el propio nodo.",
     "ssmIamHint": "Requiere ssm:StartSession sobre el destino y sobre el documento resuelto.",
     "ssmNotAvailable": "AWS SSM no está disponible para este controlador.",

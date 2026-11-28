@@ -200,6 +200,8 @@ async fn persist_import(
     if !imported.params.extra.is_empty() {
         return Err("Provider imports cannot include arbitrary connection settings".into());
     }
+    // Only the host connection editor may choose a provider connection's approval policy.
+    imported.params.mcp_approval_mode = None;
     imported.params.save_in_keychain = Some(true);
     let runtime_owned = runtime.clone();
     let state = state.clone();

@@ -188,6 +188,23 @@ pub struct SshTestParams {
     pub progress_id: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum McpApprovalMode {
+    All,
+    WritesOnly,
+    Off,
+}
+
+fn deserialize_mcp_approval_mode<'de, D>(
+    deserializer: D,
+) -> Result<Option<Option<McpApprovalMode>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::deserialize(deserializer).map(Some)
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone, Default, PartialEq, Eq)]
 pub struct ConnectionParams {
     pub driver: String,
@@ -198,6 +215,14 @@ pub struct ConnectionParams {
         skip_serializing_if = "std::ops::Not::not"
     )]
     pub read_only: bool,
+    /// Omit to preserve the current override on update; send null to inherit.
+    /// Persisted connections omit the field when they inherit.
+    #[serde(
+        default,
+        deserialize_with = "deserialize_mcp_approval_mode",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub mcp_approval_mode: Option<Option<McpApprovalMode>>,
     pub host: Option<String>,
     pub port: Option<u16>,
     /// Absolute path of the Unix socket the database listens on, at the
@@ -371,6 +396,14 @@ pub struct ConnectionParams {
 }
 
 impl ConnectionParams {
+    pub(crate) fn strip_host_policy_for_plugin(&mut self) {
+        self.mcp_approval_mode = None;
+    }
+
+    pub(crate) fn normalize_saved_approval(&mut self) {
+        self.mcp_approval_mode = self.mcp_approval_mode.flatten().map(Some);
+    }
+
     /// The configured Unix socket path: trimmed and non-empty. Where it is
     /// dialed from depends on the tunnel state — see `unix_socket_path`.
     pub fn unix_socket_path(&self) -> Option<&str> {

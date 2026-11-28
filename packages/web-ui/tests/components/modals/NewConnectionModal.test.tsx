@@ -18,8 +18,9 @@ vi.mock('@/hooks/usePlatformCapabilities', () => ({
         chooseServerPath: vi.fn(),
     }),
 }));
-vi.mock('@/hooks/useCanManageCredentialProfiles', () => ({
-    useCanManageCredentialProfiles: () => true,
+const localAdmin = vi.hoisted(() => vi.fn(() => true));
+vi.mock('@/hooks/useLocalAdminAccess', () => ({
+    useLocalAdminAccess: localAdmin,
 }));
 import {NewConnectionModal} from '@/components/modals/NewConnectionModal';
 import {PluginSlotContext} from '@/contexts/PluginSlotContext';
@@ -3166,19 +3167,83 @@ describe('NewConnectionModal plugin-owned setup', () => {
         expect(screen.queryByRole('button', {name: 'SSL'})).not.toBeInTheDocument();
         expect(screen.queryByRole('button', {name: 'SSH'})).not.toBeInTheDocument();
         expect(
-            screen.queryByRole('button', {name: 'newConnection.advanced'}),
-        ).not.toBeInTheDocument();
-        expect(
             screen.queryByRole('button', {name: 'newConnection.testConnection'}),
         ).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: 'newConnection.advanced'}));
+        expect(screen.queryByText('newConnection.connectTimeout')).not.toBeInTheDocument();
+        fireEvent.change(screen.getByRole('combobox', {name: 'newConnection.mcpApprovalMode'}), {
+            target: {value: 'off'},
+        });
         fireEvent.click(screen.getByRole('button', {name: 'newConnection.appearance'}));
         expect(screen.getByRole('button', {name: 'settings.privacy'})).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: 'newConnection.save'}));
         await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
-        expect(updateConnectionPayload()).toMatchObject(initial.params);
+        expect(updateConnectionPayload()).toMatchObject({
+            ...initial.params,
+            mcp_approval_mode: 'off',
+        });
         expect(updateConnectionPayload()).not.toHaveProperty('password');
         expect(vi.mocked(invoke).mock.calls.some(([c]) => c === 'save_connection')).toBe(false);
     });
+});
+
+describe('NewConnectionModal MCP approval', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        driverState.defaultPort = 15432;
+        driverState.multiDatabase = false;
+        vi.mocked(invoke).mockResolvedValue('ok');
+        sshMocks.loadSshConnections.mockResolvedValue([]);
+        eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+        k8sMocks.loadK8sConnections.mockResolvedValue([]);
+    });
+
+    it('omits host policy from the editor and update for a database-only session', async () => {
+        localAdmin.mockReturnValue(false);
+        try {
+            renderModal(createInitialConnection({host: 'localhost', mcp_approval_mode: 'off'}));
+            fireEvent.click(await screen.findByText('newConnection.advanced'));
+            expect(
+                screen.queryByRole('combobox', {name: 'newConnection.mcpApprovalMode'}),
+            ).toBeNull();
+            fireEvent.click(screen.getByText('newConnection.save'));
+            await waitFor(() =>
+                expect(invoke).toHaveBeenCalledWith('update_connection', expect.anything()),
+            );
+            expect(updateConnectionPayload()).not.toHaveProperty('mcp_approval_mode');
+        } finally {
+            localAdmin.mockReturnValue(true);
+        }
+    });
+
+    it.each([
+        [undefined, 'all', 'all'],
+        ['off', '', null],
+        ['writes_only', 'writes_only', 'writes_only'],
+    ] as const)(
+        'passes the chosen override when the saved value is %s',
+        async (before, after, saved) => {
+            renderModal(createInitialConnection({host: 'localhost', mcp_approval_mode: before}));
+            fireEvent.click(await screen.findByText('newConnection.advanced'));
+            const picker = screen.getByRole('combobox', {name: 'newConnection.mcpApprovalMode'});
+            expect(picker).toHaveValue(before ?? '');
+            expect(
+                screen.getByRole('option', {name: 'newConnection.mcpApprovalInherit'}),
+            ).toHaveValue('');
+            if (after !== before) {
+                fireEvent.change(picker, {target: {value: after}});
+            }
+            fireEvent.click(screen.getByText('newConnection.save'));
+            await waitFor(() =>
+                expect(invoke).toHaveBeenCalledWith(
+                    'update_connection',
+                    expect.objectContaining({
+                        params: expect.objectContaining({mcp_approval_mode: saved}),
+                    }),
+                ),
+            );
+        },
+    );
 });
 
 describe('NewConnectionModal connect timeout', () => {

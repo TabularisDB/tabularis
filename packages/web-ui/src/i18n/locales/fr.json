@@ -1492,6 +1492,9 @@
     "configError": "Veuillez configurer un fournisseur IA dans les paramètres et saisir un prompt."
   },
   "newConnection": {
+    "mcpApprovalMode": "Approbation des requêtes MCP",
+    "mcpApprovalInherit": "Hériter du réglage global ({{mode}})",
+    "mcpApprovalReadOnly": "Cette connexion en lecture seule bloque les écritures dans tous les modes d’approbation.",
     "ssmForwardHint": "Se résout en {{document}} : transfère vers {{host}}:{{port}} via le nœud géré. Modifiez l'adresse cible dans l'onglet Général ; un hôte de bouclage désigne le nœud lui-même.",
     "ssmIamHint": "Nécessite ssm:StartSession sur la cible et sur le document résolu.",
     "ssmNotAvailable": "AWS SSM n'est pas disponible pour ce pilote.",

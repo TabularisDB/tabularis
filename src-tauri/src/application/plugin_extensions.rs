@@ -108,7 +108,7 @@ pub async fn execute(
             let owned_runtime = runtime.clone();
             let plugin_id = request.plugin_id.clone();
             let connection_id = request.connection_id.clone();
-            let (driver_id, params, secrets) = blocking(move || {
+            let (driver_id, mut params, secrets) = blocking(move || {
                 let (driver_id, params) = connections::resolve_saved_connection_params(
                     &owned_runtime,
                     session_id,
@@ -120,6 +120,7 @@ pub async fn execute(
             .await?;
             // Recheck after resolution to avoid forwarding credentials after a driver change.
             validate_target(&request.plugin_id, &driver_id)?;
+            params.strip_host_policy_for_plugin();
             driver.call_extension(json!({
                 "method": request.method, "args": request.args, "params": params, "secrets": secrets,
                 "context": { "plugin_id": request.plugin_id, "connection_id": request.connection_id }

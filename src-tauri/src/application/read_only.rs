@@ -40,6 +40,13 @@ pub fn ensure_writable(runtime: &RuntimeContext, connection_id: &str) -> Result<
     Ok(())
 }
 
+pub fn connection_is_read_only(
+    params: &ConnectionParams,
+    capabilities: &DriverCapabilities,
+) -> bool {
+    params.read_only || capabilities.readonly
+}
+
 /// The policy decision for a query whose kind is already known (see
 /// [`classify_query`]). A caller that classified the query for another gate
 /// passes that verdict in, so one text is classified once.
@@ -49,8 +56,12 @@ pub fn validate_kind(
     kind: &str,
 ) -> Result<(), String> {
     validate_support(params, capabilities)?;
-    if params.read_only && kind != "select" {
-        return Err(WRITE_BLOCKED.into());
+    if connection_is_read_only(params, capabilities) && kind != "select" {
+        return Err(if params.read_only {
+            WRITE_BLOCKED.into()
+        } else {
+            "This driver is read-only and cannot run this query.".into()
+        });
     }
     Ok(())
 }
@@ -66,7 +77,7 @@ pub async fn validate_query(
     let capabilities = &driver.manifest().capabilities;
     validate_support(params, capabilities)?;
     // A writable connection needs no verdict, and a plugin is not asked for one.
-    if !params.read_only {
+    if !connection_is_read_only(params, capabilities) {
         return Ok(());
     }
     validate_kind(
