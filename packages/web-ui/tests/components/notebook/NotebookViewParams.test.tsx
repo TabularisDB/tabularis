@@ -1,4 +1,4 @@
-import type {ComponentProps} from 'react';
+import {useState, type ComponentProps} from 'react';
 import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
@@ -55,7 +55,6 @@ vi.mock('@/utils/notebookStore', async (importOriginal) => {
         setNotebookState: vi.fn(actual.setNotebookState),
         loadNotebook: vi.fn(),
         setNotebookTitle: vi.fn(),
-        createNotebookFromState: vi.fn().mockResolvedValue({notebookId: 'imported'}),
     };
 });
 vi.mock('@/utils/notebookTransfer', async (importOriginal) => ({
@@ -146,8 +145,18 @@ function renderNotebook(state: NotebookState) {
         activeTable: null,
         pkColumns: null,
     };
-    return render(
-        <NotebookView tab={tab} updateTab={vi.fn()} connectionId={connectionId} isActive />,
+    return render(<NotebookTab initialTab={tab} />);
+}
+
+function NotebookTab({initialTab}: {initialTab: Tab}) {
+    const [tab, setTab] = useState(initialTab);
+    return (
+        <NotebookView
+            tab={tab}
+            updateTab={(_id, partial) => setTab((current) => ({...current, ...partial}))}
+            connectionId={connectionId}
+            isActive
+        />
     );
 }
 
@@ -306,6 +315,28 @@ describe('NotebookView typed parameters', () => {
         expect(savedCell('q')).toMatchObject({error: message, isLoading: false, result: null});
         expect(fixtures.guardQuery).not.toHaveBeenCalled();
         expect(mockInvoke).not.toHaveBeenCalled();
+    });
+
+    it('fails an invalid target before guarding or dispatching its write prerequisite', async () => {
+        const insert = 'INSERT INTO audit VALUES (1) RETURNING id';
+        renderNotebook({
+            params: [{name: 'start', value: '2025-02-29', type: 'date'}],
+            cells: [
+                sqlCell('write', insert),
+                sqlCell('use', 'SELECT * FROM {{cell_1}} WHERE d >= @start'),
+                sqlCell('independent', 'SELECT 3'),
+            ],
+        });
+        const message = `${K}.errors.invalid @start ${K}.issues.invalidDate`;
+        await click('Run use');
+        expect(savedCell('use')).toMatchObject({error: message, result: null});
+        expect(fixtures.guardQuery).not.toHaveBeenCalled();
+        expect(executedQueries()).toEqual([]);
+
+        // Run All independently selects the other legal cells.
+        await click('Run All');
+        expect(savedCell('use').error).toBe(message);
+        expect(executedQueries()).toEqual([insert, 'SELECT 3']);
     });
 
     it('stops the cell when a typed value loaded from a file is invalid', async () => {

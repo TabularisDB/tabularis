@@ -159,6 +159,33 @@ describe('useDangerousQueryGuard', () => {
         expect(result.current.pending).toBeNull();
     });
 
+    it('aborting active and queued requests preserves the next confirmation', async () => {
+        const {result} = renderHook(() => useDangerousQueryGuard());
+        const activeOwner = new AbortController();
+        const queuedOwner = new AbortController();
+        let active!: Promise<boolean>;
+        let queued!: Promise<boolean>;
+        let surviving!: Promise<boolean>;
+        act(() => {
+            active = result.current.guardQuery('DELETE FROM active', activeOwner.signal);
+            queued = result.current.guardQuery('DELETE FROM queued', queuedOwner.signal);
+            surviving = result.current.guardQuery('DELETE FROM surviving');
+        });
+        const resolveActive = result.current.resolve;
+        act(() => queuedOwner.abort());
+        expect(await queued).toBe(false);
+        expect(result.current.pending?.sql).toBe('DELETE FROM active');
+
+        act(() => activeOwner.abort());
+        expect(await active).toBe(false);
+        expect(result.current.pending?.sql).toBe('DELETE FROM surviving');
+        act(() => resolveActive(true));
+        expect(result.current.pending?.sql).toBe('DELETE FROM surviving');
+        act(() => result.current.resolve(true));
+        expect(await surviving).toBe(true);
+        expect(result.current.pending).toBeNull();
+    });
+
     // Editor guards each statement of a T-SQL batch, not the batch as one string.
     it.each([
         'SELECT * FROM a; DELETE FROM users;',

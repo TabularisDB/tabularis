@@ -39,8 +39,7 @@ export function useQueryGuards(connectionId: string | null | undefined): QueryGu
                     signal
                         ? guardProductionWrite(connectionId, productionSql, signal)
                         : guardProductionWrite(connectionId, productionSql),
-                guardDangerousQuery: () =>
-                    signal?.aborted ? Promise.resolve(false) : guardDangerousQuery(sqlOrQueries),
+                guardDangerousQuery: () => guardDangerousQuery(sqlOrQueries, signal),
             });
         },
         [connectionId, guardDangerousQuery, guardProductionWrite],

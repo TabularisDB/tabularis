@@ -1,4 +1,4 @@
-import {useState, useCallback, useRef, useEffect, useMemo} from 'react';
+import {useState, useCallback, useRef, useEffect, useMemo, useSyncExternalStore} from 'react';
 import {flushSync} from 'react-dom';
 import {useTranslation} from 'react-i18next';
 import {BookOpen, Loader2} from 'lucide-react';
@@ -37,7 +37,6 @@ import {flushPendingEditorChanges} from '@/utils/pendingEditorChanges';
 import {
     acquireNotebookRun,
     checkNotebookInputs,
-    isNotebookRunActive,
     createRunAllResult,
     executeNotebookPlan,
     type CellRunOutcome,
@@ -76,7 +75,7 @@ import {
     createNotebookFromState,
     hasUnconfirmedNotebookWrite,
     setUnconfirmedNotebookWrite,
-    subscribeNotebookRuntime,
+    subscribeNotebookState,
     restoreNotebookDocument,
     updateNotebookRuntime,
 } from '@/utils/notebookStore';
@@ -153,19 +152,20 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         resolve: resolveDangerousQuery,
     } = useQueryGuards(connectionId);
 
-    // Local notebook state — loaded from store/disk, NOT from tab
-    const [notebook, setNotebook] = useState<NotebookState | null>(() => {
-        const cached = tab.notebookId ? getNotebookState(tab.notebookId) : undefined;
-        if (!cached) return null;
-        // Only a live run owns spinners; legacy/migrated state may contain stale ones.
-        if (
-            isNotebookRunActive(tab.notebookId ?? tab.id) ||
-            !cached.cells.some((cell) => cell.isLoading)
-        )
-            return cached;
-        return {...cached, cells: cached.cells.map((cell) => ({...cell, isLoading: false}))};
-    });
-    const [isLoadingNotebook, setIsLoadingNotebook] = useState(!notebook);
+    // The same snapshot feeds edits and execution results, including RPCs
+    // that settle after a view of this notebook unmounts.
+    const notebookId = tab.notebookId;
+    const readNotebook = useCallback(
+        () => (notebookId ? getNotebookState(notebookId) : undefined),
+        [notebookId],
+    );
+    const subscribe = useCallback(
+        (listener: () => void) =>
+            notebookId ? subscribeNotebookState(notebookId, listener) : () => {},
+        [notebookId],
+    );
+    const notebook = useSyncExternalStore(subscribe, readNotebook);
+    const readNotebookCells = useCallback(() => readNotebook()?.cells ?? [], [readNotebook]);
 
     const [isRunning, setIsRunning] = useState(false);
     const [runAllResult, setRunAllResult] = useState<RunAllResult | null>(null);
@@ -178,47 +178,20 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const [dragIndex, setDragIndex] = useState<number | null>(null);
     // Gap-based insertion point in [0, cells.length]; `null` while not dragging.
     const [dropPos, setDropPos] = useState<number | null>(null);
-    const cellsRef = useRef<NotebookCell[]>(notebook?.cells ?? []);
     const cellRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const autoScrollSpeedRef = useRef(0);
     const autoScrollRafRef = useRef<number | null>(null);
-    const notebookIdRef = useRef(tab.notebookId);
     const activeRunRef = useRef<AbortController | null>(null);
-    useEffect(() => () => activeRunRef.current?.abort(), [tab.notebookId]);
+    useEffect(() => () => activeRunRef.current?.abort(), [notebookId]);
 
     // Undo/redo history (autosave means edits are otherwise irreversible).
-    const notebookRef = useRef<NotebookState | null>(notebook);
     const [history, setHistory] = useState<NotebookHistory>(createHistory);
     const historyRef = useRef<NotebookHistory>(history);
     const isActiveRef = useRef(isActive);
     const [showHistory, setShowHistory] = useState(false);
     const canUndo = history.past.length > 0;
     const canRedo = history.future.length > 0;
-
-    const syncNotebook = useCallback((state: NotebookState) => {
-        notebookRef.current = state;
-        cellsRef.current = state.cells;
-        setNotebook(state);
-    }, []);
-
-    // An already-sent RPC can settle into the store after its view unmounts.
-    useEffect(() => {
-        const id = tab.notebookId;
-        notebookIdRef.current = id;
-        if (!id) return;
-        const unsubscribe = subscribeNotebookRuntime(id, syncNotebook);
-        const latest = getNotebookState(id);
-        if (latest && latest !== notebookRef.current) {
-            if (!isNotebookRunActive(id) && latest.cells.some((cell) => cell.isLoading)) {
-                updateNotebookRuntime(id, (state) => ({
-                    ...state,
-                    cells: state.cells.map((cell) => ({...cell, isLoading: false})),
-                }));
-            } else syncNotebook(latest);
-        }
-        return unsubscribe;
-    }, [syncNotebook, tab.notebookId]);
 
     useEffect(() => {
         isActiveRef.current = isActive;
@@ -241,18 +214,10 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
 
     // Load notebook from disk when not already cached
     useEffect(() => {
-        if (!tab.notebookId || notebook) return;
-
-        let cancelled = false;
-        loadNotebook(tab.notebookId, connectionId, client).then((state) => {
-            if (cancelled) return;
-            syncNotebook(getNotebookState(tab.notebookId!) ?? state);
-            setIsLoadingNotebook(false);
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [client, connectionId, notebook, syncNotebook, tab.notebookId]);
+        if (notebookId && !readNotebook()) {
+            void loadNotebook(notebookId, connectionId, client);
+        }
+    }, [client, connectionId, notebookId, readNotebook]);
 
     // Sync tab title to notebook store
     useEffect(() => {
@@ -283,59 +248,56 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 params?: NotebookParam[];
             },
         ) => {
-            const prevState = notebookRef.current;
-            cellsRef.current = newCells;
+            if (!notebookId) return;
+            const prevState = readNotebook();
             const newState: NotebookState = {
                 cells: newCells,
                 stopOnError: extraState?.stopOnError ?? prevState?.stopOnError,
                 params: extraState?.params ?? prevState?.params,
             };
-            notebookRef.current = newState;
-            setNotebook(newState);
             if (prevState) {
                 const next = recordEdit(historyRef.current, prevState, newState, Date.now());
                 if (next !== historyRef.current) commitHistory(next);
             }
-            if (notebookIdRef.current) {
-                storeSetState(notebookIdRef.current, newState);
-            }
+            storeSetState(notebookId, newState);
         },
-        [commitHistory],
+        [commitHistory, notebookId, readNotebook],
     );
 
     /** Apply a state from the history without recording a new entry. */
     const applyHistoryState = useCallback(
         (snapshot: NotebookState) => {
-            const state = restoreNotebookDocument(snapshot, notebookRef.current);
-            syncNotebook(state);
-            if (notebookIdRef.current) {
-                storeSetState(notebookIdRef.current, state);
+            if (notebookId) {
+                storeSetState(
+                    notebookId,
+                    restoreNotebookDocument(snapshot, readNotebook() ?? null),
+                );
             }
         },
-        [syncNotebook],
+        [notebookId, readNotebook],
     );
 
     const handleUndo = useCallback(() => {
-        const current = notebookRef.current;
+        const current = readNotebook();
         if (!current) return;
         const step = undoHistory(historyRef.current, current);
         if (!step) return;
         commitHistory(step.history);
         applyHistoryState(step.state);
-    }, [applyHistoryState, commitHistory]);
+    }, [applyHistoryState, commitHistory, readNotebook]);
 
     const handleRedo = useCallback(() => {
-        const current = notebookRef.current;
+        const current = readNotebook();
         if (!current) return;
         const step = redoHistory(historyRef.current, current);
         if (!step) return;
         commitHistory(step.history);
         applyHistoryState(step.state);
-    }, [applyHistoryState, commitHistory]);
+    }, [applyHistoryState, commitHistory, readNotebook]);
 
     const handleJump = useCallback(
         (index: number) => {
-            const current = notebookRef.current;
+            const current = readNotebook();
             if (!current) return;
             const step = jumpToHistory(historyRef.current, current, index);
             if (!step) return;
@@ -343,14 +305,14 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             applyHistoryState(step.state);
             setShowHistory(false);
         },
-        [applyHistoryState, commitHistory],
+        [applyHistoryState, commitHistory, readNotebook],
     );
 
     const updateCell = useCallback(
         (cellId: string, partial: Partial<NotebookCell>) => {
-            updateNotebook(updateCellInCells(cellsRef.current, cellId, partial));
+            updateNotebook(updateCellInCells(readNotebookCells(), cellId, partial));
         },
-        [updateNotebook],
+        [readNotebookCells, updateNotebook],
     );
 
     const focusCell = useCallback((cellId: string) => {
@@ -389,31 +351,31 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
 
     const addCell = useCallback(
         (type: NotebookCellType, afterIndex?: number): string => {
-            const newCells = addCellToCells(cellsRef.current, type, afterIndex);
+            const newCells = addCellToCells(readNotebookCells(), type, afterIndex);
             const insertAt = afterIndex !== undefined ? afterIndex + 1 : newCells.length - 1;
             const newCellId = newCells[insertAt].id;
             insertCells(newCells, newCellId);
             return newCellId;
         },
-        [insertCells],
+        [insertCells, readNotebookCells],
     );
 
     const deleteCell = useCallback(
         (cellId: string) => {
-            updateNotebook(removeCellFromCells(cellsRef.current, cellId));
+            updateNotebook(removeCellFromCells(readNotebookCells(), cellId));
         },
-        [updateNotebook],
+        [readNotebookCells, updateNotebook],
     );
 
     const toggleStopOnError = useCallback(() => {
-        updateNotebook(cellsRef.current, {stopOnError: !stopOnError});
-    }, [updateNotebook, stopOnError]);
+        updateNotebook(readNotebookCells(), {stopOnError: !stopOnError});
+    }, [readNotebookCells, updateNotebook, stopOnError]);
 
     const handleParamsChange = useCallback(
         (newParams: NotebookParam[]) => {
-            updateNotebook(cellsRef.current, {params: newParams});
+            updateNotebook(readNotebookCells(), {params: newParams});
         },
-        [updateNotebook],
+        [readNotebookCells, updateNotebook],
     );
 
     /** Why typed parameters stop a cell, one line per parameter. */
@@ -433,9 +395,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
 
     const runPlan = useCallback(
         async (request: NotebookRunRequest) => {
-            const notebookId = notebookIdRef.current;
-            const runKey = notebookId ?? tab.id;
-            const release = activeRunRef.current ? undefined : acquireNotebookRun(runKey);
+            if (!notebookId) return;
+            const release = activeRunRef.current ? undefined : acquireNotebookRun(notebookId);
             if (!release) {
                 showAlert(t('editor.notebook.execution.busy'), {kind: 'info'});
                 return;
@@ -448,8 +409,9 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 // Editors debounce document writes. Capture what the user sees,
                 // including references just entered in another cell.
                 flushPendingEditorChanges();
-                const state = notebookRef.current;
-                const runParams = state?.params ?? [];
+                const state = readNotebook();
+                if (!state) return;
+                const runParams = state.params ?? [];
                 const paramSignature = JSON.stringify(runParams);
                 const requestedLimit = Math.floor(settings.resultPageSize);
                 const limit =
@@ -465,7 +427,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                     booleanLiterals,
                 ]);
                 const planned = buildNotebookExecutionPlan({
-                    cells: cellsRef.current,
+                    cells: state.cells,
                     request,
                     fallbackSchema: effectiveSchema,
                     connectionId,
@@ -531,11 +493,9 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 setRunAllResult(null);
                 updateTab(tab.id, {isLoading: true});
                 const readCells = () => {
-                    if (signal.aborted || notebookIdRef.current !== notebookId) return [];
+                    if (signal.aborted) return [];
                     flushPendingEditorChanges();
-                    return (
-                        (notebookId ? getNotebookState(notebookId)?.cells : cellsRef.current) ?? []
-                    );
+                    return readNotebookCells();
                 };
                 const patchRuntime = (
                     id: string,
@@ -547,13 +507,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                         if (!partial) return live;
                         return {...live, cells: updateCellInCells(live.cells, id, partial)};
                     };
-                    if (notebookId) return updateNotebookRuntime(notebookId, update);
-                    const live = notebookRef.current;
-                    if (!live || signal.aborted) return false;
-                    const next = update(live);
-                    if (next === live) return false;
-                    syncNotebook(next);
-                    return true;
+                    return updateNotebookRuntime(notebookId, update);
                 };
                 let onAbort: () => void;
                 const unmounted = new Promise<false>((resolve) => {
@@ -561,7 +515,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                     signal.addEventListener('abort', onAbort, {once: true});
                 });
                 const result = await executeNotebookPlan(plan, {
-                    stopOnError: state?.stopOnError ?? false,
+                    stopOnError: state.stopOnError ?? false,
                     readCells,
                     execute: async (node, inputs, checkBeforeSend): Promise<CellRunOutcome> => {
                         const {cell, sql, schema} = node;
@@ -606,7 +560,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                             const hasUnconfirmedWrite = () =>
                                 !canAutoRetryOnAmbiguousOutcome &&
                                 !(request.mode === 'cell' && request.cellId === id) &&
-                                hasUnconfirmedNotebookWrite(runKey, id, cellsRef.current);
+                                hasUnconfirmedNotebookWrite(notebookId, id, readNotebookCells());
                             const failUnconfirmed = () =>
                                 failBeforeSend(
                                     t('editor.notebook.execution.unconfirmedWrite'),
@@ -620,17 +574,22 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                             ]);
                             const changed = checkBeforeSend();
                             if (changed) return changed;
-                            if (!allowed)
-                                return failBeforeSend(
-                                    t('editor.notebook.execution.guardDenied'),
-                                    true,
-                                );
+                            if (!allowed) {
+                                return {
+                                    kind: 'failed',
+                                    error: t('editor.notebook.execution.guardDenied'),
+                                    sent: false,
+                                };
+                            }
                             if (hasUnconfirmedWrite()) return failUnconfirmed();
 
                             patchRuntime(id, () => ({error: undefined, result: null}));
                             const start = performance.now();
-                            if (!canAutoRetryOnAmbiguousOutcome)
-                                setUnconfirmedNotebookWrite(runKey, id, true);
+                            const writeFingerprint = canAutoRetryOnAmbiguousOutcome
+                                ? undefined
+                                : JSON.stringify([resolved.sql, connectionId, schema ?? null]);
+                            if (writeFingerprint)
+                                setUnconfirmedNotebookWrite(notebookId, id, writeFingerprint, true);
                             let outcome: Extract<CellRunOutcome, {kind: 'success' | 'failed'}>;
                             try {
                                 const response = await client.call('execute_query', {
@@ -706,12 +665,13 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                             // A transport failure or a result that cannot be attached to the
                             // captured revision can leave a write applied. Only an explicit
                             // Run Cell may retry it, never an automatic dependency refresh.
-                            if (
-                                !canAutoRetryOnAmbiguousOutcome &&
-                                committed &&
-                                outcome.kind === 'success'
-                            ) {
-                                setUnconfirmedNotebookWrite(runKey, id, false);
+                            if (writeFingerprint && committed && outcome.kind === 'success') {
+                                setUnconfirmedNotebookWrite(
+                                    notebookId,
+                                    id,
+                                    writeFingerprint,
+                                    false,
+                                );
                             }
                             return outcome;
                         } catch (error) {
@@ -727,8 +687,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                         }
                     },
                 }).finally(() => signal.removeEventListener('abort', onAbort));
-                if (!signal.aborted && notebookIdRef.current === notebookId)
-                    setRunAllResult(result);
+                if (!signal.aborted) setRunAllResult(result);
             } finally {
                 release();
                 activeRunRef.current = null;
@@ -743,12 +702,14 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             effectiveSchema,
             guardQueryExecution,
             isMultiDb,
+            notebookId,
+            readNotebook,
+            readNotebookCells,
             settings.resultPageSize,
             showAlert,
             sqlDialect,
             t,
             tab.id,
-            syncNotebook,
             updateTab,
             variableOptions,
         ],
@@ -761,7 +722,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         flushPendingEditorChanges();
         try {
             const downloaded = await downloadNotebook(platform, tab.title, {
-                cells: cellsRef.current,
+                cells: readNotebookCells(),
                 params,
                 stopOnError,
             });
@@ -776,14 +737,14 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 {kind: 'error'},
             );
         }
-    }, [params, platform, showAlert, stopOnError, t, tab.title]);
+    }, [params, platform, readNotebookCells, showAlert, stopOnError, t, tab.title]);
 
     const handleExportHtml = useCallback(async () => {
         // Export what the editors show, including a keystroke still held back.
         flushPendingEditorChanges();
         try {
             const downloaded = await downloadNotebookHtml(platform, tab.title, {
-                cells: cellsRef.current,
+                cells: readNotebookCells(),
                 params,
                 stopOnError,
             });
@@ -798,14 +759,14 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 {kind: 'error'},
             );
         }
-    }, [params, platform, showAlert, stopOnError, t, tab.title]);
+    }, [params, platform, readNotebookCells, showAlert, stopOnError, t, tab.title]);
 
     const handleExportSql = useCallback(async () => {
         // Export what the editors show, including a keystroke still held back.
         flushPendingEditorChanges();
         try {
             const outcome = await downloadNotebookSql(platform, tab.title, {
-                cells: cellsRef.current,
+                cells: readNotebookCells(),
             });
             if (outcome === 'empty') {
                 showAlert(t('editor.notebook.exportSqlEmpty'), {kind: 'info'});
@@ -820,14 +781,14 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 {kind: 'error'},
             );
         }
-    }, [platform, showAlert, t, tab.title]);
+    }, [platform, readNotebookCells, showAlert, t, tab.title]);
 
     const handleExportMarkdown = useCallback(async () => {
         // Export what the editors show, including a keystroke still held back.
         flushPendingEditorChanges();
         try {
             const outcome = await downloadNotebookMarkdown(platform, tab.title, {
-                cells: cellsRef.current,
+                cells: readNotebookCells(),
             });
             if (outcome === 'empty') {
                 showAlert(t('editor.notebook.exportMarkdownEmpty'), {kind: 'info'});
@@ -842,14 +803,13 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 {kind: 'error'},
             );
         }
-    }, [platform, showAlert, t, tab.title]);
+    }, [platform, readNotebookCells, showAlert, t, tab.title]);
 
     const handleImport = useCallback(async () => {
         try {
             const imported = await chooseNotebookImport(platform);
             if (!imported) return;
             const {title, state: importedState} = imported;
-            const importedCells = importedState.cells;
 
             // Create a new notebook file for the imported content
             const {notebookId: newId} = await createNotebookFromState(
@@ -859,16 +819,13 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 client,
             );
 
-            // Update the tab to point to the new notebook
+            // Cancel unsent work and confirmations before replacing the document.
+            activeRunRef.current?.abort();
             updateTab(tab.id, {notebookId: newId, title});
-
-            // Update local state — a different notebook now, so drop its history
-            // and any parameter drafts of the one it replaces.
-            setNotebook(importedState);
-            notebookRef.current = importedState;
-            cellsRef.current = importedCells;
             resetHistory();
             setParamDrafts({});
+            setRunAllResult(null);
+            setExecutedParamsByCell({});
 
             showAlert(t('editor.notebook.importSuccess'), {kind: 'info'});
         } catch {
@@ -885,7 +842,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
 
             // Show a small "held card" under the cursor instead of the browser's
             // default faded in-place screenshot, so it feels like carrying the cell.
-            const cell = cellsRef.current[index];
+            const cell = readNotebookCells()[index];
             if (cell) {
                 const preview = createCellDragPreview(document, {
                     name: cell.name?.trim() || t('editor.notebook.cellNamePlaceholder'),
@@ -901,7 +858,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 setTimeout(() => preview.remove(), 0);
             }
         },
-        [t],
+        [readNotebookCells, t],
     );
 
     const stopAutoScroll = useCallback(() => {
@@ -972,9 +929,9 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             setDropPos(null);
             stopAutoScroll();
             if (fromIndex === null) return;
-            updateNotebook(moveCell(cellsRef.current, fromIndex, insertAt));
+            updateNotebook(moveCell(readNotebookCells(), fromIndex, insertAt));
         },
-        [dragIndex, updateNotebook, stopAutoScroll],
+        [dragIndex, readNotebookCells, updateNotebook, stopAutoScroll],
     );
 
     // Cancel any in-flight auto-scroll frame if the view unmounts mid-drag.
@@ -1023,12 +980,12 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     }, [matchesShortcut, runAll, handleUndo, handleRedo, viewMode]);
 
     const collapseAll = useCallback(() => {
-        updateNotebook(cellsRef.current.map((c) => ({...c, isCollapsed: true})));
-    }, [updateNotebook]);
+        updateNotebook(readNotebookCells().map((c) => ({...c, isCollapsed: true})));
+    }, [readNotebookCells, updateNotebook]);
 
     const expandAll = useCallback(() => {
-        updateNotebook(cellsRef.current.map((c) => ({...c, isCollapsed: false})));
-    }, [updateNotebook]);
+        updateNotebook(readNotebookCells().map((c) => ({...c, isCollapsed: false})));
+    }, [readNotebookCells, updateNotebook]);
 
     // Clearing outputs only touches live runtime state: nothing is executed or
     // deleted from the saved notebook, and it is not an undo step.
@@ -1039,20 +996,21 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const duplicateCell = useCallback(
         (cellId: string) => {
             if (isExecuting) return;
-            const newCells = duplicateCellToEnd(cellsRef.current, cellId);
-            if (newCells === cellsRef.current) return;
+            const current = readNotebookCells();
+            const newCells = duplicateCellToEnd(current, cellId);
+            if (newCells === current) return;
             insertCells(newCells, newCells[newCells.length - 1].id);
         },
-        [isExecuting, insertCells],
+        [isExecuting, insertCells, readNotebookCells],
     );
 
     const clearOutputs = useCallback(() => {
         setIsClearOutputsConfirmOpen(false);
         if (isExecuting) return;
-        updateNotebook(clearCellOutputs(cellsRef.current));
+        updateNotebook(clearCellOutputs(readNotebookCells()));
         setExecutedParamsByCell({});
         setRunAllResult(null);
-    }, [isExecuting, updateNotebook]);
+    }, [isExecuting, readNotebookCells, updateNotebook]);
 
     const handleViewModeChange = useCallback((mode: NotebookViewMode) => {
         setViewMode(mode);
@@ -1100,7 +1058,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     };
 
     // Loading state
-    if (isLoadingNotebook) {
+    if (!notebook) {
         return (
             <div className="flex flex-col h-full">
                 <NotebookToolbar {...toolbarProps} />
@@ -1124,7 +1082,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         );
     }
 
-    const historyView = historyTimeline(history, notebook ?? {cells});
+    const historyView = historyTimeline(history, notebook);
 
     // A drop line is shown in gap `pos` unless it'd leave the cell where it is.
     const showLineAt = (pos: number) =>
@@ -1216,6 +1174,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                         {runAllResult && (
                             <RunAllSummary
                                 result={runAllResult}
+                                cells={cells}
                                 onDismiss={() => setRunAllResult(null)}
                                 onScrollToCell={scrollToCell}
                             />
@@ -1246,13 +1205,13 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                                     onMoveUp={() => {
                                         if (index > 0)
                                             updateNotebook(
-                                                reorderCells(cellsRef.current, index, index - 1),
+                                                reorderCells(readNotebookCells(), index, index - 1),
                                             );
                                     }}
                                     onMoveDown={() => {
                                         if (index < cells.length - 1)
                                             updateNotebook(
-                                                reorderCells(cellsRef.current, index, index + 1),
+                                                reorderCells(readNotebookCells(), index, index + 1),
                                             );
                                     }}
                                     onRun={() => runPlan({mode: 'cell', cellId: cell.id})}

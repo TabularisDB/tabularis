@@ -4,11 +4,12 @@ import type {NotebookCellLocation, RunAllResult} from '@/types/notebook';
 
 interface RunAllSummaryProps {
     result: RunAllResult;
+    cells: readonly {id: string}[];
     onDismiss: () => void;
     onScrollToCell?: (cellId: string) => void;
 }
 
-export function RunAllSummary({result, onDismiss, onScrollToCell}: RunAllSummaryProps) {
+export function RunAllSummary({result, cells, onDismiss, onScrollToCell}: RunAllSummaryProps) {
     const {t} = useTranslation();
     const preflightFailed = result.preflightErrors.length > 0;
     const hasErrors = preflightFailed || result.failed > 0;
@@ -26,9 +27,13 @@ export function RunAllSummary({result, onDismiss, onScrollToCell}: RunAllSummary
         [result.blocked, t('editor.notebook.blocked')],
     ].filter(([count]) => count !== 0);
 
+    const indicesById = new Map(cells.map(({id}, index) => [id, index]));
     const cellLink = ({cellId, cellIndex}: NotebookCellLocation) => {
-        const label = t('editor.notebook.execution.cell', {number: cellIndex + 1});
-        return onScrollToCell ? (
+        const currentIndex = indicesById.get(cellId);
+        const label = t('editor.notebook.execution.cell', {
+            number: (currentIndex ?? cellIndex) + 1,
+        });
+        return onScrollToCell && currentIndex !== undefined ? (
             <button
                 type="button"
                 onClick={() => onScrollToCell(cellId)}
@@ -82,7 +87,7 @@ export function RunAllSummary({result, onDismiss, onScrollToCell}: RunAllSummary
                     {result.errors.map((err) => (
                         <li key={err.cellId} className="flex items-start gap-2">
                             {cellLink(err)}
-                            <span className="text-muted whitespace-pre-wrap break-words">
+                            <span className="text-muted whitespace-pre-wrap wrap-anywhere">
                                 {err.error}
                             </span>
                         </li>

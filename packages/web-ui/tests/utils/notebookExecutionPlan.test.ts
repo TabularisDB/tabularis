@@ -116,6 +116,28 @@ describe('buildNotebookExecutionPlan', () => {
         });
     });
 
+    it('caps cycle paths while continuing to diagnose other invalid references', () => {
+        const cells = Array.from({length: 200}, (_, i) =>
+            sql(String(i), `SELECT * FROM {{cell_${i + 2}}}`),
+        );
+        cells[cells.length - 1].content = `SELECT * FROM ${cells
+            .slice(0, -1)
+            .map((_, i) => `{{cell_${i + 1}}}`)
+            .join(' JOIN ')} JOIN {{cell_999}}`;
+        const planned = build(cells, {mode: 'cell', cellId: '0'});
+
+        expect(planned.kind).toBe('invalid');
+        if (planned.kind !== 'invalid') return;
+        const cycles = planned.issues.filter(({kind}) => kind === 'cycle');
+        expect(cycles).toHaveLength(20);
+        expect(cycles[0].path).toEqual([...cells.map((_, i) => i), 0]);
+        expect(planned.issues.at(-1)).toEqual({
+            kind: 'missing',
+            index: 199,
+            reference: '{{cell_999}}',
+        });
+    });
+
     it('reports a Markdown target, an empty SQL target and a disabled prerequisite together', () => {
         const cells = [
             sql('use', 'SELECT * FROM {{cell_2}} JOIN {{cell_3}} JOIN {{cell_4}}'),

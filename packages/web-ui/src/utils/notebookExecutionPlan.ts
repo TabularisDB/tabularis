@@ -59,6 +59,8 @@ export function isEffectFreeNotebookQuery(sql: string, syntax?: SqlSyntax): bool
     );
 }
 
+const MAX_CYCLE_DIAGNOSTICS = 20;
+
 /** Validate the requested subgraph, even through prerequisites with usable output. */
 export function buildNotebookExecutionPlan({
     cells,
@@ -92,7 +94,10 @@ export function buildNotebookExecutionPlan({
         if (!isSqlCell(cell)) return;
         const {sql, errors} = prepare(cell.content.trim());
         const references = extractCellReferences(sql, syntax);
-        const prerequisites = [...new Set(references.map((ref) => ref.cellIndex))];
+        const referencedIndices = [...new Set(references.map((ref) => ref.cellIndex))];
+        // A parameter error is reported without resolving this cell's inputs.
+        // Keep its reverse edges so Run affected still reports the failed consumer.
+        const prerequisites = errors.length ? [] : referencedIndices;
         const schema = cell.schema || fallbackSchema || undefined;
         nodes.set(index, {
             cell,
@@ -110,7 +115,7 @@ export function buildNotebookExecutionPlan({
             references,
             prerequisites,
         });
-        for (const prerequisite of prerequisites) {
+        for (const prerequisite of referencedIndices) {
             const list = consumers.get(prerequisite) ?? [];
             list.push(index);
             consumers.set(prerequisite, list);
@@ -139,6 +144,7 @@ export function buildNotebookExecutionPlan({
     const stack: Array<{node: PlannedCell; cursor: number; seen: Set<number>}> = [];
     const dependencyOrder: number[] = [];
     let skipped = 0;
+    let cycleCount = 0;
 
     function push(node: PlannedCell) {
         visiting.set(node.index, stack.length);
@@ -155,7 +161,9 @@ export function buildNotebookExecutionPlan({
         while (stack.length) {
             const frame = stack[stack.length - 1];
             const source = frame.node.index;
-            const ref = frame.node.references[frame.cursor++];
+            const ref = frame.node.paramErrors.length
+                ? undefined
+                : frame.node.references[frame.cursor++];
             if (!ref) {
                 stack.pop();
                 visiting.delete(source);
@@ -172,12 +180,18 @@ export function buildNotebookExecutionPlan({
             else if (target?.cell.isDisabled)
                 issues.push({kind: 'disabled', index: source, reference: match});
             else if (!target) issues.push({kind: 'missing', index: source, reference: match});
-            else if (cycleStart !== undefined)
-                issues.push({
-                    kind: 'cycle',
-                    path: [...stack.slice(cycleStart).map(({node}) => node.index), prerequisite],
-                });
-            else if (!visited.has(prerequisite)) push(target);
+            else if (cycleStart !== undefined) {
+                if (cycleCount < MAX_CYCLE_DIAGNOSTICS) {
+                    cycleCount++;
+                    issues.push({
+                        kind: 'cycle',
+                        path: [
+                            ...stack.slice(cycleStart).map(({node}) => node.index),
+                            prerequisite,
+                        ],
+                    });
+                }
+            } else if (!visited.has(prerequisite)) push(target);
         }
     }
     if (issues.length > 0) return {kind: 'invalid', issues, targetCount: targets.size};
@@ -237,6 +251,7 @@ export function buildNotebookExecutionPlan({
         const index = takeFirst();
         steps.push(nodes.get(index)!);
         for (const consumer of consumers.get(index) ?? []) {
+            if (nodes.get(consumer)!.paramErrors.length) continue;
             const count = unmet.get(consumer);
             if (count === undefined) continue;
             unmet.set(consumer, count - 1);

@@ -50,22 +50,46 @@ export function useDangerousQueryGuard(enabled = true) {
     const queueRef = useRef<QueuedConfirmation[]>([]);
     const nextConfirmationId = useRef(0);
 
-    const requestConfirmation = useCallback((info: DangerousQueryInfo): Promise<boolean> => {
-        return new Promise((resolve) => {
-            const pendingInfo = {...info, confirmationId: nextConfirmationId.current++};
-            queueRef.current.push({info: pendingInfo, resolve});
-            if (queueRef.current.length === 1) setPending(pendingInfo);
-        });
-    }, []);
+    const requestConfirmation = useCallback(
+        (info: DangerousQueryInfo, signal?: AbortSignal): Promise<boolean> => {
+            return new Promise((resolve) => {
+                const pendingInfo = {...info, confirmationId: nextConfirmationId.current++};
+                const abort = () => {
+                    const index = queueRef.current.indexOf(entry);
+                    if (index < 0) return;
+                    queueRef.current.splice(index, 1);
+                    entry.resolve(false);
+                    if (index === 0) setPending(queueRef.current[0]?.info ?? null);
+                };
+                const entry: QueuedConfirmation = {
+                    info: pendingInfo,
+                    resolve: (confirmed) => {
+                        signal?.removeEventListener('abort', abort);
+                        resolve(confirmed);
+                    },
+                };
+                signal?.addEventListener('abort', abort, {once: true});
+                queueRef.current.push(entry);
+                if (queueRef.current.length === 1) setPending(pendingInfo);
+            });
+        },
+        [],
+    );
 
-    const resolve = useCallback((confirmed: boolean) => {
-        const current = queueRef.current.shift();
-        current?.resolve(confirmed);
-        setPending(queueRef.current[0]?.info ?? null);
-    }, []);
+    const resolve = useCallback(
+        (confirmed: boolean) => {
+            const current = queueRef.current[0];
+            if (!current || current.info !== pending) return;
+            queueRef.current.shift();
+            current.resolve(confirmed);
+            setPending(queueRef.current[0]?.info ?? null);
+        },
+        [pending],
+    );
 
     const guardQuery = useCallback(
-        (sqlOrQueries: string | string[]): Promise<boolean> => {
+        (sqlOrQueries: string | string[], signal?: AbortSignal): Promise<boolean> => {
+            if (signal?.aborted) return Promise.resolve(false);
             if (!enabled) return Promise.resolve(true);
 
             const statements = Array.isArray(sqlOrQueries) ? sqlOrQueries : [sqlOrQueries];
@@ -80,7 +104,7 @@ export function useDangerousQueryGuard(enabled = true) {
             }
 
             if (!first) return Promise.resolve(true);
-            return requestConfirmation({...first, count});
+            return requestConfirmation({...first, count}, signal);
         },
         [enabled, requestConfirmation],
     );

@@ -1307,6 +1307,132 @@ describe('NotebookView', () => {
             ]);
         });
 
+        it.each(['Run All', 'Run affected source', 'Run use'])(
+            'lets %s proceed after explicitly deleting a cell with a lost write reply',
+            async (action) => {
+                const insert = 'INSERT INTO audit VALUES (7)';
+                const source = 'SELECT id FROM source_table';
+                renderNotebook({
+                    cells: [
+                        sqlCell('source', source),
+                        sqlCell('use', 'SELECT * FROM {{cell_1}}'),
+                        sqlCell('write', insert),
+                    ],
+                });
+                mockInvoke.mockRejectedValueOnce(new Error('reply lost'));
+                await click('Run write');
+                await click('Delete write');
+                await click(action);
+
+                expect(mockInvoke.mock.calls).toEqual([
+                    requestSql(insert),
+                    requestSql(source),
+                    requestSql(
+                        'WITH cell_1 AS (\n  SELECT 7 AS "id"\n  UNION ALL\n  SELECT 8 AS "id"\n)\nSELECT * FROM cell_1',
+                    ),
+                ]);
+                expect(summary()).toMatchObject({executed: 2, succeeded: 2, failed: 0});
+            },
+        );
+
+        it.each(['connection', 'schema'] as const)(
+            'keeps a lost write protected after the same SQL succeeds on a different %s',
+            async (dimension) => {
+                const sql = 'INSERT INTO audit VALUES (7) RETURNING id';
+                const view = renderNotebook({cells: [sqlCell('write', sql)]});
+                mockInvoke.mockRejectedValueOnce(new Error('reply lost'));
+                await click('Run write');
+
+                const target =
+                    dimension === 'connection'
+                        ? {connectionId: 'other-connection'}
+                        : {schema: 'other_schema'};
+                view.rerender(notebookView(target));
+                await click('Run write');
+
+                view.rerender(notebookView());
+                await click('Run All');
+                expect(summary()).toMatchObject({
+                    executed: 0,
+                    errors: [
+                        {cellId: 'write', error: 'editor.notebook.execution.unconfirmedWrite'},
+                    ],
+                });
+                expect(mockInvoke.mock.calls).toEqual([
+                    requestSql(sql),
+                    requestSql(sql, target.schema, 37, target.connectionId),
+                ]);
+            },
+        );
+
+        it('keeps a lost write protected after a different write succeeds and is undone', async () => {
+            const insert = (id: number) => `INSERT INTO audit VALUES (${id}) RETURNING id`;
+            renderNotebook({
+                cells: [sqlCell('write', insert(7)), sqlCell('use', 'SELECT * FROM {{cell_1}}')],
+            });
+            mockInvoke.mockRejectedValueOnce(new Error('reply lost'));
+            await click('Run write');
+            fireEvent.change(screen.getByRole('textbox', {name: 'SQL write'}), {
+                target: {value: insert(8)},
+            });
+            await click('Run write');
+            expect(savedCell('write').result).toEqual(queryResult);
+
+            await click('Undo');
+            expect(savedCell('write').content).toBe(insert(7));
+            for (const action of ['Run use', 'Run All']) {
+                await click(action);
+                expect(summary()).toMatchObject({
+                    executed: 0,
+                    blocked: 1,
+                    errors: [
+                        {cellId: 'write', error: 'editor.notebook.execution.unconfirmedWrite'},
+                    ],
+                });
+                expect(mockInvoke.mock.calls).toEqual([
+                    requestSql(insert(7)),
+                    requestSql(insert(8)),
+                ]);
+            }
+        });
+
+        it('keeps a verified output reusable after cancelling a rerun and blocks the current consumer', async () => {
+            const source = 'DELETE FROM audit RETURNING id';
+            const mocked = vi.mocked(useQueryGuards);
+            mocked.mockImplementation(useDangerousQueryGuardForTest);
+            try {
+                renderNotebook({
+                    cells: [sqlCell('source', source), sqlCell('use', 'SELECT * FROM {{cell_1}}')],
+                });
+                await click('Run source');
+                await click('editor.dangerousQueryConfirm');
+                const output = savedCell('source').result;
+                expect(output).toEqual(queryResult);
+
+                await click('Run affected source');
+                expect(within(screen.getByRole('dialog')).getByText(source)).toBeInTheDocument();
+                await click('common.cancel');
+                expect(savedCell('source').result).toBe(output);
+                expect(savedCell('source').error).toBeUndefined();
+                expect(mockInvoke.mock.calls).toEqual([requestSql(source)]);
+                expect(summary()).toMatchObject({
+                    executed: 0,
+                    blocked: 1,
+                    errors: [{cellId: 'source', error: 'editor.notebook.execution.guardDenied'}],
+                });
+
+                await click('Run use');
+                expect(mockInvoke.mock.calls).toEqual([
+                    requestSql(source),
+                    requestSql(
+                        'WITH cell_1 AS (\n  SELECT 7 AS "id"\n  UNION ALL\n  SELECT 8 AS "id"\n)\nSELECT * FROM cell_1',
+                    ),
+                ]);
+            } finally {
+                mocked.mockReset();
+            }
+        });
+
         it('can automatically retry a known constant read after a lost reply', async () => {
             fixtures.database.activeCapabilities = {sql_dialect: 'sqlite'};
             renderNotebook({
@@ -1406,6 +1532,16 @@ describe('NotebookView', () => {
             },
         );
 
+        it('opens a cached document without reviving its stale spinner', () => {
+            renderNotebook({
+                cells: [sqlCell('idle', 'SELECT 7', {result: queryResult, isLoading: true})],
+            });
+            expect(screen.getByTestId('cell-idle')).toHaveAttribute('data-loading', 'false');
+            expect(savedCell('idle')).toMatchObject({isLoading: false, result: queryResult});
+            expect(screen.getByRole('button', {name: 'Clear outputs'})).toBeEnabled();
+            expect(mockInvoke).not.toHaveBeenCalled();
+        });
+
         it('restores document edits with the latest runtime output through undo and redo', async () => {
             const guard = Promise.withResolvers<boolean>();
             fixtures.guardQuery.mockReturnValueOnce(guard.promise);
@@ -1447,8 +1583,9 @@ describe('NotebookView', () => {
             await settle();
             renderNotebook();
             await click('Run write');
+            expect(mockInvoke.mock.calls).toEqual([requestSql('DELETE FROM t')]);
             await act(async () => guard.resolve(true));
-            expect(mockInvoke.mock.calls.map(([, args]) => args?.query)).toEqual(['DELETE FROM t']);
+            expect(mockInvoke.mock.calls).toEqual([requestSql('DELETE FROM t')]);
         });
 
         it('flushes queued editor changes before planning and skips edits and removals made during a run', async () => {
@@ -2597,6 +2734,38 @@ describe('NotebookView', () => {
                 'DELETE FROM b',
             ]);
             expect(summary()).toMatchObject({total: 2, succeeded: 2, failed: 0, skipped: 0});
+        });
+
+        it('closes the old dangerous confirmation when the same tab switches notebook IDs', async () => {
+            const real =
+                await vi.importActual<typeof import('@/hooks/useQueryGuards')>(
+                    '@/hooks/useQueryGuards',
+                );
+            const mocked = vi.mocked(useQueryGuards);
+            mocked.mockImplementation(real.useQueryGuards);
+            const replacementId = 'imported-notebook';
+            setNotebookState(replacementId, {cells: [sqlCell('new', 'DROP TABLE replacement')]});
+
+            try {
+                const view = renderNotebook({cells: [sqlCell('old', 'DELETE FROM abandoned')]});
+                await click('Run old');
+                expect(
+                    within(screen.getByRole('dialog')).getByText('DELETE FROM abandoned'),
+                ).toBeInTheDocument();
+                view.rerender(notebookView({notebookId: replacementId}));
+
+                await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+                expect(mockInvoke).not.toHaveBeenCalled();
+                expect(savedCell('old').isLoading).toBe(false);
+                await click('Run new');
+                expect(
+                    within(screen.getByRole('dialog')).getByText('DROP TABLE replacement'),
+                ).toBeInTheDocument();
+                await click('editor.dangerousQueryConfirm');
+                expect(mockInvoke.mock.calls).toEqual([requestSql('DROP TABLE replacement')]);
+            } finally {
+                mocked.mockReset();
+            }
         });
 
         it('starts a fresh safety countdown for each queued dangerous query', async () => {

@@ -21,9 +21,9 @@ function notifyNotebooksChanged(): void {
 // Module-level session cache
 const cache = new Map<string, NotebookState>();
 const evicting = new Set<string>();
-const runtimeListeners = new Map<string, Set<(state: NotebookState) => void>>();
-// A discarded/ambiguous write result must survive closing and reopening a tab.
-const unconfirmedWrites = new Map<string, Set<string>>();
+const stateListeners = new Map<string, Set<() => void>>();
+// Notebook ID → owning cell ID → fingerprints of its potentially applied writes.
+const unconfirmedWrites = new Map<string, Map<string, Set<string>>>();
 const titleCache = new Map<string, string>();
 // Notebooks are persisted per connection (`notebooks/<connectionId>/<id>`), so
 // every save/load/delete needs the owning connection id. It is captured when a
@@ -102,9 +102,30 @@ export function getNotebookState(notebookId: string): NotebookState | undefined 
     return cache.get(notebookId);
 }
 
-/** Update cached notebook state and schedule debounced save. */
-export function setNotebookState(notebookId: string, state: NotebookState): void {
+function publishNotebookState(notebookId: string, state: NotebookState): void {
     cache.set(notebookId, state);
+    stateListeners.get(notebookId)?.forEach((listener) => listener());
+}
+
+function withoutLoadingCells(state: NotebookState): NotebookState {
+    // Spinners belong to live runs, not migrated/imported documents.
+    if (!state.cells.some((cell) => cell.isLoading)) return state;
+    return {...state, cells: state.cells.map((cell) => ({...cell, isLoading: false}))};
+}
+
+/** Commit an explicit document edit and schedule debounced save. */
+export function setNotebookState(notebookId: string, state: NotebookState): void {
+    const previous = cache.get(notebookId);
+    const writes = unconfirmedWrites.get(notebookId);
+    if (previous && writes?.size) {
+        const remaining = new Set(state.cells.map((cell) => cell.id));
+        for (const {id} of previous.cells) {
+            if (!remaining.has(id)) writes.delete(id);
+        }
+        if (!writes.size) unconfirmedWrites.delete(notebookId);
+    }
+    // Disk load bypasses this edit path: missing IDs after a reload are still protected.
+    publishNotebookState(notebookId, previous ? state : withoutLoadingCells(state));
     scheduleSave(notebookId);
 }
 
@@ -117,21 +138,17 @@ export function updateNotebookRuntime(
     if (!previous || evicting.has(notebookId)) return false;
     const next = update(previous);
     if (next === previous) return false;
-    cache.set(notebookId, next);
-    runtimeListeners.get(notebookId)?.forEach((listener) => listener(next));
+    publishNotebookState(notebookId, next);
     return true;
 }
 
-export function subscribeNotebookRuntime(
-    notebookId: string,
-    listener: (state: NotebookState) => void,
-): () => void {
-    const listeners = runtimeListeners.get(notebookId) ?? new Set();
-    runtimeListeners.set(notebookId, listeners);
+export function subscribeNotebookState(notebookId: string, listener: () => void): () => void {
+    const listeners = stateListeners.get(notebookId) ?? new Set();
+    stateListeners.set(notebookId, listeners);
     listeners.add(listener);
     return () => {
         listeners.delete(listener);
-        if (!listeners.size) runtimeListeners.delete(notebookId);
+        if (!listeners.size) stateListeners.delete(notebookId);
     };
 }
 
@@ -146,21 +163,26 @@ export function hasUnconfirmedNotebookWrite(
     // If a write no longer has an owner (e.g. the file lost its local IDs),
     // do not guess which cell may replay it. An explicit run can refresh an
     // individual result, but cannot clear an unrelated orphan.
-    return [...writes].some((id) => !cells.some((cell) => cell.id === id));
+    return [...writes.keys()].some((id) => !cells.some((cell) => cell.id === id));
 }
 
 export function setUnconfirmedNotebookWrite(
     notebookId: string,
     cellId: string,
+    fingerprint: string,
     unconfirmed: boolean,
 ): void {
     if (unconfirmed) {
-        const writes = unconfirmedWrites.get(notebookId) ?? new Set<string>();
-        writes.add(cellId);
+        const writes = unconfirmedWrites.get(notebookId) ?? new Map<string, Set<string>>();
+        const cellWrites = writes.get(cellId) ?? new Set<string>();
+        cellWrites.add(fingerprint);
+        writes.set(cellId, cellWrites);
         unconfirmedWrites.set(notebookId, writes);
     } else {
         const writes = unconfirmedWrites.get(notebookId);
-        writes?.delete(cellId);
+        const cellWrites = writes?.get(cellId);
+        cellWrites?.delete(fingerprint);
+        if (!cellWrites?.size) writes?.delete(cellId);
         if (!writes?.size) unconfirmedWrites.delete(notebookId);
     }
 }
@@ -210,8 +232,8 @@ export async function loadNotebook(
     if (!content) {
         // File not found — create default state
         const state = createDefaultNotebookState();
-        cache.set(notebookId, state);
         titleCache.set(notebookId, 'Notebook');
+        publishNotebookState(notebookId, state);
         return state;
     }
 
@@ -219,8 +241,8 @@ export async function loadNotebook(
         preserveCellIds: true,
     });
     const state: NotebookState = {cells, params, stopOnError};
-    cache.set(notebookId, state);
     titleCache.set(notebookId, title);
+    publishNotebookState(notebookId, state);
     return state;
 }
 
@@ -257,7 +279,7 @@ export async function createNotebookFromState(
     titleCache.set(notebookId, title);
     connectionIdCache.set(notebookId, connectionId);
     clientCache.set(notebookId, client);
-    cache.set(notebookId, state);
+    publishNotebookState(notebookId, withoutLoadingCells(state));
 
     const content = serializeForDisk(notebookId, state);
     await client.call('create_notebook', {connectionId, notebookId, content});
@@ -340,7 +362,7 @@ export function _resetForTesting(): void {
     for (const timer of saveTimers.values()) clearTimeout(timer);
     saveTimers.clear();
     evicting.clear();
-    runtimeListeners.clear();
+    stateListeners.clear();
     unconfirmedWrites.clear();
     cache.clear();
     titleCache.clear();
