@@ -5,6 +5,8 @@ import {useEditor} from '@/hooks/useEditor';
 import {useResultChartState} from '@/hooks/useResultChartState';
 import {buildDuplicatedTab} from '@/utils/editor';
 import {getAdjacentTabGap} from '@/utils/tabDnd';
+import {createNotebook, flushAllPendingSaves, setNotebookState} from '@/utils/notebookStore';
+import {registerPendingEditorFlush} from '@/utils/pendingEditorChanges';
 import {DatabaseContext} from '@/contexts/DatabaseContext';
 import {invoke} from '@tauri-apps/api/core';
 import React from 'react';
@@ -429,6 +431,44 @@ describe('EditorProvider', () => {
 
         expect(result.current.tabs).toHaveLength(0);
     });
+
+    it.each(['single', 'all'])(
+        'persists the last buffered notebook edit on %s tab close',
+        async (mode) => {
+            vi.mocked(invoke).mockResolvedValue(null);
+            const {result} = renderHook(() => useEditor(), {wrapper: createWrapper()});
+            const {notebookId} = await createNotebook(
+                'Saved',
+                'conn-1',
+                new TabularisClient(new TauriTransport()),
+            );
+            act(() => {
+                result.current.openNotebook('conn-1', notebookId, 'Saved');
+            });
+            await waitFor(() =>
+                expect(result.current.tabs.some((tab) => tab.notebookId === notebookId)).toBe(true),
+            );
+            const id = result.current.tabs.find((tab) => tab.notebookId === notebookId)!.id;
+            const unregister = registerPendingEditorFlush(() =>
+                setNotebookState(notebookId, {
+                    cells: [{id: 'edited', type: 'sql', content: 'SELECT 99'}],
+                }),
+            );
+            try {
+                act(() =>
+                    mode === 'single' ? result.current.closeTab(id) : result.current.closeAllTabs(),
+                );
+            } finally {
+                unregister();
+            }
+            await flushAllPendingSaves();
+            expect(invoke).toHaveBeenCalledWith('save_notebook', {
+                connectionId: 'conn-1',
+                notebookId,
+                content: expect.stringContaining('SELECT 99'),
+            });
+        },
+    );
 
     it('should close all tabs for connection', () => {
         const wrapper = createWrapper('conn-1');

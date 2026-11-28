@@ -257,15 +257,14 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         ) => {
             if (!notebookId) return;
             const prevState = readNotebook();
+            if (!prevState) return;
             const newState: NotebookState = {
                 cells: newCells,
-                stopOnError: extraState?.stopOnError ?? prevState?.stopOnError,
-                params: extraState?.params ?? prevState?.params,
+                stopOnError: extraState?.stopOnError ?? prevState.stopOnError,
+                params: extraState?.params ?? prevState.params,
             };
-            if (prevState) {
-                const next = recordEdit(historyRef.current, prevState, newState, Date.now());
-                if (next !== historyRef.current) commitHistory(next);
-            }
+            const next = recordEdit(historyRef.current, prevState, newState, Date.now());
+            if (next !== historyRef.current) commitHistory(next);
             storeSetState(notebookId, newState);
         },
         [commitHistory, notebookId, readNotebook],
@@ -1072,9 +1071,12 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     if (!notebook) {
         return (
             <div className="flex flex-col h-full">
-                <NotebookToolbar {...toolbarProps} />
-                <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted">
-                    <Loader2 size={32} className="animate-spin opacity-40" />
+                <div
+                    role="status"
+                    className="flex-1 flex flex-col items-center justify-center gap-3 text-muted"
+                >
+                    <Loader2 size={32} aria-hidden="true" className="animate-spin opacity-40" />
+                    <span className="sr-only">{t('common.loading')}</span>
                 </div>
             </div>
         );

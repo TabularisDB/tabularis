@@ -142,10 +142,12 @@ vi.mock('@/components/notebook/NotebookToolbar', () => ({
         viewMode,
         onViewModeChange,
         onExportMarkdown,
+        onToggleStopOnError,
         onImport,
     }: ComponentProps<typeof NotebookToolbar>) => (
         <>
             <button onClick={onImport}>Import</button>
+            <button onClick={onToggleStopOnError}>Stop on error</button>
             <button onClick={onExportMarkdown}>Export Markdown</button>
             <button onClick={onRunAll} disabled={isRunning}>
                 Run All
@@ -364,6 +366,34 @@ describe('NotebookView', () => {
         fixtures.guardQuery.mockReset().mockResolvedValue(true);
         fixtures.matchesShortcut.mockReset().mockReturnValue(false);
         mockInvoke.mockReset().mockResolvedValue(queryResult);
+    });
+
+    it('cannot save an empty document from the toolbar while the disk read is pending', async () => {
+        const store =
+            await vi.importActual<typeof import('@/utils/notebookStore')>('@/utils/notebookStore');
+        const disk = Promise.withResolvers<string>();
+        vi.mocked(loadNotebook).mockImplementationOnce(store.loadNotebook);
+        mockInvoke.mockReturnValueOnce(disk.promise);
+        renderNotebook();
+
+        const toggle = screen.queryByRole('button', {name: 'Stop on error'});
+        if (toggle) fireEvent.click(toggle);
+        await act(async () =>
+            disk.resolve(
+                JSON.stringify({
+                    version: 2,
+                    title: 'Saved',
+                    cells: [sqlCell('stored', 'SELECT 42')],
+                }),
+            ),
+        );
+        await click('Stop on error');
+        await store.flushAllPendingSaves();
+        const save = mockInvoke.mock.calls.find(([command]) => command === 'save_notebook');
+        expect(JSON.parse(String(save?.[1]?.content))).toMatchObject({
+            cells: [{id: 'stored', content: 'SELECT 42'}],
+            stopOnError: true,
+        });
     });
 
     describe('explainQuery preparation', () => {

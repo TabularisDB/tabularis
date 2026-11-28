@@ -21,7 +21,8 @@ function notifyNotebooksChanged(): void {
 // Module-level session cache
 const cache = new Map<string, NotebookState>();
 const pendingLoads = new Map<string, Promise<NotebookState>>();
-const evicting = new Set<string>();
+const evicting = new Map<string, Promise<void>>();
+const pendingSaves = new Map<string, Promise<void>>();
 const stateListeners = new Map<string, Set<() => void>>();
 type UnconfirmedWrite = {fingerprints: Set<string>; explicitlyRemoved: boolean};
 const unconfirmedWrites = new Map<string, Map<string, UnconfirmedWrite>>();
@@ -60,7 +61,15 @@ function persist(notebookId: string, content: string): Promise<void> {
         console.error(`Cannot save notebook ${notebookId}: unknown connection or client`);
         return Promise.resolve();
     }
-    return client.call('save_notebook', {connectionId, notebookId, content});
+    // Autosave, close, and reopen can all write the same file. Start each RPC
+    // after its predecessor settles, including when that predecessor failed.
+    const save = () => client.call('save_notebook', {connectionId, notebookId, content});
+    const previous = pendingSaves.get(notebookId);
+    const pending = (previous ? previous.then(save, save) : save()).finally(() => {
+        if (pendingSaves.get(notebookId) === pending) pendingSaves.delete(notebookId);
+    });
+    pendingSaves.set(notebookId, pending);
+    return pending;
 }
 
 /** Flush a single pending save immediately. */
@@ -152,7 +161,18 @@ export function updateNotebookRuntime(
     return true;
 }
 
+function resumeNotebook(notebookId: string): void {
+    if (!evicting.delete(notebookId)) return;
+    // A run may have settled while runtime updates were suspended for close.
+    const state = cache.get(notebookId);
+    if (state) {
+        const resumed = withoutLoadingCells(state);
+        if (resumed !== state) publishNotebookState(notebookId, resumed);
+    }
+}
+
 export function subscribeNotebookState(notebookId: string, listener: () => void): () => void {
+    resumeNotebook(notebookId);
     const listeners = stateListeners.get(notebookId) ?? new Set();
     stateListeners.set(notebookId, listeners);
     listeners.add(listener);
@@ -234,6 +254,7 @@ export async function loadNotebook(
     connectionId: string,
     client: TypedCommandCaller,
 ): Promise<NotebookState> {
+    resumeNotebook(notebookId);
     connectionIdCache.set(notebookId, connectionId);
     clientCache.set(notebookId, client);
 
@@ -324,6 +345,9 @@ export async function deleteNotebook(
     titleCache.delete(notebookId);
     connectionIdCache.delete(notebookId);
     clientCache.delete(notebookId);
+    // An already queued save must not recreate the file after deletion.
+    const pending = pendingSaves.get(notebookId);
+    if (pending) await pending.catch(() => {});
     await client.call('delete_notebook', {connectionId, notebookId});
     unconfirmedWrites.delete(notebookId);
     notifyNotebooksChanged();
@@ -361,22 +385,26 @@ export async function renameNotebook(
 /** Flush pending save and remove from cache (on tab close). */
 export async function evictFromCache(notebookId: string): Promise<void> {
     pendingLoads.delete(notebookId);
-    evicting.add(notebookId);
+    const closing = flushSave(notebookId);
+    evicting.set(notebookId, closing);
     try {
-        await flushSave(notebookId);
+        await closing;
+        if (evicting.get(notebookId) !== closing) return;
         cache.delete(notebookId);
         titleCache.delete(notebookId);
         connectionIdCache.delete(notebookId);
         clientCache.delete(notebookId);
     } finally {
-        evicting.delete(notebookId);
+        if (evicting.get(notebookId) === closing) evicting.delete(notebookId);
     }
 }
 
-/** Flush all pending saves immediately (on app close). */
+/** Flush debounced edits and wait for writes already in flight (on app close). */
 export async function flushAllPendingSaves(): Promise<void> {
-    const ids = Array.from(saveTimers.keys());
-    await Promise.all(ids.map(flushSave));
+    const ids = new Set([...saveTimers.keys(), ...pendingSaves.keys()]);
+    await Promise.all(
+        Array.from(ids, (id) => (saveTimers.has(id) ? flushSave(id) : pendingSaves.get(id))),
+    );
 }
 
 /** Clear all module state (for testing only). */
@@ -386,6 +414,7 @@ export function _resetForTesting(): void {
     evicting.clear();
     stateListeners.clear();
     pendingLoads.clear();
+    pendingSaves.clear();
     unconfirmedWrites.clear();
     cache.clear();
     titleCache.clear();

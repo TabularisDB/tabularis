@@ -4,6 +4,7 @@ import type {NotebookState} from '@/types/notebook';
 import {
     getNotebookState,
     setNotebookState,
+    subscribeNotebookState,
     loadNotebook,
     createNotebook,
     createNotebookFromState,
@@ -233,6 +234,27 @@ describe('notebookStore', () => {
     });
 
     describe('deleteNotebook', () => {
+        it('deletes after queued writes so a late save cannot recreate the file', async () => {
+            const id = 'delete-after-save';
+            await seedConnection(id);
+            const held = Promise.withResolvers<void>();
+            call.mockReturnValueOnce(held.promise);
+            setNotebookState(id, makeState('SELECT 1'));
+            const first = flushAllPendingSaves();
+            setNotebookState(id, makeState('SELECT 2'));
+            const second = flushAllPendingSaves();
+            const deletion = deleteNotebook(id, CONN, client);
+            expect(call).not.toHaveBeenCalledWith('delete_notebook', expect.anything());
+            held.resolve();
+            await Promise.all([first, second, deletion]);
+            expect(call.mock.calls.map(([command]) => command)).toEqual([
+                'load_notebook',
+                'save_notebook',
+                'save_notebook',
+                'delete_notebook',
+            ]);
+        });
+
         it('evicts from cache and deletes file', async () => {
             setNotebookState('del-1', makeState());
             setNotebookTitle('del-1', 'To Delete');
@@ -277,6 +299,55 @@ describe('notebookStore', () => {
     });
 
     describe('evictFromCache', () => {
+        it('keeps the reopened view and writes its edit after the closing save', async () => {
+            const id = 'reopen';
+            await seedConnection(id);
+            setNotebookState(id, makeState('SELECT 42'));
+            const slow = Promise.withResolvers<void>();
+            const saved: string[] = [];
+            call.mockImplementation(async (_command, args) => {
+                const sql = JSON.parse(args.content).cells[0].content;
+                if (sql === 'SELECT 42') await slow.promise;
+                saved.push(sql);
+            });
+            const closing = evictFromCache(id);
+            const unsubscribe = subscribeNotebookState(id, () => {});
+            setNotebookState(id, makeState('SELECT 99'));
+            await vi.advanceTimersByTimeAsync(1500);
+            slow.resolve();
+            await closing;
+            await flushAllPendingSaves();
+            expect(saved).toEqual(['SELECT 42', 'SELECT 99']);
+            expect(getNotebookState(id)).toEqual(makeState('SELECT 99'));
+            unsubscribe();
+        });
+
+        it('only lets the newest close evict, even when the older save fails', async () => {
+            const id = 'close-reopen-close';
+            await seedConnection(id);
+            const oldSave = Promise.withResolvers<void>();
+            const newSave = Promise.withResolvers<void>();
+            call.mockReturnValueOnce(oldSave.promise).mockReturnValueOnce(newSave.promise);
+            const first = evictFromCache(id);
+            await loadNotebook(id, CONN, client);
+            const edit = makeState('SELECT 99');
+            setNotebookState(id, edit);
+            const last = evictFromCache(id);
+            expect(call.mock.calls.filter(([cmd]) => cmd === 'save_notebook')).toHaveLength(1);
+            const failed = expect(first).rejects.toThrow('save failed');
+            oldSave.reject(new Error('save failed'));
+            await failed;
+            expect(getNotebookState(id)).toBe(edit);
+            newSave.resolve();
+            await last;
+            expect(getNotebookState(id)).toBeUndefined();
+            expect(call).toHaveBeenLastCalledWith('save_notebook', {
+                connectionId: CONN,
+                notebookId: id,
+                content: expect.stringContaining('SELECT 99'),
+            });
+        });
+
         it('flushes pending save before evicting', async () => {
             await seedConnection('evict-1');
             setNotebookTitle('evict-1', 'Test');

@@ -36,6 +36,7 @@ import {
     type ClosedTabsByConnection,
 } from '@/utils/closedTabs';
 import {createNotebookFromState, evictFromCache, flushAllPendingSaves} from '@/utils/notebookStore';
+import {flushPendingEditorChanges} from '@/utils/pendingEditorChanges';
 
 export const EditorProvider = ({children}: {children: ReactNode}) => {
     const client = useTabularisClient();
@@ -430,6 +431,12 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
     // reopen stack. Runs outside the setTabs updater so React strict mode's
     // double invocation cannot push an entry twice.
     const rememberClosedTabs = useCallback((closedIds: string[]) => {
+        // A notebook editor discards its debounce on unmount. Hand the last
+        // keystroke to the document before either a single or a bulk close.
+        const closing = new Set(closedIds);
+        if (tabsRef.current.some((tab) => tab.notebookId && closing.has(tab.id))) {
+            flushPendingEditorChanges();
+        }
         const next = pushClosedTabs(closedTabsRef.current, tabsRef.current, closedIds);
         closedTabsRef.current = next;
         setClosedTabs(next);
@@ -437,13 +444,12 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
 
     const closeTab = useCallback(
         (id: string) => {
+            rememberClosedTabs([id]);
             // Flush and evict notebook cache for the closed tab
             const closedTab = tabsRef.current.find((t) => t.id === id);
             if (closedTab?.notebookId) {
                 evictFromCache(closedTab.notebookId);
             }
-
-            rememberClosedTabs([id]);
 
             setTabs((prev) => {
                 const {newTabs, newActiveTabId: nextActiveId} = closeTabWithState(
