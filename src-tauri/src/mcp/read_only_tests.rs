@@ -512,20 +512,24 @@ async fn readonly_policy_uses_selected_database(plugin: &Plugin) {
     config.mcp_preflight_explain = Some(true);
     heartbeat::write_now().unwrap();
 
-    let blocked = run_query_on_database(
-        &config,
-        plugin,
-        "scoped-all",
-        Some("archive"),
-        "DELETE FROM items",
-    )
-    .await;
-    assert_eq!(blocked.audit.status, "blocked_readonly");
-    assert!(blocked.audit.approval_id.is_none());
-    assert_eq!(
-        blocked.calls,
-        [("get_connection_metadata".into(), "archive".into())]
-    );
+    for connection in ["scoped-all", "scoped-writes", "scoped-off"] {
+        let blocked = run_query_on_database(
+            &config,
+            plugin,
+            connection,
+            Some("archive"),
+            "DELETE FROM items",
+        )
+        .await;
+        assert!(blocked.result.is_err(), "{connection}");
+        assert_eq!(blocked.audit.status, "blocked_readonly", "{connection}");
+        assert!(blocked.audit.approval_id.is_none(), "{connection}");
+        assert_eq!(
+            blocked.calls,
+            [("get_connection_metadata".into(), "archive".into())],
+            "{connection}"
+        );
+    }
 
     // The saved selection is still checked before any plugin discovery call.
     let outside =
@@ -555,7 +559,7 @@ async fn readonly_policy_uses_selected_database(plugin: &Plugin) {
     let writable = run_query_on_database(
         &config,
         plugin,
-        "scoped-off",
+        "scoped-off-archive-primary",
         Some("app"),
         "INSERT INTO items VALUES (1)",
     )
@@ -615,7 +619,9 @@ async fn run_in_isolated_storage() {
         ("intrinsic-writes", "intrinsic-ro", false, Some(WritesOnly)),
         ("intrinsic-off", "intrinsic-ro", false, Some(Off)),
         ("scoped-all", SCOPED_SQL, false, Some(All)),
+        ("scoped-writes", SCOPED_SQL, false, Some(WritesOnly)),
         ("scoped-off", SCOPED_SQL, false, Some(Off)),
+        ("scoped-off-archive-primary", SCOPED_SQL, false, Some(Off)),
         ("doc-all", GUARDED, false, Some(All)),
         ("doc-writes", GUARDED, false, Some(WritesOnly)),
         ("doc-off", GUARDED, false, Some(Off)),
@@ -626,8 +632,12 @@ async fn run_in_isolated_storage() {
     .into_iter()
     .map(|(id, driver, read_only, mode)| {
         let database = match id {
-            "scoped-all" => DatabaseSelection::Multiple(vec!["app".into(), "archive".into()]),
-            "scoped-off" => DatabaseSelection::Multiple(vec!["archive".into(), "app".into()]),
+            "scoped-all" | "scoped-writes" | "scoped-off" => {
+                DatabaseSelection::Multiple(vec!["app".into(), "archive".into()])
+            }
+            "scoped-off-archive-primary" => {
+                DatabaseSelection::Multiple(vec!["archive".into(), "app".into()])
+            }
             _ => DatabaseSelection::Single("app".into()),
         };
         json!({
