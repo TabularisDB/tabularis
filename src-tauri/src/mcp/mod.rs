@@ -22,7 +22,7 @@ use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 
-mod approval;
+pub(crate) mod approval;
 mod cooldown;
 mod database_scope;
 pub mod install;
@@ -1425,19 +1425,20 @@ async fn tool_run_query(
         }
     }
 
-    // A query that reached this point without the user approving it is only
-    // here because it was classified as a read, and so is anything sent to a
-    // read-only connection. Classification cannot see what a function call
-    // does, so have the database refuse writes too.
+    // Enforce the connection policy against the final text, including approval edits.
     crate::application::read_only::validate_kind(&db_params, &capabilities, effective_kind)
-        .map_err(|message| JsonRpcError {
-            code: -32000,
-            message,
-            data: None,
+        .map_err(|message| {
+            audit.status = "blocked_readonly".to_string();
+            JsonRpcError {
+                code: -32000,
+                message,
+                data: None,
+            }
         })?;
-    let run_read_only = db_params.read_only
-        || config::is_connection_readonly(config, &conn.id)
-        || approval == QueryApproval::ProtectedRead;
+    let run_read_only =
+        crate::application::read_only::connection_is_read_only(&db_params, &capabilities)
+            || config::is_connection_readonly(config, &conn.id)
+            || approval == QueryApproval::ProtectedRead;
     let result = if run_read_only {
         driver
             .execute_read_only_query(&db_params, &effective_query, Some(max_rows), 1, None)

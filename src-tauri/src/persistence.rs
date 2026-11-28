@@ -91,6 +91,7 @@ pub(crate) fn write_connections_file(path: &Path, file: &ConnectionsFile) -> Res
     let mut connections_to_save = Vec::new();
     for conn in &file.connections {
         let mut c = conn.clone();
+        c.params.normalize_saved_approval();
         for key in &c.plugin_secret_keys {
             c.params.extra.remove(key);
         }

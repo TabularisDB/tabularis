@@ -38,7 +38,7 @@ fn call(plugin: &str, connection: &str, method: &str) -> ExtensionCommand {
         plugin_id: plugin.into(),
         connection_id: connection.into(),
         method: method.into(),
-        args: json!({}),
+        args: json!({"mcp_approval_mode":"business-value"}),
     })
 }
 
@@ -75,7 +75,7 @@ async fn plugin_extension_scopes_credentials_and_rejects_disabled_or_foreign_dri
     let runtime = runtime(temp.path());
     let plugin = "extension-scope-test";
     let saved: Vec<crate::models::SavedConnection> = serde_json::from_value(json!([
-        {"id":"first","name":"First","params":{"driver":plugin,"host":"saved.example","database":"db","username":"user","port":5432}},
+        {"id":"first","name":"First","params":{"driver":plugin,"host":"saved.example","mcp_approval_mode":"all","database":"db","username":"user","port":5432}},
         {"id":"second","name":"Second","params":{"driver":plugin,"database":"db"}},
         {"id":"foreign","name":"Foreign","params":{"driver":"other-plugin","database":"db"}}
     ])).unwrap();
@@ -83,6 +83,11 @@ async fn plugin_extension_scopes_credentials_and_rejects_disabled_or_foreign_dri
     let driver = with_test_driver_id(
         test_driver(|request| {
             assert_eq!(request.method, "extension");
+            assert!(request.params["params"].get("mcp_approval_mode").is_none());
+            assert_eq!(
+                request.params["args"],
+                json!({"mcp_approval_mode":"business-value"})
+            );
             assert_eq!(request.params["params"]["host"], "saved.example");
             assert_eq!(request.params["params"]["connection_id"], "first");
             assert_eq!(request.params["secrets"], json!({"TOKEN":"private"}));

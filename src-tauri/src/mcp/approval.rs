@@ -5,13 +5,13 @@ use crate::config::DEFAULT_MCP_APPROVAL_MODE;
 use crate::models::McpApprovalMode;
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum QueryApproval {
+pub(crate) enum QueryApproval {
     Required,
     ProtectedRead,
     Disabled,
 }
 
-pub(super) fn query_approval(
+pub(crate) fn query_approval(
     global: Option<&str>,
     connection: Option<McpApprovalMode>,
     kind: &str,

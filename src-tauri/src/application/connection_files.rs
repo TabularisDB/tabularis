@@ -320,6 +320,7 @@ pub async fn export_payload(
     let mut plugin_secrets = HashMap::new();
     let mut credential_profile_secrets = HashMap::new();
     for connection in &mut file.connections {
+        connection.params.normalize_saved_approval();
         if include_secrets {
             // A missing keychain entry must not abort the whole export (or a
             // scheduled backup): the connection is exported without that value.
@@ -578,6 +579,7 @@ fn apply_export_payload_locked(
     }
 
     for mut connection in incoming {
+        connection.params.normalize_saved_approval();
         if let Some(profile_id) = connection.params.credential_profile_id.as_deref() {
             crate::credential_profiles::validate_connection_profile_link(
                 &connection.id,

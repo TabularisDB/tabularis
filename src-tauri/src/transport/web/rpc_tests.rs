@@ -3092,6 +3092,77 @@ async fn connection_policy_blocks_file_drivers_in_inline_and_saved_requests() {
 }
 
 #[tokio::test]
+async fn connection_approval_authorization_on_create_and_update() {
+    use serde_json::json;
+
+    for saved in [None, Some("all")] {
+        let base = json!({"driver":"postgres","host":"trusted","database":"db"});
+        let mut stored = base.clone();
+        if let Some(mode) = saved {
+            stored["mcp_approval_mode"] = json!(mode);
+        }
+        for managed in [false, true] {
+            let mut app = FixtureApplication::new(Duration::ZERO);
+            app.saved_params.insert(
+                "saved-db".into(),
+                serde_json::from_value(stored.clone()).unwrap(),
+            );
+            let dispatcher = RpcDispatcher::with_access_policy(
+                Arc::new(app),
+                RpcAccessPolicy {
+                    connection_policy: if managed {
+                        ManagedConnectionPolicy::managed_only()
+                    } else {
+                        ManagedConnectionPolicy::standalone()
+                    },
+                    ..RpcAccessPolicy::default()
+                },
+            );
+            for role in [AuthorizationLevel::Database, AuthorizationLevel::LocalAdmin] {
+                for command in ["save_connection", "update_connection"] {
+                    for field in [
+                        None,
+                        Some(Value::Null),
+                        Some(json!("all")),
+                        Some(json!("off")),
+                        Some(json!("writes_only")),
+                    ] {
+                        let mut params = base.clone();
+                        if let Some(value) = &field {
+                            params["mcp_approval_mode"] = value.clone();
+                        }
+                        let unchanged = match (&field, command) {
+                            (None, _) => true,
+                            (Some(value), "save_connection") => value.is_null(),
+                            (Some(value), _) => value.as_str() == saved,
+                        };
+                        let allowed =
+                            !managed && (role == AuthorizationLevel::LocalAdmin || unchanged);
+                        let response = dispatch_json(
+                            &dispatcher,
+                            command,
+                            connection_policy_payload(command, params),
+                            Some(Uuid::new_v4()),
+                            role,
+                        )
+                        .await;
+                        assert_eq!(
+                            response.status(),
+                            if allowed {
+                                StatusCode::OK
+                            } else {
+                                StatusCode::FORBIDDEN
+                            },
+                            "{role:?} {managed} {command} {saved:?} {field:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[tokio::test]
 async fn connection_policy_binds_stored_credentials_to_the_full_security_target() {
     let params = serde_json::json!({"driver":"postgres", "host":"trusted", "port":5432, "username":"owner", "database":"db", "ssl_mode":"verify-full"});
     let mut application = FixtureApplication::new(Duration::ZERO);

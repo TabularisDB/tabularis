@@ -36,7 +36,7 @@ import {EnvironmentSelect} from './NewConnectionModal/EnvironmentSelect';
 import {McpApprovalSelect} from './NewConnectionModal/McpApprovalSelect';
 import type {McpApprovalMode} from '@/types/ai';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
-import {useCanManageCredentialProfiles} from '@/hooks/useCanManageCredentialProfiles';
+import {useLocalAdminAccess} from '@/hooks/useLocalAdminAccess';
 import {choosePlatformSavePath, choosePlatformServerPath} from '@/platform/dialogs';
 import clsx from 'clsx';
 import {SshConnectionsModal} from './SshConnectionsModal';
@@ -336,7 +336,7 @@ export const NewConnectionModal = ({
 }: NewConnectionModalProps) => {
     const client = useTabularisClient();
     const platform = usePlatformCapabilities();
-    const canManageCredentialProfiles = useCanManageCredentialProfiles();
+    const localAdmin = useLocalAdminAccess();
     const open = (options: Parameters<typeof choosePlatformServerPath>[1]) =>
         choosePlatformServerPath(platform, options);
     const save = (options: Parameters<typeof choosePlatformSavePath>[1]) =>
@@ -2164,7 +2164,7 @@ export const NewConnectionModal = ({
             if (!isCurrentInit()) return;
             setSshConnections(nextSshConnections);
 
-            if (canManageCredentialProfiles) {
+            if (localAdmin) {
                 const nextCredentialProfiles = await loadCredentialProfiles(client);
                 if (!isCurrentInit()) return;
                 setCredentialProfiles(nextCredentialProfiles);
@@ -2178,7 +2178,7 @@ export const NewConnectionModal = ({
         };
         void init();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen, initialConnection, canManageCredentialProfiles, client]);
+    }, [isOpen, initialConnection, localAdmin, client]);
 
     const handleDriverChange = (newDriver: string) => {
         const newDriverManifest = drivers.find((d) => d.id === newDriver);
@@ -2610,6 +2610,8 @@ export const NewConnectionModal = ({
                     ? paramsBase
                     : withoutBlankSslMode(withInlineK8sPaths(paramsBase, inlinePaths.options))
             ) as ConnectionParams;
+
+            if (!localAdmin) delete params.mcp_approval_mode;
 
             const saveAsRollbackState: SaveAsCredentialProfileRollbackState = {
                 createdProfileId: undefined,
@@ -3320,7 +3322,7 @@ export const NewConnectionModal = ({
                                 });
                             }}
                             onManageProfiles={() => setIsCredentialProfilesModalOpen(true)}
-                            canManageProfiles={canManageCredentialProfiles}
+                            canManageProfiles={localAdmin}
                             pendingSaveAsProfileName={pendingSaveAsProfileName}
                             onPendingSaveAsProfileNameChange={setPendingSaveAsProfileName}
                         />
@@ -3584,7 +3586,7 @@ export const NewConnectionModal = ({
         </div>
     ) : null;
 
-    const mcpApprovalField = (
+    const mcpApprovalField = localAdmin && (
         <McpApprovalSelect
             value={formData.mcp_approval_mode}
             globalMode={settings.mcpApprovalMode}
@@ -5307,12 +5309,10 @@ export const NewConnectionModal = ({
                                         .filter(
                                             (tab) =>
                                                 !hasPluginSetup ||
-                                                [
-                                                    'general',
-                                                    'advanced',
-                                                    'appearance',
-                                                    'privacy',
-                                                ].includes(tab.id),
+                                                ['general', 'appearance', 'privacy'].includes(
+                                                    tab.id,
+                                                ) ||
+                                                (tab.id === 'advanced' && localAdmin),
                                         )
                                         .map((tab) => (
                                             <button
@@ -5539,7 +5539,7 @@ export const NewConnectionModal = ({
                     await loadSshConnectionsList();
                 }}
             />
-            {canManageCredentialProfiles && (
+            {localAdmin && (
                 <CredentialProfilesModal
                     isOpen={isCredentialProfilesModalOpen}
                     onClose={async () => {

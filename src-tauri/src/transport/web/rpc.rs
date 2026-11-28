@@ -1938,14 +1938,14 @@ impl RpcDispatcher {
                     .map_err(InvocationError::Application)
             }
             RpcCommand::Connection(command) => {
-                let command = decode_connection_command(command, context.session_id, body)
+                let mut command = decode_connection_command(command, context.session_id, body)
                     .map_err(InvocationError::InvalidPayload)?;
                 connection_policy::authorize(&command, granted_authorization)
                     .map_err(InvocationError::Forbidden)?;
                 connection_policy::authorize_saved_credentials(
                     self.application.as_ref(),
                     &context,
-                    &command,
+                    &mut command,
                     granted_authorization,
                 )
                 .await?;

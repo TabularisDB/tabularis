@@ -17,6 +17,11 @@ pub(super) fn authorize(
     if granted.permits(AuthorizationLevel::LocalAdmin) {
         return Ok(());
     }
+    if let ConnectionCommand::SaveConnection { params, .. } = command {
+        if params.mcp_approval_mode.flatten().is_some() {
+            return Err(APPROVAL_REQUIRES_ADMIN);
+        }
+    }
     let params = match command {
         ConnectionCommand::SaveConnection { params, .. }
         | ConnectionCommand::UpdateConnection { params, .. } => params,
@@ -136,16 +141,25 @@ pub(super) async fn authorize_saved_access(
     Ok(())
 }
 
+const APPROVAL_REQUIRES_ADMIN: &str =
+    "Changing MCP query approval requires local administrator authorization";
+
 pub(super) async fn authorize_saved_credentials(
     application: &dyn ApplicationApi,
     context: &ApplicationRequestContext,
-    command: &ConnectionCommand,
+    command: &mut ConnectionCommand,
     granted: AuthorizationLevel,
 ) -> Result<(), InvocationError> {
     if granted.permits(AuthorizationLevel::LocalAdmin) {
         return Ok(());
     }
-    let (id, params) = match command {
+    // Non-admin edits may echo the saved policy, but must never write it back:
+    // a concurrent administrator edit must survive the later locked merge.
+    let requested = match command {
+        ConnectionCommand::UpdateConnection { params, .. } => params.mcp_approval_mode.take(),
+        _ => None,
+    };
+    let (id, params) = match &*command {
         ConnectionCommand::TestConnection { request }
         | ConnectionCommand::ListDatabases { request } => {
             let Some(id) = request.connection_id.as_deref() else {
@@ -161,8 +175,15 @@ pub(super) async fn authorize_saved_credentials(
         .await
         .map_err(InvocationError::Application)?
     else {
-        return Ok(());
+        return if requested.is_some() {
+            Err(InvocationError::Forbidden(APPROVAL_REQUIRES_ADMIN))
+        } else {
+            Ok(())
+        };
     };
+    if requested.is_some_and(|mode| mode != saved.mcp_approval_mode.flatten()) {
+        return Err(InvocationError::Forbidden(APPROVAL_REQUIRES_ADMIN));
+    }
     // Replacing a password can leave older keychain entries behind, so bind the
     // saved identity even when this request supplies a replacement credential.
     if security_target(params) != security_target(&saved) {
@@ -200,6 +221,7 @@ fn security_target(params: &ConnectionParams) -> Value {
         "save_in_keychain",
         "connection_uri_in_keychain",
         "connection_id",
+        "mcp_approval_mode",
         "startup_script",
         "pipes_as_concat",
     ] {

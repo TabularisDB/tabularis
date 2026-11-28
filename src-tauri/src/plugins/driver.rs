@@ -685,7 +685,7 @@ impl RpcDriver {
     fn with_primary_database(&self, params: &ConnectionParams) -> ConnectionParams {
         let mut params = params.clone();
         // Approval is a host policy, not a driver connection setting.
-        params.mcp_approval_mode = None;
+        params.strip_host_policy_for_plugin();
 
         // Schema-less plugins (route_selected_database = true) select the
         // actual connection from `params.database` based on the sidebar's

@@ -18,8 +18,9 @@ vi.mock('@/hooks/usePlatformCapabilities', () => ({
         chooseServerPath: vi.fn(),
     }),
 }));
-vi.mock('@/hooks/useCanManageCredentialProfiles', () => ({
-    useCanManageCredentialProfiles: () => true,
+const localAdmin = vi.hoisted(() => vi.fn(() => true));
+vi.mock('@/hooks/useLocalAdminAccess', () => ({
+    useLocalAdminAccess: localAdmin,
 }));
 import {NewConnectionModal} from '@/components/modals/NewConnectionModal';
 import {PluginSlotContext} from '@/contexts/PluginSlotContext';
@@ -3195,6 +3196,24 @@ describe('NewConnectionModal MCP approval', () => {
         sshMocks.loadSshConnections.mockResolvedValue([]);
         eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
         k8sMocks.loadK8sConnections.mockResolvedValue([]);
+    });
+
+    it('omits host policy from the editor and update for a database-only session', async () => {
+        localAdmin.mockReturnValue(false);
+        try {
+            renderModal(createInitialConnection({host: 'localhost', mcp_approval_mode: 'off'}));
+            fireEvent.click(await screen.findByText('newConnection.advanced'));
+            expect(
+                screen.queryByRole('combobox', {name: 'newConnection.mcpApprovalMode'}),
+            ).toBeNull();
+            fireEvent.click(screen.getByText('newConnection.save'));
+            await waitFor(() =>
+                expect(invoke).toHaveBeenCalledWith('update_connection', expect.anything()),
+            );
+            expect(updateConnectionPayload()).not.toHaveProperty('mcp_approval_mode');
+        } finally {
+            localAdmin.mockReturnValue(true);
+        }
     });
 
     it.each([

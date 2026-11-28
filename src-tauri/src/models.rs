@@ -396,6 +396,14 @@ pub struct ConnectionParams {
 }
 
 impl ConnectionParams {
+    pub(crate) fn strip_host_policy_for_plugin(&mut self) {
+        self.mcp_approval_mode = None;
+    }
+
+    pub(crate) fn normalize_saved_approval(&mut self) {
+        self.mcp_approval_mode = self.mcp_approval_mode.flatten().map(Some);
+    }
+
     /// The configured Unix socket path: trimmed and non-empty. Where it is
     /// dialed from depends on the tunnel state — see `unix_socket_path`.
     pub fn unix_socket_path(&self) -> Option<&str> {

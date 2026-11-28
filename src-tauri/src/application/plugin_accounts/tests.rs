@@ -260,6 +260,41 @@ async fn provider_account_secrets_are_isolated_and_import_is_private() {
 }
 
 #[tokio::test]
+async fn provider_import_inherits_host_approval_after_reload() {
+    use crate::mcp::approval::{query_approval, QueryApproval};
+
+    let (_temp, runtime, state) = fixture(false);
+    for supplied in [json!("off"), Value::Null] {
+        let result = json!({
+            "name": "Project", "secrets": {},
+            "params": {"driver":"provider", "database":"db", "mcp_approval_mode": supplied}
+        });
+        let imported = persist_import(&runtime, &state, "provider", result)
+            .await
+            .unwrap();
+        let path = runtime.paths.connections_file();
+        let raw: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert!(raw["connections"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|c| c["params"].get("mcp_approval_mode").is_none()));
+        let file = crate::persistence::load_connections_file(&path).unwrap();
+        let params = &file
+            .connections
+            .iter()
+            .find(|c| c.id == imported["id"].as_str().unwrap())
+            .unwrap()
+            .params;
+        assert_eq!(params.mcp_approval_mode, None);
+        assert_eq!(
+            query_approval(Some("all"), params.mcp_approval_mode.flatten(), "write"),
+            QueryApproval::Required
+        );
+    }
+}
+
+#[tokio::test]
 async fn provider_import_rolls_back_local_connection_on_service_storage_failure() {
     let (_temp, runtime, state) = fixture(true);
     let plugin = "account-rollback-test";

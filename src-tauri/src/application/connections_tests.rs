@@ -151,6 +151,55 @@ fn mcp_approval_overrides_survive_reload_and_can_be_cleared_independently() {
     );
 }
 
+#[tokio::test]
+async fn backup_approval_round_trip_canonicalizes_inheritance_and_keeps_overrides() {
+    use crate::application::connection_files::{apply_export_payload, export_payload};
+    use serde_json::json;
+
+    for mode in [
+        Value::Null,
+        json!("all"),
+        json!("writes_only"),
+        json!("off"),
+    ] {
+        let (_temp, runtime, state) = fixture();
+        let payload = serde_json::from_value(json!({
+            "version": 1, "groups": [], "ssh_connections": [],
+            "connections": [{"id":"original", "name":"DB", "params":{
+                "driver":"sqlite", "database":"scratch.db", "mcp_approval_mode":mode
+            }}]
+        }))
+        .unwrap();
+        apply_export_payload(
+            &runtime,
+            &state.connection_cache,
+            &state.credential_cache,
+            payload,
+        )
+        .await
+        .unwrap();
+        let assert_modes = |file: Value, count: usize| {
+            let rows = file["connections"].as_array().unwrap();
+            assert_eq!(rows.len(), count);
+            for row in rows {
+                assert_eq!(
+                    row["params"].get("mcp_approval_mode"),
+                    (!mode.is_null()).then_some(&mode)
+                );
+            }
+        };
+        let disk = || {
+            serde_json::from_slice(&std::fs::read(runtime.paths.connections_file()).unwrap())
+                .unwrap()
+        };
+        assert_modes(disk(), 1);
+        duplicate_connection(&runtime, &state, "original").unwrap();
+        assert_modes(disk(), 2);
+        let exported = export_payload(&runtime, false, None).await.unwrap();
+        assert_modes(serde_json::to_value(exported).unwrap(), 2);
+    }
+}
+
 fn connection_params(password: &str) -> ConnectionParams {
     ConnectionParams {
         driver: "postgres".to_string(),

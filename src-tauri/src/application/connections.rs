@@ -1273,7 +1273,7 @@ fn save_connection(
     environment: Option<String>,
 ) -> Result<SavedConnection, String> {
     let id = Uuid::new_v4().to_string();
-    params.mcp_approval_mode = params.mcp_approval_mode.flatten().map(Some);
+    params.normalize_saved_approval();
     let environment = validate_environment(environment)?;
     let connection = modify_connections_file(runtime, state, |file, writes| {
         params.connection_id = None;

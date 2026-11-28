@@ -96,13 +96,14 @@ async fn document_store(id: &str, read_only_queries: bool) -> Plugin {
     Plugin { calls }
 }
 
-/// Registers a SQL plugin that declares none of the read-only capabilities.
-async fn legacy_sql_plugin(id: &str) -> Plugin {
+/// Registers a SQL plugin without a dedicated protected-query RPC.
+async fn sql_plugin(id: &str, readonly: bool) -> Plugin {
     let calls = Calls::default();
     let log = calls.clone();
     let mut manifest = test_manifest();
     manifest.id = id.to_string();
     manifest.capabilities.sql_dialect = Some(SqlDialect::Sqlite);
+    manifest.capabilities.readonly = readonly;
     let driver = test_driver_with_manifest(manifest, move |rpc| {
         let query = rpc.params["query"].as_str().unwrap_or_default().to_string();
         log.lock().unwrap().push((rpc.method.clone(), query));
@@ -211,7 +212,8 @@ async fn read_only_policies_hold_for_plugins_that_classify_their_own_language() 
 
     let guarded = document_store(GUARDED, true).await;
     let classifier_only = document_store(CLASSIFIER_ONLY, false).await;
-    let legacy = legacy_sql_plugin(LEGACY_SQL).await;
+    let legacy = sql_plugin(LEGACY_SQL, false).await;
+    let readonly = sql_plugin("intrinsic-ro", true).await;
 
     mcp_read_only_mode(&guarded).await;
     saved_read_only_connection(&guarded).await;
@@ -219,6 +221,7 @@ async fn read_only_policies_hold_for_plugins_that_classify_their_own_language() 
     approval_gate_without_an_approver(&guarded, &classifier_only).await;
     approval_edits(&guarded).await;
     legacy_sql_plugins(&legacy).await;
+    intrinsically_read_only_connections(&readonly).await;
 }
 
 /// The MCP read-only mode, on a connection that is itself writable.
@@ -442,6 +445,31 @@ async fn approval_edits(plugin: &Plugin) {
     assert_eq!(edited.methods(), ["classify_query", "classify_query"]);
 }
 
+async fn intrinsically_read_only_connections(plugin: &Plugin) {
+    heartbeat::clear().unwrap();
+    let config = app_config(false, "off");
+    for connection in ["intrinsic-all", "intrinsic-writes", "intrinsic-off"] {
+        for query in [
+            "DELETE FROM items",
+            "CREATE TABLE items (id INT)",
+            "SELECT 1; SELECT 2",
+            "",
+        ] {
+            let blocked = run_query(&config, plugin, connection, query).await;
+            assert_eq!(blocked.audit.status, "blocked_readonly");
+            assert!(blocked.audit.approval_id.is_none());
+            assert!(blocked.calls.is_empty());
+        }
+    }
+
+    let approved = approver(Some("DELETE FROM items"));
+    let edited = run_query(&config, plugin, "intrinsic-all", "SELECT 1").await;
+    approved.await.unwrap();
+    assert_eq!(edited.audit.status, "blocked_readonly");
+    assert!(edited.audit.approval_id.is_some());
+    assert!(edited.calls.is_empty());
+}
+
 /// A plugin that declares none of the new capabilities behaves as it did.
 async fn legacy_sql_plugins(plugin: &Plugin) {
     let config = app_config(true, "off");
@@ -457,6 +485,16 @@ async fn legacy_sql_plugins(plugin: &Plugin) {
     let write = run_query(&config, plugin, "legacy-sql", "DELETE FROM items").await;
     assert!(write.error("legacy sql: write").contains("read-only mode"));
     assert!(write.calls.is_empty(), "{:?}", write.calls);
+
+    let writable = run_query(
+        &app_config(false, "off"),
+        plugin,
+        "legacy-sql",
+        "INSERT INTO items VALUES (1)",
+    )
+    .await;
+    assert!(writable.result.is_ok());
+    assert_eq!(writable.methods(), ["execute_query"]);
 }
 
 /// Re-runs this test in a child process whose storage is a fixture holding
@@ -472,6 +510,9 @@ async fn run_in_isolated_storage() {
         ("doc-saved-ro", GUARDED, true, None),
         ("classifier-only", CLASSIFIER_ONLY, false, None),
         ("legacy-sql", LEGACY_SQL, false, None),
+        ("intrinsic-all", "intrinsic-ro", false, Some(All)),
+        ("intrinsic-writes", "intrinsic-ro", false, Some(WritesOnly)),
+        ("intrinsic-off", "intrinsic-ro", false, Some(Off)),
         ("doc-all", GUARDED, false, Some(All)),
         ("doc-writes", GUARDED, false, Some(WritesOnly)),
         ("doc-off", GUARDED, false, Some(Off)),
