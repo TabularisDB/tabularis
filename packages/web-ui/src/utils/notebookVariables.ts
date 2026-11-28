@@ -58,6 +58,18 @@ export function extractCellReferences(sql: string, dialect?: DialectInput): Cell
         for (const preset of ['mysql', 'postgres', 'sqlite', 'mssql', 'oracle'] as const) {
             for (const span of nonCodeSpans(sql, preset)) spans.push(span);
         }
+        // No preset enables triple quotes. Also mask that interpretation for
+        // unknown plugins; the MySQL quote rules cover both string delimiters
+        // and backslash escapes. This pass can only veto a candidate binding.
+        if (sql.includes("'''") || sql.includes('"""')) {
+            const tripleQuoted = collectNonCodeSpans(sql, {
+                ...optionsFor('generic'),
+                quotes: optionsFor('mysql').quotes,
+                hashComments: true,
+                tripleQuotedStrings: true,
+            });
+            for (const span of tripleQuoted) spans.push(span);
+        }
         spans.sort((a, b) => a.start - b.start);
     }
     const refs: CellReferenceToken[] = [];

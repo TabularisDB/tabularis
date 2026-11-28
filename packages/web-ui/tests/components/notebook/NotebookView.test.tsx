@@ -784,6 +784,30 @@ describe('NotebookView', () => {
             },
         );
 
+        it.each(["'''don't bind {{cell_1}}'''", '"""a "quoted {{cell_1}}" value"""'])(
+            'keeps an ambiguous triple-quoted literal out of affected runs without a dialect: %s',
+            async (literal) => {
+                fixtures.database.activeDriver = 'unidentified-driver';
+                fixtures.database.activeCapabilities = {identifier_quote: '`'};
+                const sql = `SELECT ${literal} AS note`;
+                renderNotebook({
+                    cells: [
+                        sqlCell('source', 'SELECT 1'),
+                        sqlCell('literal', sql),
+                        sqlCell('consumer', 'SELECT * FROM {{cell_1}}'),
+                    ],
+                });
+                await click('Run affected source');
+                expect(mockInvoke.mock.calls).toEqual([
+                    requestSql('SELECT 1'),
+                    requestSql(expect.stringMatching(/SELECT \* FROM cell_1$/)),
+                ]);
+                mockInvoke.mockClear();
+                await click('Run literal');
+                expect(mockInvoke.mock.calls).toEqual([requestSql(sql)]);
+            },
+        );
+
         it('uses a declared dialect instead of the legacy fallback to parse real edges', async () => {
             fixtures.database.activeDriver = 'mariadb';
             fixtures.database.activeCapabilities = {sql_dialect: 'postgres', identifier_quote: '"'};
