@@ -3265,6 +3265,101 @@ async fn connection_approval_copy_is_authorized_against_the_persisted_source() {
 }
 
 #[tokio::test]
+async fn native_import_applies_approval_overrides_only_for_local_admin() {
+    use crate::application::connection_files::CONNECTION_IMPORT_PURPOSE;
+    use crate::application::file_transfers::FileTransferStore;
+    use serde_json::json;
+
+    for role in [
+        AuthorizationLevel::Sensitive,
+        AuthorizationLevel::LocalAdmin,
+    ] {
+        for incoming in [Some("off"), None] {
+            let temp = tempfile::tempdir().unwrap();
+            let path = crate::paths::resolve_connections_path(temp.path());
+            let dispatcher = RpcDispatcher::new(super::super::tests::test_application(temp.path()));
+            let session = Uuid::new_v4();
+            let mut row = json!({"id": "local", "name": "Original", "params": {
+                "driver": "postgres", "host": "db.example", "database": "app", "mcp_approval_mode": "all"
+            }});
+            crate::persistence::save_connections(
+                &path,
+                &[serde_json::from_value(row.clone()).unwrap()],
+            )
+            .unwrap();
+            row["id"] = json!("backup");
+            row["name"] = json!("Imported");
+            if let Some(mode) = incoming {
+                row["params"]["mcp_approval_mode"] = json!(mode);
+            } else {
+                row["params"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("mcp_approval_mode");
+            }
+            let mut new_row = row.clone();
+            new_row["id"] = json!("second");
+            new_row["params"]["host"] = json!("new.example");
+            let backup = json!({"version": 1, "groups": [], "ssh_connections": [], "connections": [row, new_row]});
+            let upload = FileTransferStore::new(temp.path())
+                .store_upload(
+                    session,
+                    CONNECTION_IMPORT_PURPOSE,
+                    "backup.json",
+                    Some("application/json"),
+                    futures::stream::iter([Ok::<_, std::io::Error>(Bytes::from(
+                        backup.to_string(),
+                    ))]),
+                )
+                .await
+                .unwrap();
+            for (command, body) in [
+                (
+                    "preview_tabularis_import_file",
+                    json!({"file": {"kind": "upload", "token": upload.token}}),
+                ),
+                (
+                    "apply_prepared_tabularis_import",
+                    json!({"resolutions": [
+                        {"index": 1, "action": "import"},
+                        {"index": 0, "action": "replace", "replaceExistingId": "local"}
+                    ]}),
+                ),
+            ] {
+                let response = dispatch_json(&dispatcher, command, body, Some(session), role).await;
+                let status = response.status();
+                assert_eq!(
+                    status,
+                    StatusCode::OK,
+                    "{command}: {}",
+                    response_json(response).await
+                );
+            }
+            let file: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+            let rows = file["connections"].as_array().unwrap();
+            assert_eq!(rows.len(), 2);
+            assert!(rows.iter().any(|row| row["id"] == "local"));
+            for row in rows {
+                assert_eq!(row["name"], "Imported");
+                let expected = if role == AuthorizationLevel::LocalAdmin {
+                    incoming
+                } else if row["id"] == "local" {
+                    Some("all")
+                } else {
+                    None
+                };
+                assert_eq!(
+                    row["params"].get("mcp_approval_mode"),
+                    expected.map(|m| json!(m)).as_ref(),
+                    "{role:?} / {incoming:?} / {}",
+                    row["id"]
+                );
+            }
+        }
+    }
+}
+
+#[tokio::test]
 async fn connection_policy_binds_stored_credentials_to_the_full_security_target() {
     let params = serde_json::json!({"driver":"postgres", "host":"trusted", "port":5432, "username":"owner", "database":"db", "ssl_mode":"verify-full"});
     let mut application = FixtureApplication::new(Duration::ZERO);

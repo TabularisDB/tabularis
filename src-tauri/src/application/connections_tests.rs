@@ -175,6 +175,7 @@ async fn backup_approval_round_trip_canonicalizes_inheritance_and_keeps_override
             &state.connection_cache,
             &state.credential_cache,
             payload,
+            true,
         )
         .await
         .unwrap();
@@ -2671,6 +2672,7 @@ fn credential_profile_create_interleaved_with_import_keeps_both_profiles() {
                         &state.connection_cache,
                         &state.credential_cache,
                         imported_profile_payload(),
+                        true,
                     ))
             });
         })
@@ -2856,6 +2858,7 @@ fn spawn_import(
                 &state.connection_cache,
                 &state.credential_cache,
                 payload,
+                true,
             ));
         done_tx.send(result).unwrap();
     });
@@ -3044,6 +3047,7 @@ fn update_file_write_failure_rolls_back_under_lock_and_import_keeps_password() {
                             &state.connection_cache,
                             &state.credential_cache,
                             profile_reimport_payload(&profile_id, "imported-secret"),
+                            true,
                         ))?)
                 })();
                 let _ = finished_tx.send(());

@@ -1974,7 +1974,7 @@ impl RpcDispatcher {
                     })
             }
             RpcCommand::ConnectionFiles(command) => {
-                let command = decode_connection_files_command(command, body)
+                let command = decode_connection_files_command(command, granted_authorization, body)
                     .map_err(InvocationError::InvalidPayload)?;
                 self.application
                     .execute_connection_files_command(context, command)
@@ -3116,6 +3116,7 @@ fn decode_generic_export_command(
 
 fn decode_connection_files_command(
     command: ConnectionFilesRpcCommand,
+    authorization: AuthorizationLevel,
     body: &[u8],
 ) -> Result<ConnectionFilesCommand, String> {
     Ok(match command {
@@ -3157,6 +3158,7 @@ fn decode_connection_files_command(
             let request: ApplyPreparedImportRequest = decode_payload(body)?;
             ConnectionFilesCommand::ApplyPreparedTabularisImport {
                 resolutions: request.resolutions,
+                allow_approval_overrides: authorization.permits(AuthorizationLevel::LocalAdmin),
             }
         }
         ConnectionFilesRpcCommand::GetDatabaseBackupStatus => {

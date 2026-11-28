@@ -229,7 +229,7 @@ async fn rpc_data(
     response.json::<serde_json::Value>().await.unwrap()["data"].clone()
 }
 
-fn test_application(root: &Path) -> Arc<dyn ApplicationApi> {
+pub(super) fn test_application(root: &Path) -> Arc<dyn ApplicationApi> {
     test_application_with_state(root, Arc::new(ApplicationState::default()))
 }
 
