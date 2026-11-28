@@ -167,7 +167,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const notebook = useSyncExternalStore(subscribe, readNotebook);
     const readNotebookCells = useCallback(() => readNotebook()?.cells ?? [], [readNotebook]);
 
-    const [isRunning, setIsRunning] = useState(false);
+    const [runningNotebookId, setRunningNotebookId] = useState<string | null>(null);
+    const isRunning = runningNotebookId === notebookId;
     const [runAllResult, setRunAllResult] = useState<RunAllResult | null>(null);
     const [isClearOutputsConfirmOpen, setIsClearOutputsConfirmOpen] = useState(false);
     const [viewMode, setViewMode] = useState<NotebookViewMode>('edit');
@@ -182,8 +183,14 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const autoScrollSpeedRef = useRef(0);
     const autoScrollRafRef = useRef<number | null>(null);
-    const activeRunRef = useRef<AbortController | null>(null);
-    useEffect(() => () => activeRunRef.current?.abort(), [notebookId]);
+    const activeRunRef = useRef<{notebookId: string; controller: AbortController} | null>(null);
+    useEffect(
+        () => () => {
+            const run = activeRunRef.current;
+            if (run && run.notebookId === notebookId) run.controller.abort();
+        },
+        [notebookId],
+    );
 
     // Undo/redo history (autosave means edits are otherwise irreversible).
     const [history, setHistory] = useState<NotebookHistory>(createHistory);
@@ -396,14 +403,15 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const runPlan = useCallback(
         async (request: NotebookRunRequest) => {
             if (!notebookId) return;
-            const release = activeRunRef.current ? undefined : acquireNotebookRun(notebookId);
+            const release = acquireNotebookRun(notebookId);
             if (!release) {
                 showAlert(t('editor.notebook.execution.busy'), {kind: 'info'});
                 return;
             }
 
             const controller = new AbortController();
-            activeRunRef.current = controller;
+            activeRunRef.current?.controller.abort();
+            activeRunRef.current = {notebookId, controller};
             const {signal} = controller;
             try {
                 // Editors debounce document writes. Capture what the user sees,
@@ -489,7 +497,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 const {plan} = planned;
                 if (!plan.steps.length && !plan.skipped) return;
 
-                setIsRunning(true);
+                setRunningNotebookId(notebookId);
                 setRunAllResult(null);
                 updateTab(tab.id, {isLoading: true});
                 const readCells = () => {
@@ -662,16 +670,17 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                                     [id]: paramSignature,
                                 }));
                             }
-                            // A transport failure or a result that cannot be attached to the
-                            // captured revision can leave a write applied. Only an explicit
-                            // Run Cell may retry it, never an automatic dependency refresh.
-                            if (writeFingerprint && committed && outcome.kind === 'success') {
-                                setUnconfirmedNotebookWrite(
-                                    notebookId,
-                                    id,
-                                    writeFingerprint,
-                                    false,
-                                );
+                            if (outcome.kind === 'success') {
+                                // An unapplied result cannot feed this run's consumers.
+                                // Leave its write fingerprint intact for any future retry.
+                                if (!committed) return {kind: 'changed', sent: true};
+                                if (writeFingerprint)
+                                    setUnconfirmedNotebookWrite(
+                                        notebookId,
+                                        id,
+                                        writeFingerprint,
+                                        false,
+                                    );
                             }
                             return outcome;
                         } catch (error) {
@@ -690,9 +699,11 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 if (!signal.aborted) setRunAllResult(result);
             } finally {
                 release();
-                activeRunRef.current = null;
-                setIsRunning(false);
-                updateTab(tab.id, {isLoading: false});
+                if (activeRunRef.current?.controller === controller) {
+                    activeRunRef.current = null;
+                    setRunningNotebookId(null);
+                    updateTab(tab.id, {isLoading: false});
+                }
             }
         },
         [
@@ -820,8 +831,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             );
 
             // Cancel unsent work and confirmations before replacing the document.
-            activeRunRef.current?.abort();
-            updateTab(tab.id, {notebookId: newId, title});
+            activeRunRef.current?.controller.abort();
+            updateTab(tab.id, {notebookId: newId, title, isLoading: false});
             resetHistory();
             setParamDrafts({});
             setRunAllResult(null);

@@ -1,8 +1,8 @@
 import {useContext, type ComponentProps} from 'react';
 import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
-import {save} from '@tauri-apps/plugin-dialog';
-import {writeFile} from '@tauri-apps/plugin-fs';
+import {open, save} from '@tauri-apps/plugin-dialog';
+import {readFile, writeFile} from '@tauri-apps/plugin-fs';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {NotebookView} from '@/components/notebook/NotebookView';
 import type {NotebookCellWrapper} from '@/components/notebook/NotebookCellWrapper';
@@ -87,7 +87,6 @@ vi.mock('@/utils/notebookStore', async (importOriginal) => {
         setNotebookState: vi.fn(actual.setNotebookState),
         loadNotebook: vi.fn(),
         setNotebookTitle: vi.fn(),
-        createNotebookFromState: vi.fn(),
     };
 });
 // Observe preparation without replacing the real parameter/reference algorithms.
@@ -143,8 +142,10 @@ vi.mock('@/components/notebook/NotebookToolbar', () => ({
         viewMode,
         onViewModeChange,
         onExportMarkdown,
+        onImport,
     }: ComponentProps<typeof NotebookToolbar>) => (
         <>
+            <button onClick={onImport}>Import</button>
             <button onClick={onExportMarkdown}>Export Markdown</button>
             <button onClick={onRunAll} disabled={isRunning}>
                 Run All
@@ -278,7 +279,10 @@ function renderNotebook(state?: NotebookState, tabOverrides: Partial<Tab> = {}) 
     return render(notebookView(tabOverrides));
 }
 
-function notebookView(tabOverrides: Partial<Tab> = {}) {
+function notebookView(
+    tabOverrides: Partial<Tab> = {},
+    updateTab: (id: string, partial: Partial<Tab>) => void = vi.fn(),
+) {
     const tab: Tab = {
         id: 'tab-1',
         title: 'Notebook',
@@ -298,7 +302,7 @@ function notebookView(tabOverrides: Partial<Tab> = {}) {
     return (
         <NotebookView
             tab={tab}
-            updateTab={vi.fn()}
+            updateTab={updateTab}
             connectionId={tab.connectionId ?? connectionId}
             isActive
         />
@@ -1159,11 +1163,22 @@ describe('NotebookView', () => {
             renderNotebook({
                 cells: [sqlCell('write', insert), sqlCell('use', 'SELECT * FROM {{cell_1}}')],
             });
-            await click('Run write');
+            await click('Run affected write');
             fireEvent.change(screen.getByRole('textbox', {name: 'SQL write'}), {
                 target: {value: 'INSERT INTO audit(id) VALUES (8) RETURNING id'},
             });
             await act(async () => rpc.resolve(queryResult));
+            expect(savedCell('write')).toMatchObject({isLoading: false, result: null});
+            expect(summary()).toMatchObject({
+                executed: 1,
+                succeeded: 0,
+                skipped: 1,
+                blocked: 1,
+                changedCells: [{cellId: 'write'}],
+                blockedCells: [{cellId: 'use', prerequisite: {cellId: 'write'}}],
+            });
+            expect(mockInvoke.mock.calls).toEqual([requestSql(insert)]);
+
             await click('Undo');
             await click('Run use');
             expect(mockInvoke.mock.calls).toEqual([requestSql(insert)]);
@@ -1334,6 +1349,43 @@ describe('NotebookView', () => {
                 expect(summary()).toMatchObject({executed: 2, succeeded: 2, failed: 0});
             },
         );
+
+        it('protects a lost write restored by Undo without blocking other cells while deleted', async () => {
+            const insert = 'INSERT INTO audit VALUES (7) RETURNING id';
+            const other = 'SELECT id FROM source_table';
+            renderNotebook({
+                cells: [
+                    sqlCell('write', insert),
+                    sqlCell('other', other),
+                    sqlCell('use', 'SELECT * FROM {{cell_1}}', {isDisabled: true}),
+                ],
+            });
+            mockInvoke.mockRejectedValueOnce(new Error('reply lost'));
+            await click('Run write');
+            await click('Delete write');
+            await click('Run All');
+            expect(mockInvoke.mock.calls).toEqual([requestSql(insert), requestSql(other)]);
+            expect(summary()).toMatchObject({succeeded: 1, failed: 0});
+
+            await click('Undo');
+            expect(savedCell('write').content).toBe(insert);
+            await click('Toggle disabled use');
+            await click('Run All');
+            expect(mockInvoke.mock.calls).toEqual([
+                requestSql(insert),
+                requestSql(other),
+                requestSql(other),
+            ]);
+            expect(summary()).toMatchObject({
+                executed: 1,
+                blocked: 1,
+                errors: [{cellId: 'write', error: 'editor.notebook.execution.unconfirmedWrite'}],
+            });
+
+            await click('Run use');
+            expect(mockInvoke).toHaveBeenCalledTimes(3);
+            expect(summary()).toMatchObject({executed: 0, blocked: 1});
+        });
 
         it.each(['connection', 'schema'] as const)(
             'keeps a lost write protected after the same SQL succeeds on a different %s',
@@ -1572,6 +1624,73 @@ describe('NotebookView', () => {
                 history: [{query: 'SELECT 7'}],
             });
             expect(mockInvoke.mock.calls).toEqual([requestSql('SELECT 7')]);
+        });
+
+        it('runs an imported notebook while the old RPC is still in flight', async () => {
+            const oldQuery = 'SELECT id FROM old_table';
+            const newQuery = 'SELECT id FROM new_table';
+            const oldRpc = Promise.withResolvers<QueryResult>();
+            const newRpc = Promise.withResolvers<QueryResult>();
+            mockInvoke.mockImplementation(async (command, args) => {
+                if (command === 'execute_query') {
+                    return args?.query === oldQuery ? oldRpc.promise : newRpc.promise;
+                }
+            });
+            vi.mocked(open).mockResolvedValueOnce('/tmp/imported.tabularis-notebook');
+            vi.mocked(readFile).mockResolvedValueOnce(
+                new TextEncoder().encode(
+                    JSON.stringify({
+                        version: 2,
+                        title: 'Imported',
+                        cells: [sqlCell('new', newQuery)],
+                    }),
+                ),
+            );
+            setNotebookState(notebookId, {cells: [sqlCell('old', oldQuery)]});
+            const updateTab = vi.fn<(id: string, partial: Partial<Tab>) => void>();
+            const view = render(notebookView({}, updateTab));
+
+            try {
+                await click('Run old');
+                await click('Import');
+                const imported = updateTab.mock.calls.find(([, patch]) => patch.notebookId)?.[1];
+                const importedId = imported?.notebookId;
+                expect(importedId).toBeDefined();
+                view.rerender(notebookView(imported, updateTab));
+                const newCell = getNotebookState(importedId!)!.cells[0];
+                const rpcCalls = () =>
+                    mockInvoke.mock.calls.filter(([command]) => command === 'execute_query');
+
+                const runAll = screen.getByRole('button', {name: 'Run All'});
+                expect(runAll).toBeEnabled();
+                await click(`Run ${newCell.id}`);
+                expect(rpcCalls()).toEqual([requestSql(oldQuery), requestSql(newQuery)]);
+                expect(fixtures.showAlert).not.toHaveBeenCalledWith(
+                    'editor.notebook.execution.busy',
+                    {
+                        kind: 'info',
+                    },
+                );
+                expect(runAll).toBeDisabled();
+                expect(updateTab).toHaveBeenLastCalledWith('tab-1', {isLoading: true});
+
+                await act(async () => oldRpc.resolve(queryResult));
+                expect(savedCell('old').result).toEqual(queryResult);
+                expect(runAll).toBeDisabled();
+                expect(updateTab).toHaveBeenLastCalledWith('tab-1', {isLoading: true});
+                expect(screen.queryByTestId('run-all-summary')).not.toBeInTheDocument();
+
+                await act(async () => newRpc.resolve(queryResult));
+                expect(runAll).toBeEnabled();
+                expect(updateTab).toHaveBeenLastCalledWith('tab-1', {isLoading: false});
+                expect(summary()).toMatchObject({executed: 1, succeeded: 1});
+                expect(rpcCalls()).toEqual([requestSql(oldQuery), requestSql(newQuery)]);
+            } finally {
+                await act(async () => {
+                    oldRpc.resolve(queryResult);
+                    newRpc.resolve(queryResult);
+                });
+            }
         });
 
         it('releases a closed tab waiting for a confirmation without executing its SQL', async () => {

@@ -20,10 +20,11 @@ function notifyNotebooksChanged(): void {
 
 // Module-level session cache
 const cache = new Map<string, NotebookState>();
+const pendingLoads = new Map<string, Promise<NotebookState>>();
 const evicting = new Set<string>();
 const stateListeners = new Map<string, Set<() => void>>();
-// Notebook ID → owning cell ID → fingerprints of its potentially applied writes.
-const unconfirmedWrites = new Map<string, Map<string, Set<string>>>();
+type UnconfirmedWrite = {fingerprints: Set<string>; explicitlyRemoved: boolean};
+const unconfirmedWrites = new Map<string, Map<string, UnconfirmedWrite>>();
 const titleCache = new Map<string, string>();
 // Notebooks are persisted per connection (`notebooks/<connectionId>/<id>`), so
 // every save/load/delete needs the owning connection id. It is captured when a
@@ -113,18 +114,27 @@ function withoutLoadingCells(state: NotebookState): NotebookState {
     return {...state, cells: state.cells.map((cell) => ({...cell, isLoading: false}))};
 }
 
+function reconcileWriteOwners(
+    notebookId: string,
+    cells: NotebookCell[],
+    previousCells?: NotebookCell[],
+): void {
+    const writes = unconfirmedWrites.get(notebookId);
+    if (!writes?.size) return;
+    const present = new Set(cells.map(({id}) => id));
+    const previous = previousCells && new Set(previousCells.map(({id}) => id));
+    for (const [id, write] of writes) {
+        // Undo (or reloading with the same ID) restores the owner. Only an
+        // explicit edit can mark it removed; a missing disk ID is an orphan.
+        if (present.has(id)) write.explicitlyRemoved = false;
+        else if (previous?.has(id)) write.explicitlyRemoved = true;
+    }
+}
+
 /** Commit an explicit document edit and schedule debounced save. */
 export function setNotebookState(notebookId: string, state: NotebookState): void {
     const previous = cache.get(notebookId);
-    const writes = unconfirmedWrites.get(notebookId);
-    if (previous && writes?.size) {
-        const remaining = new Set(state.cells.map((cell) => cell.id));
-        for (const {id} of previous.cells) {
-            if (!remaining.has(id)) writes.delete(id);
-        }
-        if (!writes.size) unconfirmedWrites.delete(notebookId);
-    }
-    // Disk load bypasses this edit path: missing IDs after a reload are still protected.
+    reconcileWriteOwners(notebookId, state.cells, previous?.cells);
     publishNotebookState(notebookId, previous ? state : withoutLoadingCells(state));
     scheduleSave(notebookId);
 }
@@ -159,11 +169,13 @@ export function hasUnconfirmedNotebookWrite(
 ): boolean {
     const writes = unconfirmedWrites.get(notebookId);
     if (!writes) return false;
-    if (writes.has(cellId)) return true;
-    // If a write no longer has an owner (e.g. the file lost its local IDs),
-    // do not guess which cell may replay it. An explicit run can refresh an
-    // individual result, but cannot clear an unrelated orphan.
-    return [...writes.keys()].some((id) => !cells.some((cell) => cell.id === id));
+    // A lost ID can belong to any cell after a reload. An intentional deletion
+    // only hides the record while its owner is absent, so Undo can restore it.
+    for (const [id, write] of writes) {
+        if (id === cellId || (!write.explicitlyRemoved && !cells.some((cell) => cell.id === id)))
+            return true;
+    }
+    return false;
 }
 
 export function setUnconfirmedNotebookWrite(
@@ -173,16 +185,19 @@ export function setUnconfirmedNotebookWrite(
     unconfirmed: boolean,
 ): void {
     if (unconfirmed) {
-        const writes = unconfirmedWrites.get(notebookId) ?? new Map<string, Set<string>>();
-        const cellWrites = writes.get(cellId) ?? new Set<string>();
-        cellWrites.add(fingerprint);
+        const writes = unconfirmedWrites.get(notebookId) ?? new Map<string, UnconfirmedWrite>();
+        const cellWrites = writes.get(cellId) ?? {
+            fingerprints: new Set<string>(),
+            explicitlyRemoved: false,
+        };
+        cellWrites.fingerprints.add(fingerprint);
         writes.set(cellId, cellWrites);
         unconfirmedWrites.set(notebookId, writes);
     } else {
         const writes = unconfirmedWrites.get(notebookId);
         const cellWrites = writes?.get(cellId);
-        cellWrites?.delete(fingerprint);
-        if (!cellWrites?.size) writes?.delete(cellId);
+        cellWrites?.fingerprints.delete(fingerprint);
+        if (!cellWrites?.fingerprints.size) writes?.delete(cellId);
         if (!writes?.size) unconfirmedWrites.delete(notebookId);
     }
 }
@@ -225,25 +240,30 @@ export async function loadNotebook(
     const cached = cache.get(notebookId);
     if (cached) return cached;
 
-    const content = await client.call('load_notebook', {
-        connectionId,
-        notebookId,
-    });
-    if (!content) {
-        // File not found — create default state
-        const state = createDefaultNotebookState();
-        titleCache.set(notebookId, 'Notebook');
-        publishNotebookState(notebookId, state);
-        return state;
-    }
+    const load: Promise<NotebookState> = client
+        .call('load_notebook', {connectionId, notebookId})
+        .then((content) => {
+            const current = cache.get(notebookId);
+            if (current) return current;
+            const latest = pendingLoads.get(notebookId);
+            if (latest && latest !== load) return latest;
 
-    const {title, cells, params, stopOnError} = deserializeNotebook(content, {
-        preserveCellIds: true,
-    });
-    const state: NotebookState = {cells, params, stopOnError};
-    titleCache.set(notebookId, title);
-    publishNotebookState(notebookId, state);
-    return state;
+            const {title, ...state} = content
+                ? deserializeNotebook(content, {preserveCellIds: true})
+                : {title: 'Notebook', ...createDefaultNotebookState()};
+            // A closed tab can still finish its read, but it must not repopulate the cache.
+            if (latest === load) {
+                reconcileWriteOwners(notebookId, state.cells);
+                titleCache.set(notebookId, title);
+                publishNotebookState(notebookId, state);
+            }
+            return state;
+        })
+        .finally(() => {
+            if (pendingLoads.get(notebookId) === load) pendingLoads.delete(notebookId);
+        });
+    pendingLoads.set(notebookId, load);
+    return load;
 }
 
 /** Create a new notebook with default state, save to disk. */
@@ -299,6 +319,7 @@ export async function deleteNotebook(
         clearTimeout(timer);
         saveTimers.delete(notebookId);
     }
+    pendingLoads.delete(notebookId);
     cache.delete(notebookId);
     titleCache.delete(notebookId);
     connectionIdCache.delete(notebookId);
@@ -339,6 +360,7 @@ export async function renameNotebook(
 
 /** Flush pending save and remove from cache (on tab close). */
 export async function evictFromCache(notebookId: string): Promise<void> {
+    pendingLoads.delete(notebookId);
     evicting.add(notebookId);
     try {
         await flushSave(notebookId);
@@ -363,6 +385,7 @@ export function _resetForTesting(): void {
     saveTimers.clear();
     evicting.clear();
     stateListeners.clear();
+    pendingLoads.clear();
     unconfirmedWrites.clear();
     cache.clear();
     titleCache.clear();

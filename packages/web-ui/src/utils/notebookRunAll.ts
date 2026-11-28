@@ -76,7 +76,7 @@ export function createRunAllResult(
 export type CellRunOutcome =
     | {kind: 'success'; result: QueryResult}
     | {kind: 'failed'; error: string; sent: boolean}
-    | {kind: 'changed'}
+    | {kind: 'changed'; sent?: boolean}
     | {kind: 'blocked'; prerequisite: number};
 
 /** Check executable fields and the full positional binding chain. */
@@ -209,6 +209,7 @@ export async function executeNotebookPlan(
                     });
                     break;
                 case 'changed':
+                    if (outcome.sent) summary.executed++;
                     summary.changedCells.push(location(node.index));
                     summary.skipped++;
                     break;

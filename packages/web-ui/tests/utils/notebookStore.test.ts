@@ -149,6 +149,47 @@ describe('notebookStore', () => {
             expect(call).not.toHaveBeenCalledWith('load_notebook', expect.anything());
         });
 
+        it.each(['old file', 'missing file'] as const)(
+            'does not replace a newer load and edit with a late %s response',
+            async (lateResponse) => {
+                const notebookId = 'racing-loads';
+                const file = (title: string, content: string) =>
+                    JSON.stringify({version: 2, title, cells: [{type: 'sql', content}]});
+                const slow = Promise.withResolvers<string | null>();
+                const fast = Promise.withResolvers<string>();
+                call.mockReturnValueOnce(slow.promise).mockReturnValueOnce(fast.promise);
+                const oldLoad = loadNotebook(notebookId, CONN, client);
+                await evictFromCache(notebookId);
+                const reopened = loadNotebook(notebookId, CONN, client);
+                expect(call).toHaveBeenCalledTimes(2);
+                fast.resolve(file('Newer file', 'SELECT 2'));
+                expect((await reopened).cells[0].content).toBe('SELECT 2');
+
+                const edited = makeState('SELECT 3');
+                setNotebookState(notebookId, edited);
+                slow.resolve(lateResponse === 'old file' ? file('Old file', 'SELECT 1') : null);
+                expect(await oldLoad).toBe(edited);
+                expect(getNotebookState(notebookId)).toBe(edited);
+                expect(getNotebookTitle(notebookId)).toBe('Newer file');
+            },
+        );
+
+        it('keeps an older response out of the cache while the newer load is pending', async () => {
+            const notebookId = 'superseded-load';
+            const older = Promise.withResolvers<string | null>();
+            const newer = Promise.withResolvers<string>();
+            call.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise);
+            const oldLoad = loadNotebook(notebookId, CONN, client);
+            const newLoad = loadNotebook(notebookId, CONN, client);
+            older.resolve(null);
+            await Promise.resolve();
+            expect(getNotebookState(notebookId)).toBeUndefined();
+
+            newer.resolve(JSON.stringify({version: 2, title: 'Current', cells: makeState().cells}));
+            expect(await oldLoad).toBe(await newLoad);
+            expect(getNotebookTitle(notebookId)).toBe('Current');
+        });
+
         it('creates default state when file not found', async () => {
             call.mockResolvedValueOnce(null);
 
